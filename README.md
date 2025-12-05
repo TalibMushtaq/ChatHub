@@ -1,135 +1,318 @@
-# Turborepo starter
+# 💬 ChatHub
 
-This Turborepo starter is maintained by the Turborepo core team.
+A modern real-time chat application built with Next.js, Socket.io, and Prisma. ChatHub provides a seamless messaging experience with a clean, responsive interface and robust backend architecture.
 
-## Using this example
+## ✨ Features
 
-Run the following command:
+- 🔒 User authentication and authorization
+- 💬 Real-time messaging with Socket.io
+- 📱 Responsive web interface
+- 🗄️ PostgreSQL database with Prisma ORM
+- 🎨 Modern UI components with Tailwind CSS
+- 📦 Monorepo architecture with Turborepo
+- 🔧 Type-safe development with TypeScript
 
-```sh
-npx create-turbo@latest
+## 🏗️ Architecture
+
+This project uses a monorepo structure powered by Turborepo and PNPM workspaces:
+
+### Applications
+
+- **`apps/web`** - Next.js frontend application (Port 3000)
+- **`apps/ws-server`** - WebSocket server for real-time communication
+- **`apps/http-server`** - Express.js HTTP API server
+
+### Packages
+
+- **`packages/database`** - Prisma database client and schema
+- **`packages/ui`** - Shared React UI components
+- **`packages/cache`** - Caching utilities
+- **`packages/eslint-config`** - Shared ESLint configurations
+- **`packages/typescript-config`** - Shared TypeScript configurations
+- **`packages/tailwind-config`** - Shared Tailwind CSS configuration
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- PNPM 9.0.0+
+- PostgreSQL database
+
+### Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone <repository-url>
+   cd ChatHub
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   pnpm install
+   ```
+
+3. **Set up environment variables**
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database URL and other configurations
+   ```
+
+4. **Set up the database**
+
+   ```bash
+   pnpm db:migrate
+   pnpm db:generate
+   ```
+
+5. **Start development servers**
+   ```bash
+   pnpm dev
+   ```
+
+This will start all applications in development mode:
+
+- Web app: http://localhost:3000
+- WebSocket server: Configured port
+- HTTP server: Configured port
+
+## 📋 Available Scripts
+
+- `pnpm dev` - Start all applications in development mode
+- `pnpm build` - Build all applications for production
+- `pnpm lint` - Run ESLint across all packages
+- `pnpm format` - Format code with Prettier
+- `pnpm check-types` - Type check all packages
+- `pnpm db:migrate` - Run database migrations
+- `pnpm db:generate` - Generate Prisma client
+
+## 🗄️ Database Schema
+
+The application uses PostgreSQL with Prisma ORM. Key models include:
+
+- **User**: User accounts with authentication
+  - `id`, `email`, `username`, `passwordHash`
+  - `avatar`, `createdAt`, `updatedAt`
+
+## 🛠️ Tech Stack
+
+### Frontend
+
+- **Next.js 16** - React framework with App Router
+- **React 19** - UI library
+- **Tailwind CSS 4** - Utility-first CSS framework
+- **TypeScript** - Type safety
+
+### Backend
+
+- **Express.js** - HTTP server framework
+- **Socket.io** - Real-time communication
+- **Prisma** - Database ORM
+- **PostgreSQL** - Database
+
+### Development Tools
+
+- **Turborepo** - Monorepo build system
+- **PNPM** - Fast, efficient package manager
+- **ESLint** - Code linting
+- **Prettier** - Code formatting
+- **TypeScript** - Static type checking
+
+## 📁 Project Structure
+
+```
+ChatHub/
+├── apps/
+│   ├── web/                 # Next.js frontend
+│   ├── ws-server/           # Socket.io WebSocket server
+│   └── http-server/         # Express.js HTTP API
+├── packages/
+│   ├── database/            # Prisma schema and client
+│   ├── ui/                  # Shared React components
+│   ├── cache/               # Caching utilities
+│   ├── eslint-config/       # ESLint configurations
+│   ├── typescript-config/   # TypeScript configurations
+│   └── tailwind-config/     # Tailwind CSS configuration
+├── package.json             # Root package.json
+├── turbo.json              # Turborepo configuration
+└── pnpm-workspace.yaml     # PNPM workspace configuration
 ```
 
-## What's inside?
+## 🔧 Development
 
-This Turborepo includes the following packages/apps:
+### Working with Individual Apps
 
-### Apps and Packages
+You can develop specific applications using Turborepo filters:
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+```bash
+# Develop only the web app
+pnpm turbo dev --filter=web
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+# Build only the HTTP server
+pnpm turbo build --filter=http-server
 
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+# Lint only the UI package
+pnpm turbo lint --filter=@repo/ui
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### Database Operations
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+```bash
+# Generate Prisma client after schema changes
+pnpm turbo db:generate
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+# Create and apply new migration
+pnpm turbo db:migrate
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+# Reset database (development only)
+pnpm turbo db:reset
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### Code Quality
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+The project enforces code quality through:
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
+- **ESLint** for consistent code style
+- **TypeScript** for type safety
+- **Prettier** for code formatting
 
-### Remote Caching
+Run quality checks:
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+```bash
+# Check types across all packages
+pnpm check-types
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+# Lint all code
+pnpm lint
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+# Format all code
+pnpm format
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+## 🌍 Environment Variables
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+Create a `.env` file in the root directory:
 
+```env
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/chathub"
+
+# Next.js
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key"
+
+# WebSocket Server
+WS_PORT=3001
+
+# HTTP Server
+HTTP_PORT=3002
 ```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+## 🚢 Deployment
+
+### Building for Production
+
+```bash
+# Build all applications
+pnpm build
+
+# Build specific application
+pnpm turbo build --filter=web
 ```
 
-## Useful Links
+### Docker Support
 
-Learn more about the power of Turborepo:
+_(Add Docker configuration if needed)_
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+```bash
+# Build Docker image
+docker build -t chathub .
+
+# Run container
+docker run -p 3000:3000 chathub
+```
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pnpm test
+
+# Run tests for specific package
+pnpm turbo test --filter=@repo/ui
+
+# Run tests in watch mode
+pnpm test:watch
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Contribution Guidelines
+
+- Follow the existing code style
+- Write tests for new features
+- Update documentation as needed
+- Ensure all CI checks pass
+
+## 📝 API Documentation
+
+### REST API Endpoints
+
+_(Add API documentation once implemented)_
+
+- `GET /api/users` - Get user list
+- `POST /api/auth/login` - User authentication
+- `POST /api/messages` - Send message
+
+### WebSocket Events
+
+_(Add WebSocket event documentation once implemented)_
+
+- `connection` - User connects
+- `message` - Send/receive messages
+- `disconnect` - User disconnects
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Error**
+   - Verify PostgreSQL is running
+   - Check DATABASE_URL in .env file
+   - Run migrations: `pnpm db:migrate`
+
+2. **Port Already in Use**
+   - Check for running processes on ports 3000, 3001, 3002
+   - Kill processes or change ports in configuration
+
+3. **TypeScript Errors**
+   - Run `pnpm check-types` to see detailed errors
+   - Ensure all packages are built: `pnpm build`
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Next.js team for the amazing React framework
+- Socket.io team for real-time communication tools
+- Prisma team for the excellent ORM
+- Vercel for Turborepo and deployment platform
+
+## 🔗 Useful Links
+
+- [Turborepo Documentation](https://turborepo.com/docs)
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [Socket.io Documentation](https://socket.io/docs)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
