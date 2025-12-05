@@ -1,9 +1,7 @@
-import styles from "./page.module.css";
-import { prisma } from "@repo/db";
-
-export default async function Home() {
-  const user = await prisma.user.findFirst();
+export default function Home() {
   return (
-    <div className={styles.page}>{user?.username ?? "No user added yet"}</div>
+    <main className="min-h-screen flex items-center justify-center text-4xl">
+      Tailwind is working 🎉
+    </main>
   );
 }
