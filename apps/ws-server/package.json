@@ -1,5 +1,5 @@
 {
-  "name": "websoket-server",
+  "name": "ws-server",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -9,9 +9,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "socket.io": "^4.8.1"
+  },
   "devDependencies": {
     "@types/node": "^22.15.3",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

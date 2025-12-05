@@ -4,9 +4,30 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.15.3",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@lucia-auth/adapter-prisma": "^4.0.1",
+    "argon2": "^0.44.0",
+    "express": "^5.2.1",
+    "lucia": "^3.2.2",
+    "redis": "^5.10.0"
+  },
+  "turbo": {
+    "outputs": [
+      "dist/**"
+    ]
+  }
 }
