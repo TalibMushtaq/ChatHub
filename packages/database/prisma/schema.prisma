@@ -9,11 +9,92 @@ datasource db {
 }
 
 model User {
-  id            Int           @id @default(autoincrement())
+  id            String        @id @default(cuid())
   email         String        @unique
   username      String        @unique
   passwordHash  String
   avatar        String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+  sessions      Session[]
+
+   // Direct chat participation
+  directChats1 DirectChat[] @relation("User1Chats")
+  directChats2 DirectChat[] @relation("User2Chats")
+
+  // Messages user sent
+  messages     Message[]
+
+  // Group chat participation
+  roomMemberships ChatRoomMember[]
+  roomsCreated     ChatRoom[] @relation("RoomsCreated")
+}
+
+model Session {
+  id            String         @id
+  userId        String
+  expiresAt     DateTime
+
+  user          User           @relation(references: [id], fields: [userId], onDelete: Cascade)
+}
+
+model DirectChat {
+  id            String          @id @default(cuid())
+
+  user1Id       String         
+  user2Id       String
+  createdAt     DateTime        @default(now())
+
+  user1     User     @relation("User1Chats", fields: [user1Id], references: [id])
+  user2     User     @relation("User2Chats", fields: [user2Id], references: [id])
+
+  messages  Message[]
+
+  @@unique([user1Id, user2Id])
+
+}
+
+model ChatRoom {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  createdBy   String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  creator     User              @relation("RoomsCreated", fields: [createdBy], references: [id])
+
+  members     ChatRoomMember[]
+  messages    Message[]
+}
+
+model ChatRoomMember {
+  id         String   @id @default(cuid())
+  userId     String
+  chatRoomId String
+  role       String
+  joinedAt   DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+  room       ChatRoom @relation(fields: [chatRoomId], references: [id])
+
+  @@unique([userId, chatRoomId])
+}
+model Message {
+   id           String    @id @default(cuid())
+  content      String?
+  senderId     String
+  chatRoomId   String?
+  directChatId String?
+
+  messageType  String?
+  fileUri      String?
+  fileName     String?
+  fileSize     Int?
+
+  createdAt    DateTime  @default(now())
+
+  sender       User       @relation(fields: [senderId], references: [id])
+  room         ChatRoom?  @relation(fields: [chatRoomId], references: [id])
+  directChat   DirectChat? @relation(fields: [directChatId], references: [id])
 }
