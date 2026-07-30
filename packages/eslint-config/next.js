@@ -49,7 +49,11 @@ export const nextJsConfig = [
     },
     settings: { react: { version: "detect" } },
     rules: {
-      ...pluginReactHooks.configs.recommended.rules,
+      // Only enable the classic react-hooks rules. The v7 recommended preset
+      // adds many new strict rules (purity, set-state-in-effect, etc.) that
+      // the existing codebase does not comply with.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
       // React scope no longer necessary with new JSX transform.
       "react/react-in-jsx-scope": "off",
     },

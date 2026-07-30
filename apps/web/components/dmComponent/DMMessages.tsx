@@ -3,8 +3,23 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../app/lib/api";
 import { socket } from "../../app/lib/socket";
 
+interface Message {
+  id: string;
+  content: string | null;
+  createdAt: string;
+  editedAt?: string;
+  deletedAt?: string;
+  isDeleted?: boolean;
+  senderId?: string;
+  User?: {
+    id: string;
+    username: string;
+    displayname: string;
+  } | null;
+}
+
 export default function DMMessages({ directChatId }: { directChatId: string }) {
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -82,7 +97,7 @@ export default function DMMessages({ directChatId }: { directChatId: string }) {
     }
   }
 
-  function startEdit(msg: any) {
+  function startEdit(msg: Message) {
     setMenuOpenId(null);
     setEditingId(msg.id);
     setEditContent(msg.content ?? "");

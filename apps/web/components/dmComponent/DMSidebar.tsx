@@ -4,8 +4,15 @@ import { api } from "../../app/lib/api";
 import { useRouter, usePathname } from "next/navigation";
 import NewDMModal from "./NewDMModel";
 
+interface DMChat {
+  directChatId: string;
+  otherUser: {
+    username: string;
+  };
+}
+
 export default function DMSidebar({ onClose }: { onClose?: () => void }) {
-  const [inbox, setInbox] = useState<any[]>([]);
+  const [inbox, setInbox] = useState<DMChat[]>([]);
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();

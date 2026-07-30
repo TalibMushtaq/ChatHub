@@ -23,8 +23,18 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
     if (!name) {
       return res.status(400).json({ ok: false, error: "name is required" });
     }
+    if (name.length > 100) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "name must be at most 100 characters" });
+    }
     const discription =
       typeof descriptionRaw === "string" ? descriptionRaw.trim() : null;
+    if (discription && discription.length > 500) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "description must be at most 500 characters" });
+    }
 
     const room = await prisma.chatRoom.create({
       data: {

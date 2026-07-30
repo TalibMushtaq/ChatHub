@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { isAxiosError } from "axios";
 import { api } from "../lib/api";
 import { userZod } from "@repo/validators";
 import { toast } from "sonner";
@@ -44,6 +45,17 @@ export default function AuthCard() {
   };
   const strength = getStrength(password);
 
+  const getErrorMessage = (err: unknown, fallback: string) => {
+    if (isAxiosError(err)) {
+      return (
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        fallback
+      );
+    }
+    return fallback;
+  };
+
   //---------------HandelLogin--------
   const HandelLogin = async () => {
     try {
@@ -67,9 +79,9 @@ export default function AuthCard() {
       await api.post("/auth/login", parsed.data);
       router.push("/dashboard");
       router.refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.log(err);
-      setErrors(err.response?.data?.message || "Login failed");
+      setErrors(getErrorMessage(err, "Login failed"));
     } finally {
       setLoading(false);
     }
@@ -100,8 +112,8 @@ export default function AuthCard() {
       await api.post("/auth/signup", parsed.data);
       router.push("/dashboard");
       router.refresh();
-    } catch (err: any) {
-      setErrors(err.response?.data?.message || "Signup failed");
+    } catch (err: unknown) {
+      setErrors(getErrorMessage(err, "Signup failed"));
     } finally {
       setLoading(false);
     }
@@ -221,7 +233,7 @@ export default function AuthCard() {
           </button>
 
           <div className="text-center text-xs text-gray-400 mt-5">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <button
               onClick={() => setTab("signup")}
               className="text-purple-400 hover:opacity-80"

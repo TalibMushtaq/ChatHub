@@ -1,5 +1,9 @@
 // app/dashboard/page.tsx
 
+export const dynamic = "force-dynamic";
+
+import { redirect } from "next/navigation";
+import axios from "axios";
 import StatCard from "./components/StatCard";
 import ActivityChart from "./components/ActivityChart";
 import ServersCard from "./components/ServersCard";
@@ -9,20 +13,21 @@ import MembersCard from "./components/MembersCard";
 import DashboardTopbar from "./components/DashboardTopbar";
 import { serverApi } from "../lib/serverApi";
 
-interface User {
-  displayName?: string;
-  username: string;
-}
-
-const api = await serverApi();
-
 export default async function DashboardPage() {
-  const { data } = await api.get("/auth/me");
-
-  if (!data.ok) {
-    throw new Error("Failed to fetch user");
+  let user;
+  try {
+    const api = await serverApi();
+    const { data } = await api.get("/auth/me");
+    if (!data.ok) {
+      redirect("/auth");
+    }
+    user = data.user;
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      redirect("/auth");
+    }
+    throw err;
   }
-  const user = data.user;
   return (
     <>
       <DashboardTopbar user={user} />

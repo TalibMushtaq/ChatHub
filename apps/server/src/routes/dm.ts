@@ -8,10 +8,10 @@ const router = Router();
 
 //Join IO socket DM
 export function registerDirectChat(io: Server, socket: Socket) {
+  const user = (socket.request as any).user;
+
   socket.on("directChat:join", async ({ directChatId }) => {
     try {
-      const user = (socket.request as any).user;
-
       if (typeof directChatId !== "string") {
         throw new Error("Invalid chat id");
       }
@@ -19,6 +19,19 @@ export function registerDirectChat(io: Server, socket: Socket) {
 
       socket.join(`directChat:${directChatId}`);
       socket.emit("directChat:joined", { directChatId });
+    } catch (err: any) {
+      socket.emit("error", err.message);
+      socket.disconnect(true);
+    }
+  });
+
+  socket.on("directChat:leave", async ({ directChatId }) => {
+    try {
+      if (typeof directChatId !== "string") {
+        throw new Error("Invalid chat id");
+      }
+      await assertDirectChatAccess(user.id, directChatId);
+      socket.leave(`directChat:${directChatId}`);
     } catch (err: any) {
       socket.emit("error", err.message);
     }
@@ -108,6 +121,10 @@ router.post(
         return res
           .status(400)
           .json({ ok: false, error: "content cannot be empty" });
+      if (text.length > 5000)
+        return res
+          .status(400)
+          .json({ ok: false, error: "content too long" });
 
       if (!directChatId) {
         return res
@@ -299,6 +316,7 @@ router.delete(
           senderId: true,
           directChatId: true,
           isDeleted: true,
+          createdAt: true,
         },
       });
       if (!msg) {
@@ -309,6 +327,10 @@ router.delete(
       }
       if (msg.isDeleted) {
         return res.status(400).json({ ok: false, error: "Alreadt deleted" });
+      }
+      const deleteWindowMs = 30 * 60 * 1000;
+      if (Date.now() - new Date(msg.createdAt).getTime() > deleteWindowMs) {
+        return res.status(403).json({ ok: false, error: "Delete window expired" });
       }
       const deleted = await prisma.message.update({
         where: { id: messageId },
@@ -362,6 +384,7 @@ router.patch(
           senderId: true,
           directChatId: true,
           isDeleted: true,
+          createdAt: true,
         },
       });
 
@@ -372,6 +395,10 @@ router.patch(
       }
       if (msg.senderId !== userId) {
         return res.status(403).json({ ok: false, error: "not allowed" });
+      }
+      const editWindowMs = 5 * 60 * 1000;
+      if (Date.now() - new Date(msg.createdAt).getTime() > editWindowMs) {
+        return res.status(403).json({ ok: false, error: "Edit window expired" });
       }
 
       const updated = await prisma.message.update({

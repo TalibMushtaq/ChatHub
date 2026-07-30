@@ -19,16 +19,23 @@ export function registerRoomChat(io: Server, socket: Socket) {
       socket.emit("chatroom:joined", { chatRoomId });
     } catch (err: any) {
       socket.emit("error", err.message);
+      socket.disconnect(true);
     }
   });
 
   // Messages
   socket.on("chatroom:message", async ({ paylaod, callback }) => {
+    if (typeof callback !== "function") {
+      socket.emit("error", "callback must be a function");
+      return;
+    }
+
     try {
       const user = (socket.request as any).user;
       const result = chatRoomMessageSchema.safeParse(paylaod);
       if (!result.success) {
         socket.emit("error", "invalid paylaod");
+        callback({ ok: false, error: "invalid payload" });
         return;
       }
       const data = result.data;

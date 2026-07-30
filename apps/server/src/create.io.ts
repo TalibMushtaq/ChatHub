@@ -8,7 +8,7 @@ import { sessionMiddleware } from "./middleware/session";
 export function createIO(httpServer: HTTPServer) {
   const io = new Server(httpServer, {
     cors: {
-      origin: true,
+      origin: ["http://localhost:5173", "http://localhost:3000"],
       credentials: true,
     },
   });

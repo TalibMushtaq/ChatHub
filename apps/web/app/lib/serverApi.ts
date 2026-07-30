@@ -10,7 +10,7 @@ export async function serverApi() {
     .join("; ");
 
   return axios.create({
-    baseURL: process.env.API_URL,
+    baseURL: process.env.API_URL || "http://localhost:3100/api",
     headers: cookieHeader ? { Cookie: cookieHeader } : {},
   });
 }

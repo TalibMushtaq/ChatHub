@@ -1,29 +1,30 @@
 // app/auth/page.tsx
 
-import { cookies } from "next/headers";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import axios from "axios";
+import { serverApi } from "../lib/serverApi";
 import AuthCard from "./AuthCard";
 import Logo from "../../components/icons/Logo";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function AuthPage() {
-  let res: Response | null = null;
+  let ok = false;
   try {
-    const cookieStore = await cookies();
-    res = await fetch("http://localhost:3100/auth/me", {
-      headers: {
-        Cookie: cookieStore
-          .getAll()
-          .map((c) => `${c.name}=${c.value}`)
-          .join("; "),
-      },
-      cache: "no-store",
-    });
+    const api = await serverApi();
+    const { data } = await api.get("/auth/me");
+    ok = data.ok === true;
   } catch (err) {
-    console.error("Auth check failed", err);
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      // Not logged in — expected on the auth page, no action needed.
+    } else {
+      console.error("Auth check failed", err);
+    }
   }
 
-  if (res?.ok) {
+  if (ok) {
     redirect("/dashboard");
   }
   return (
@@ -65,7 +66,7 @@ export default async function AuthPage() {
         <div className="relative z-10 max-w-sm bg-surface-2 border border-white/10 rounded-xl p-6">
           <p className="text-sm italic leading-relaxed mb-4">
             “ChatHubby completely replaced three different tools for our dev
-            team. It's faster, cleaner, and the threading is 🤌”
+            team. It&apos;s faster, cleaner, and the threading is 🤌”
           </p>
 
           <div className="flex items-center gap-3">
@@ -83,7 +84,9 @@ export default async function AuthPage() {
 
       {/* RIGHT PANEL */}
       <div className="w-full lg:w-120 flex flex-col justify-center px-8 py-16">
-        <AuthCard />
+        <Suspense fallback={null}>
+          <AuthCard />
+        </Suspense>
       </div>
     </div>
   );

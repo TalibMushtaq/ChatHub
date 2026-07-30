@@ -166,7 +166,7 @@ router.patch(
         },
       });
 
-      if (!request)
+      if (!request || request.roomId !== roomId)
         return res.status(404).json({ ok: false, error: "request not found" });
 
       if (request.status !== "PENDING") {

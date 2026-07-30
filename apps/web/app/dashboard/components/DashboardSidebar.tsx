@@ -4,17 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "../../../components/icons/Logo";
 
-interface Props {
-  user: {
-    displayname: string;
-    username: string;
-  };
-}
-
-export default function DashboardSidebar({ user }: Props) {
+export default function DashboardSidebar() {
   const pathname = usePathname();
-  const initial =
-    user?.displayname?.charAt(0) || user?.username?.charAt(0) || "U";
 
   // Helper to determine if a nav item is active
   const isActive = (href: string) => {

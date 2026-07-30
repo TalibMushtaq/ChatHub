@@ -27,7 +27,7 @@ export default function UserSearch({ onSelect }: Props) {
       try {
         const res = await api.get(`/search/users?query=${query}`);
         setResults(res.data.users);
-      } catch (err) {
+      } catch {
         console.error("Search failed");
       }
     }, 300);

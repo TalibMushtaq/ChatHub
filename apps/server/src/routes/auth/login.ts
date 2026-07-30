@@ -3,10 +3,16 @@ import express from "express";
 import { verifyPassword } from "../../lib/password";
 import { prisma } from "../../../db/prisma";
 import { userZod } from "@repo/validators";
+import { createRateLimiter } from "../../lib/rateLimiter";
 
 const router = express.Router();
+const loginRateLimiter = createRateLimiter({ maxAttempts: 5, windowMs: 15 * 60 * 1000 });
 
 router.post("/login", async (req: Request, res: Response) => {
+  const clientIp = req.ip ?? "unknown";
+  if (loginRateLimiter(clientIp)) {
+    return res.status(429).json({ ok: false, error: "Too many attempts" });
+  }
   if (req.session.userId) {
     return res.status(200).json({
       ok: true,

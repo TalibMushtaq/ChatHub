@@ -106,13 +106,14 @@ model DirectChat {
 model User {
   id                                  String           @id
   email                               String           @unique
-  displayname                         String           
+  displayname                         String
   username                            String           @unique
   passwordHash                        String?
   avatar                              String?
   bio                                 String?
   createdAt                           DateTime         @default(now())
-  updatedAt                           DateTime
+  updatedAt                           DateTime         @updatedAt
+  sessions                            Session[]
   ChatRoom                            ChatRoom[]
   ChatRoomMember                      ChatRoomMember[]
   DirectChat_DirectChat_user1IdToUser DirectChat[]     @relation("DirectChat_user1IdToUser")
@@ -126,6 +127,14 @@ model User {
   sentInvitations                     RoomInvitation[] @relation("InvitedBy")
   createdJoinLinks                    RoomJoinLink[]
 
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model RoomInvitation {
@@ -143,6 +152,8 @@ model RoomInvitation {
   status          InvitationStatus @default(PENDING)
 
   createdAt       DateTime @default(now())
+
+  @@unique([roomId, invitedUserId, status], name: "unique_pending_invitation")
 }
 
 
@@ -164,7 +175,7 @@ model RoomJoinRequest {
   createdAt             DateTime                @default(now())
   reviewedAt            DateTime?
 
-
+  @@unique([roomId, userId, status], name: "unique_pending_join_request")
 }
 
 model RoomJoinLink {

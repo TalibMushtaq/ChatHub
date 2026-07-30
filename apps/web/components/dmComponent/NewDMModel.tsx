@@ -12,7 +12,7 @@ export default function NewDMModal({ onClose }: { onClose: () => void }) {
       const directChatId = res.data.chat.id;
       onClose();
       router.push(`/dashboard/dm/${directChatId}`);
-    } catch (err) {
+    } catch {
       console.error("Failed to start DM");
     }
   };

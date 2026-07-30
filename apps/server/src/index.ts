@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./lib/env";
 import express from "express";
 import { connectRedis } from "./lib/redis";
 import { prisma } from "../db/prisma";

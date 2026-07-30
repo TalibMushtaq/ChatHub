@@ -22,13 +22,9 @@ export default function DMChatTopbar({
   useEffect(() => {
     async function load() {
       try {
-        const [meRes, inboxRes] = await Promise.all([
-          api.get("/auth/me"),
-          api.get("/dm/inbox"),
-        ]);
-        const myId = meRes.data.user.id;
+        const inboxRes = await api.get("/dm/inbox");
         const chat = inboxRes.data.inbox.find(
-          (c: any) => c.directChatId === directChatId,
+          (c: { directChatId: string }) => c.directChatId === directChatId,
         );
         if (chat) {
           setOtherUser(chat.otherUser);
