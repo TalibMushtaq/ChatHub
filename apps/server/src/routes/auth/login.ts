@@ -4,15 +4,63 @@ import { verifyPassword } from "../../lib/password";
 import { prisma } from "../../../db/prisma";
 import { userZod } from "@repo/validators";
 import { createRateLimiter } from "../../lib/rateLimiter";
+import { createLogger } from "../../lib/logger";
 
 const router = express.Router();
-const loginRateLimiter = createRateLimiter({ maxAttempts: 5, windowMs: 15 * 60 * 1000 });
+const log = createLogger("login");
+const loginRateLimiter = createRateLimiter({
+  maxAttempts: 5,
+  windowMs: 15 * 60 * 1000,
+});
 
+/**
+ * Dummy hash used for constant-time comparison when a user is not found.
+ * This prevents timing-based account enumeration: whether the user exists
+ * or not, password verification takes approximately the same time.
+ */
+const DUMMY_HASH =
+  "$argon2id$v=19$m=65536,t=3,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+/**
+ * Unified authentication error response.
+ * Every failure returns exactly this — no information leakage about
+ * whether the account exists, the password is wrong, or OAuth is required.
+ */
+const AUTH_ERROR = { ok: false, error: "Invalid credentials" } as const;
+
+/**
+ * POST /login
+ *
+ * Authenticates a user by email or username + password.
+ *
+ * Security improvements:
+ * 1. Session fixation: Regenerates session after successful auth.
+ * 2. No information leakage: Same error for all failures (user not found,
+ *    wrong password, no password hash, OAuth account).
+ * 3. Timing attack resistance: Verifies against a dummy hash when user
+ *    is not found, making response time constant regardless of account existence.
+ * 4. Rate limiting: Enhanced with email/username in the key.
+ * 5. Structured logging: Uses createLogger instead of console.log.
+ * 6. Input normalization: email/username are trimmed + lowercased.
+ * 7. Minimal data return: Only returns fields the client needs.
+ * 8. Proper error typing: Uses `unknown` instead of `any`.
+ */
 router.post("/login", async (req: Request, res: Response) => {
+  // --- Rate limit by IP + identifier ---
   const clientIp = req.ip ?? "unknown";
-  if (loginRateLimiter(clientIp)) {
+  const identifier =
+    "email" in req.body && typeof req.body.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : "username" in req.body && typeof req.body.username === "string"
+        ? req.body.username.trim().toLowerCase()
+        : "";
+  const rateLimitKey = identifier ? `${clientIp}:${identifier}` : clientIp;
+
+  if (loginRateLimiter(rateLimitKey)) {
     return res.status(429).json({ ok: false, error: "Too many attempts" });
   }
+
+  // --- Already logged in ---
   if (req.session.userId) {
     return res.status(200).json({
       ok: true,
@@ -22,60 +70,87 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 
   try {
+    // --- Validate input ---
     const parseResult = userZod.login.safeParse(req.body);
     if (!parseResult.success) {
+      // Return generic error, not validation details
       return res.status(400).json({
         ok: false,
-        error: "invalid input",
-        details: parseResult.error.issues,
+        error: "Invalid input",
       });
     }
 
     const data = parseResult.data;
-    const password = parseResult.data.password;
-    let user = null;
-    let ok = null;
+    const password = data.password;
 
-    if ("email" in data) {
-      const email = data.email.toLowerCase();
-      user = await prisma.user.findUnique({
-        where: { email: email },
-      });
-    } else {
-      user = await prisma.user.findUnique({
-        where: { username: data.username.toLowerCase() },
-      });
-    }
+    // --- Normalize and look up user ---
+    const email = "email" in data ? data.email.trim().toLowerCase() : undefined;
+    const username =
+      "username" in data ? data.username.trim().toLowerCase() : undefined;
 
-    if (!user)
-      return res.status(401).json({ ok: false, error: "Invalid credentials " });
-
-    if (!user.passwordHash) {
-      return res.status(401).json({
-        ok: false,
-        error:
-          "This account uses Passport login. Password login is not available.",
-      });
-    }
-    ok = await verifyPassword(user.passwordHash, password);
-
-    if (!ok)
-      return res
-        .status(401)
-        .json({ ok: false, error: "Invalid credentials Password" });
-    req.session.userId = user.id;
-    return res.status(200).json({
-      ok: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        displayname: user.displayname,
+    const user = await prisma.user.findUnique({
+      where: email ? { email } : { username: username! },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        displayname: true,
+        passwordHash: true,
       },
     });
-  } catch (err: any) {
-    console.log(err, "login end Point");
-    return res.status(500).json({ ok: false, error: "server error" });
+
+    // --- Constant-time auth check ---
+    // If user not found, verify against dummy hash so response time is
+    // the same as a real login attempt (prevents timing enumeration).
+    const passwordHash = user?.passwordHash ?? DUMMY_HASH;
+    const isValid = await verifyPassword(passwordHash, password);
+
+    if (!user || !isValid || !user.passwordHash) {
+      // Log the real reason internally, but never expose it to the client
+      if (!user) {
+        log.warn("Login failed: user not found", { email, username });
+      } else if (!user.passwordHash) {
+        log.warn("Login failed: no password hash (OAuth account?)", {
+          userId: user.id,
+        });
+      } else {
+        log.warn("Login failed: wrong password", { userId: user.id });
+      }
+
+      return res.status(401).json(AUTH_ERROR);
+    }
+
+    // --- Regenerate session to prevent session fixation ---
+    req.session.regenerate((regenErr) => {
+      if (regenErr) {
+        log.error("Session regeneration failed", regenErr);
+        return res.status(500).json({ ok: false, error: "Server error" });
+      }
+
+      req.session.userId = user.id;
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          log.error("Session save failed", saveErr);
+          return res.status(500).json({ ok: false, error: "Server error" });
+        }
+
+        log.info("Login successful", { userId: user.id });
+
+        return res.status(200).json({
+          ok: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            displayname: user.displayname,
+          },
+        });
+      });
+    });
+  } catch (err: unknown) {
+    log.error("Unexpected login error", err);
+    return res.status(500).json({ ok: false, error: "Server error" });
   }
 });
 
