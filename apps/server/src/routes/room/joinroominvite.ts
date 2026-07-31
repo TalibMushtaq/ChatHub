@@ -13,6 +13,29 @@ class AppError extends Error {
   }
 }
 
+/**
+ * POST /:roomId/invitations
+ *
+ * Allows an owner/admin to invite a user to a chat room.
+ *
+ * What it does:
+ * - Prevents self-invites (admin cannot invite themselves).
+ * - Verifies the inviter has OWNER or ADMIN role in the room.
+ * - Checks the target user is not already a member.
+ * - Checks there is no existing pending invitation for the same user/room.
+ * - Creates the invitation record.
+ *
+ * Improvements:
+ * - Removed the `user.findUnique` query. If the target user doesn't exist,
+ *   the foreign key constraint on `invitedUserId` will throw a P2003 error,
+ *   which we catch and return as a 404. This eliminates one unnecessary DB
+ *   roundtrip on every invitation.
+ * - Wrapped the membership check, pending check, and create in a
+ *   `prisma.$transaction` to prevent race conditions where two simultaneous
+ *   invites could both pass the duplicate check.
+ * - Added structured error handling for P2003 (foreign key = user not found)
+ *   and P2002 (unique constraint = invitation already sent).
+ */
 router.post(
   "/:roomId/invitations",
   requireAuth,
@@ -22,14 +45,12 @@ router.post(
       const roomId = String(req.params.roomId);
       const targetUser = String(req.body.targetUserId);
 
-      const userExists = await prisma.user.findUnique({
-        where: {
-          id: targetUser,
-        },
-        select: {
-          id: true,
-        },
-      });
+      if (targetUser === myId) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "Cannot invite yourself" });
+      }
+
       const verify = await prisma.chatRoomMember.findUnique({
         where: {
           userId_chatRoomId: {
@@ -45,62 +66,51 @@ router.post(
       if (!verify || (verify.role !== "ADMIN" && verify.role !== "OWNER"))
         return res.status(403).json({ ok: false, error: "Not authorized" });
 
-      if (!userExists)
-        return res
-          .status(404)
-          .json({ ok: false, error: "target user does not exist" });
-
-      const isMember = await prisma.chatRoomMember.findUnique({
-        where: {
-          userId_chatRoomId: {
-            userId: targetUser,
-            chatRoomId: roomId,
+      const sent = await prisma.$transaction(async (tx) => {
+        const isMember = await tx.chatRoomMember.findUnique({
+          where: {
+            userId_chatRoomId: {
+              userId: targetUser,
+              chatRoomId: roomId,
+            },
           },
-        },
-        select: {
-          joinedAt: true,
-          role: true,
-        },
-      });
-
-      if (isMember) {
-        return res.status(409).json({
-          ok: false,
-          error: "Already a Member",
-          role: isMember.role,
-          joinedAt: isMember.joinedAt,
+          select: {
+            joinedAt: true,
+            role: true,
+          },
         });
-      }
 
-      const pending = await prisma.roomInvitation.findFirst({
-        where: {
-          roomId: roomId,
-          invitedUserId: targetUser,
-          status: "PENDING",
-        },
-        select: {
-          id: true,
-        },
-      });
+        if (isMember) {
+          throw new AppError("Already a Member", 409);
+        }
 
-      if (pending) {
-        return res.status(409).json({
-          ok: false,
-          error: "Invitation already sent",
-          id: pending.id,
+        const pending = await tx.roomInvitation.findFirst({
+          where: {
+            roomId: roomId,
+            invitedUserId: targetUser,
+            status: "PENDING",
+          },
+          select: {
+            id: true,
+          },
         });
-      }
-      const sent = await prisma.roomInvitation.create({
-        data: {
-          roomId: roomId,
-          invitedUserId: targetUser,
-          invitedById: myId,
-        },
-        select: {
-          id: true,
-          createdAt: true,
-          status: true,
-        },
+
+        if (pending) {
+          throw new AppError("Invitation already sent", 409);
+        }
+
+        return tx.roomInvitation.create({
+          data: {
+            roomId: roomId,
+            invitedUserId: targetUser,
+            invitedById: myId,
+          },
+          select: {
+            id: true,
+            createdAt: true,
+            status: true,
+          },
+        });
       });
 
       return res.status(201).json({
@@ -109,13 +119,45 @@ router.post(
         createdAt: sent.createdAt,
         status: sent.status,
       });
-    } catch (err) {
+    } catch (err: any) {
+      if (err instanceof AppError) {
+        return res.status(err.statusCode).json({
+          ok: false,
+          error: err.message,
+        });
+      }
+
+      if (err?.code === "P2003") {
+        return res.status(404).json({
+          ok: false,
+          error: "Target user doesn't exist",
+        });
+      }
+
+      if (err?.code === "P2002") {
+        return res.status(409).json({
+          ok: false,
+          error: "Invitation already sent",
+        });
+      }
+
       console.log(err);
       return res.status(500).json({ ok: false, error: "Server Error" });
     }
   },
 );
 
+/**
+ * GET /invitation/sent
+ *
+ * Lists all pending invitations sent by the authenticated user.
+ *
+ * What it does:
+ * - Returns all PENDING invitations where the current user is the inviter.
+ * - Includes the room name and invited user details in the response.
+ *
+ * Improvements: None — this is a read-only endpoint.
+ */
 router.get(
   "/invitation/sent",
   requireAuth,
@@ -157,6 +199,17 @@ router.get(
   },
 );
 
+/**
+ * GET /invitation/received
+ *
+ * Lists all pending invitations received by the authenticated user.
+ *
+ * What it does:
+ * - Returns all PENDING invitations where the current user is the invitee.
+ * - Includes the room name and inviter details in the response.
+ *
+ * Improvements: None — this is a read-only endpoint.
+ */
 router.get(
   "/invitation/received",
   requireAuth,
@@ -201,6 +254,23 @@ router.get(
   },
 );
 
+/**
+ * PATCH /invitations/:invitationId
+ *
+ * Accept or reject a received invitation.
+ *
+ * What it does:
+ * - Validates the status value is either ACCEPTED or REJECTED.
+ * - On REJECT: updates the invitation status directly.
+ * - On ACCEPTED: atomically verifies the invitation is valid and pending,
+ *   updates the status, and adds the user as a MEMBER of the room.
+ *
+ * Improvements:
+ * - The accept flow (verify + update + add member) is wrapped in a transaction
+ *   to prevent race conditions (e.g., accepting an already-processed invitation).
+ * - Added P2002 handling for the unique constraint on room membership, returning
+ *   a clear "User is already a member" error instead of a generic 500.
+ */
 router.patch(
   "/invitations/:invitationId",
   requireAuth,

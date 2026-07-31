@@ -5,7 +5,34 @@ import crypto from "crypto";
 
 const router = Router();
 
-//------------------------------------ Crate Room Join Link --------------------------------------------
+/**
+ * Hash a join token using SHA-256 before storing it in the database.
+ *
+ * Why: If the database is compromised, raw join tokens are useless to an
+ * attacker — they can't be used to join rooms without the original value.
+ * The raw token is only ever returned to the creator (once), and every
+ * lookup hashes the incoming token before querying.
+ */
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+//------------------------------------ Create Room Join Link --------------------------------------------
+/**
+ * POST /:roomId/join-links
+ *
+ * Creates a shareable join link for a room. Only accessible by owners and admins.
+ *
+ * What it does:
+ * - Verifies the requester has OWNER or ADMIN role in the room.
+ * - Generates a random 12-byte token.
+ * - Hashes the token with SHA-256 before storing it in the database.
+ * - Returns the raw token to the creator (shown only once).
+ *
+ * Improvements:
+ * - Token hashing: Raw tokens are never stored. If the DB is compromised,
+ *   attackers get useless hashes. The raw token is only shown to the creator.
+ */
 router.post(
   "/:roomId/join-links",
   requireAuth,
@@ -43,11 +70,12 @@ router.post(
           .status(403)
           .json({ ok: false, error: "Not a member or Does not have access" });
 
-      const token = crypto.randomBytes(12).toString("hex");
+      const rawToken = crypto.randomBytes(12).toString("hex");
+      const hashedToken = hashToken(rawToken);
 
       const link = await prisma.roomJoinLink.create({
         data: {
-          token: token,
+          token: hashedToken,
           room: {
             connect: { id: roomid },
           },
@@ -67,7 +95,7 @@ router.post(
         ok: true,
         link: {
           id: link.id,
-          token: link.token,
+          token: rawToken,
           maxUses: link.maxUses,
           expiresAt: link.expiresAt,
         },
@@ -81,12 +109,26 @@ router.post(
     }
   },
 );
-//-----------------------------validate token / Room status -----------------------------
+/**
+ * GET /join/:token
+ *
+ * Validates a join link token and returns room info. Used before actually joining.
+ *
+ * What it does:
+ * - Hashes the incoming token before looking it up (tokens are stored hashed).
+ * - Checks the link is active, not expired, and hasn't exceeded maxUses.
+ * - Returns room metadata (name, description) for preview/confirmation.
+ *
+ * Improvements:
+ * - Token hashing: Incoming token is hashed before DB lookup, matching the
+ *   hashed storage format from the create endpoint.
+ */
 router.get("/join/:token", requireAuth, async (req: Request, res: Response) => {
   try {
-    const token = String(req.params.token);
+    const rawToken = String(req.params.token);
+    const hashedToken = hashToken(rawToken);
     const link = await prisma.roomJoinLink.findUnique({
-      where: { token: token },
+      where: { token: hashedToken },
       select: {
         token: true,
         isActive: true,
@@ -126,18 +168,38 @@ router.get("/join/:token", requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// ----------------------Join Room-------------------------------------
+/**
+ * POST /join/:token
+ *
+ * Joins a room using a valid join link token.
+ *
+ * What it does:
+ * - Hashes the incoming token before looking it up.
+ * - Validates the link is active, not expired, and not at maxUses.
+ * - Atomically reserves a slot (if maxUses is set) using conditional updateMany
+ *   to prevent race conditions where two users could exceed the limit.
+ * - Checks the user is not already a member.
+ * - Adds the user as a MEMBER of the room.
+ * - Increments usedCount for tracking (for both limited and unlimited links).
+ *
+ * Improvements:
+ * - Token hashing: Incoming token is hashed before DB lookup.
+ * - Atomic slot reservation: updateMany with `where: { usedCount: { lt: maxUses } }`
+ *   ensures only one transaction can claim the last slot. If count === 0, someone
+ *   else claimed it first → 410 Gone.
+ */
 router.post(
   "/join/:token",
   requireAuth,
   async (req: Request, res: Response) => {
     try {
       const userId = req.user!.id;
-      const token = String(req.params.token);
+      const rawToken = String(req.params.token);
+      const hashedToken = hashToken(rawToken);
 
       await prisma.$transaction(async (tx) => {
         const link = await tx.roomJoinLink.findUnique({
-          where: { token },
+          where: { token: hashedToken },
         });
 
         if (!link) {
@@ -154,8 +216,24 @@ router.post(
           throw new Error("EXPIRED");
         }
 
-        if (link.maxUses !== null && link.usedCount >= link.maxUses) {
-          throw new Error("MAX_USES");
+        // Atomic reservation: try to claim a slot before joining.
+        // If maxUses is null (unlimited), skip the check.
+        // If maxUses is set, only increment if usedCount < maxUses.
+        // If the update affects 0 rows, someone else claimed the last slot.
+        if (link.maxUses !== null) {
+          const updated = await tx.roomJoinLink.updateMany({
+            where: {
+              id: link.id,
+              usedCount: { lt: link.maxUses },
+            },
+            data: {
+              usedCount: { increment: 1 },
+            },
+          });
+
+          if (updated.count === 0) {
+            throw new Error("MAX_USES");
+          }
         }
 
         const member = await tx.chatRoomMember.findUnique({
@@ -179,12 +257,15 @@ router.post(
           },
         });
 
-        await tx.roomJoinLink.update({
-          where: { id: link.id },
-          data: {
-            usedCount: { increment: 1 },
-          },
-        });
+        // Increment usedCount for unlimited links (no maxUses cap)
+        if (link.maxUses === null) {
+          await tx.roomJoinLink.update({
+            where: { id: link.id },
+            data: {
+              usedCount: { increment: 1 },
+            },
+          });
+        }
       });
 
       return res.status(200).json({ ok: true });
@@ -212,6 +293,18 @@ router.post(
   },
 );
 
+/**
+ * PATCH /:roomId/join-links/:linkId
+ *
+ * Deactivates a join link. Only accessible by owners and admins.
+ *
+ * What it does:
+ * - Verifies the requester has OWNER or ADMIN role in the room.
+ * - Sets isActive to false, preventing further joins via this link.
+ * - Existing users who already joined are not affected.
+ *
+ * Improvements: None — this is a simple status update.
+ */
 router.patch(
   "/:roomId/join-links/:linkId",
   requireAuth,
@@ -272,8 +365,17 @@ router.patch(
   },
 );
 
-//---------------------------retun crated links by user----------------------------
-
+/**
+ * GET /join-links/mine
+ *
+ * Lists all join links created by the authenticated user.
+ *
+ * What it does:
+ * - Returns all links where the current user is the creator.
+ * - Includes room name, usage stats, and active status.
+ *
+ * Improvements: None — this is a read-only endpoint.
+ */
 router.get(
   "/join-links/mine",
   requireAuth,

@@ -3,6 +3,36 @@ import { prisma } from "../../../db/prisma";
 import requireAuth from "../../middleware/requireAuth";
 const router = Router();
 
+class AppError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+/**
+ * POST /:roomId/join-request
+ *
+ * Allows a user to request to join a chat room.
+ *
+ * What it does:
+ * - Verifies the user is not already a member of the room.
+ * - Prevents owners/admins from sending a join request (they already have access).
+ * - Prevents duplicate pending requests from the same user.
+ * - Creates the join request record.
+ *
+ * Improvements:
+ * - Removed the `chatRoom.findUnique` query. If the room doesn't exist, the
+ *   foreign key constraint on `chatRoomId` will throw a P2003 error, which we
+ *   catch and return as a 404. This eliminates one unnecessary DB roundtrip.
+ * - Wrapped the member check, pending check, and create in a `prisma.$transaction`
+ *   to prevent race conditions where two simultaneous requests could both pass
+ *   the duplicate check.
+ * - Added structured error handling for P2003 (foreign key = room not found)
+ *   and P2002 (unique constraint = pending request already exists).
+ */
 router.post(
   "/:roomId/join-request",
   requireAuth,
@@ -11,56 +41,68 @@ router.post(
       const userId = req.user!.id;
       const roomId = String(req.params.roomId);
 
-      const room = await prisma.chatRoom.findUnique({
-        where: {
-          id: roomId,
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-      });
-
-      if (!room)
-        return res.status(404).json({ ok: false, error: "Room not found" });
-
-      const existingMember = await prisma.chatRoomMember.findUnique({
-        where: {
-          userId_chatRoomId: {
-            userId: userId,
-            chatRoomId: room.id,
+      const joinRequest = await prisma.$transaction(async (tx) => {
+        const existingMember = await tx.chatRoomMember.findUnique({
+          where: {
+            userId_chatRoomId: {
+              userId,
+              chatRoomId: roomId,
+            },
           },
-        },
-      });
-
-      if (existingMember)
-        return res.status(400).json({ ok: false, error: "Already a member" });
-
-      const existingPending = await prisma.roomJoinRequest.findFirst({
-        where: {
-          roomId,
-          userId,
-          status: "PENDING",
-        },
-        select: { id: true },
-      });
-
-      if (existingPending) {
-        return res.status(400).json({
-          error: "You already have a pending request",
-          reqId: existingPending.id,
+          select: { role: true },
         });
-      }
 
-      const joinRequest = await prisma.roomJoinRequest.create({
-        data: {
-          roomId: room.id,
-          userId: userId,
-        },
+        if (existingMember) {
+          if (["OWNER", "ADMIN"].includes(existingMember.role)) {
+            throw new AppError("Owner or admin cannot self-invite", 400);
+          }
+          throw new AppError("Already a member", 400);
+        }
+
+        const existingPending = await tx.roomJoinRequest.findFirst({
+          where: {
+            roomId,
+            userId,
+            status: "PENDING",
+          },
+          select: { id: true },
+        });
+
+        if (existingPending) {
+          throw new AppError("You already have a pending request", 400);
+        }
+
+        return tx.roomJoinRequest.create({
+          data: {
+            roomId,
+            userId,
+          },
+        });
       });
 
       return res.status(201).json({ ok: true, joinRequest });
-    } catch (err) {
+    } catch (err: any) {
+      if (err instanceof AppError) {
+        return res.status(err.statusCode).json({
+          ok: false,
+          error: err.message,
+        });
+      }
+
+      if (err?.code === "P2003") {
+        return res.status(404).json({
+          ok: false,
+          error: "Room not found",
+        });
+      }
+
+      if (err?.code === "P2002") {
+        return res.status(409).json({
+          ok: false,
+          error: "You already have a pending request",
+        });
+      }
+
       console.log(err);
       return res.status(500).json({
         ok: false,
@@ -70,6 +112,18 @@ router.post(
   },
 );
 
+/**
+ * GET /:roomId/join-requests
+ *
+ * Lists all join requests for a room. Only accessible by owners and admins.
+ *
+ * What it does:
+ * - Verifies the requester has an OWNER or ADMIN role in the room.
+ * - Returns all join requests (optionally filtered by status via query param).
+ * - Includes the requesting user and the reviewer (if reviewed) in the response.
+ *
+ * Improvements: None — this is a read-only endpoint with no write-side concerns.
+ */
 router.get(
   "/:roomId/join-requests",
   requireAuth,
@@ -132,6 +186,21 @@ router.get(
   },
 );
 
+/**
+ * PATCH /:roomId/join-requests/:requestId
+ *
+ * Approve or reject a pending join request. Only accessible by owners and admins.
+ *
+ * What it does:
+ * - Verifies the reviewer has OWNER or ADMIN role in the room.
+ * - Validates the request exists, belongs to the room, and is still PENDING.
+ * - On APPROVE: adds the user as a MEMBER and updates the request status.
+ * - On REJECT: updates the request status without adding the user.
+ *
+ * Improvements:
+ * - The member creation and request status update are wrapped in a transaction
+ *   to ensure atomicity — either both succeed or neither does.
+ */
 router.patch(
   "/:roomId/join-requests/:requestId",
   requireAuth,
