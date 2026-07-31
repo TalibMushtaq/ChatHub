@@ -34,6 +34,7 @@ model ChatRoom {
   createdBy      String
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+  lastMessageAt  DateTime?
 
   User           User             @relation(fields: [createdBy], references: [id])
 
@@ -43,7 +44,7 @@ model ChatRoom {
   joinRequests   RoomJoinRequest[]
   joinLinks      RoomJoinLink[]
 
-
+  @@index([createdBy])
 }
 
 model ChatRoomMember {
@@ -53,13 +54,12 @@ model ChatRoomMember {
   role       ChatRoomRole @default(MEMBER)
   joinedAt   DateTime     @default(now())
 
-  ChatRoom   ChatRoom     @relation(fields: [chatRoomId], references: [id])
-  User       User         @relation(fields: [userId], references: [id])
+  ChatRoom   ChatRoom     @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  User       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chatRoomId])
   @@index([chatRoomId])
   @@index([userId])
-  
 }
 
 
@@ -72,7 +72,7 @@ model Message {
   directChatId String?
 
   messageType  MessageType @default(TEXT)
-  fileUri      String?
+  fileUrl      String?
   fileName     String?
   fileSize     Int?
 
@@ -82,9 +82,9 @@ model Message {
   deletedAt    DateTime?
   editedAt     DateTime?
 
-  ChatRoom     ChatRoom?   @relation(fields: [chatRoomId], references: [id])
-  DirectChat   DirectChat? @relation(fields: [directChatId], references: [id])
-  User         User        @relation(fields: [senderId], references: [id])
+  ChatRoom     ChatRoom?   @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  DirectChat   DirectChat? @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  User         User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([chatRoomId, createdAt])
   @@index([directChatId, createdAt])
@@ -96,11 +96,13 @@ model DirectChat {
   user2Id                       String
   createdAt                     DateTime  @default(now())
   lastMessageAt                 DateTime?
-  User_DirectChat_user1IdToUser User      @relation("DirectChat_user1IdToUser", fields: [user1Id], references: [id])
-  User_DirectChat_user2IdToUser User      @relation("DirectChat_user2IdToUser", fields: [user2Id], references: [id])
+  User_DirectChat_user1IdToUser User      @relation("DirectChat_user1IdToUser", fields: [user1Id], references: [id], onDelete: Cascade)
+  User_DirectChat_user2IdToUser User      @relation("DirectChat_user2IdToUser", fields: [user2Id], references: [id], onDelete: Cascade)
   Message                       Message[]
 
   @@unique([user1Id, user2Id])
+  @@index([user1Id])
+  @@index([user2Id])
 }
 
 model User {
@@ -154,6 +156,8 @@ model RoomInvitation {
   createdAt       DateTime @default(now())
 
   @@unique([roomId, invitedUserId, status], name: "unique_pending_invitation")
+  @@index([roomId])
+  @@index([invitedUserId])
 }
 
 
@@ -176,6 +180,8 @@ model RoomJoinRequest {
   reviewedAt            DateTime?
 
   @@unique([roomId, userId, status], name: "unique_pending_join_request")
+  @@index([roomId])
+  @@index([userId])
 }
 
 model RoomJoinLink {
@@ -195,4 +201,7 @@ model RoomJoinLink {
   isActive              Boolean                 @default(true)
 
   createdAt             DateTime                @default(now())
+
+  @@index([roomId])
+  @@index([createdById])
 }

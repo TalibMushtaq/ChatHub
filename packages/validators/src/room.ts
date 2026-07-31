@@ -6,6 +6,22 @@ export const roomIdSchema = z.string().min(1, "Room ID is required");
 
 export const userIdSchema = z.string().min(1, "User ID is required");
 
+// --- Rooms ---
+
+export const createRoomSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Name is required")
+    .max(100, "Name must be at most 100 characters"),
+  description: z
+    .string()
+    .trim()
+    .max(500, "Description must be at most 500 characters")
+    .optional()
+    .nullable(),
+});
+
 // --- Invitations ---
 
 export const sendInvitationSchema = z.object({

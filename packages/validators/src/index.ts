@@ -3,6 +3,7 @@ export { chatRoomMessageSchema } from "./roomChat";
 export {
   roomIdSchema,
   userIdSchema,
+  createRoomSchema,
   sendInvitationSchema,
   respondInvitationSchema,
   joinRequestActionSchema,

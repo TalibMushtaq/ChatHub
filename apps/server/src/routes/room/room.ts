@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express";
 import requireAuth from "../../middleware/requireAuth";
 import { prisma } from "../../../db/prisma";
+import { AppError } from "../../lib/AppError";
+import { createRoomSchema } from "@repo/validators";
 import joinRoomInvite from "./joinroominvite";
 import joinRoomRequest from "./joinroomreq";
 import joinRoomlink from "./joinroomlink";
@@ -13,33 +15,35 @@ router.use(joinRoomInvite);
 router.use(joinRoomRequest);
 router.use(joinRoomlink);
 
-// --------------------------Create Room -------------------------
-router.post("/create", requireAuth, async (req: Request, res: Response) => {
+/**
+ * POST /rooms
+ *
+ * Creates a new chat room and adds the creator as OWNER.
+ *
+ * Improvements:
+ * - Request body validated with Zod via createRoomSchema.
+ * - Fixed typo: "discription" -> "description".
+ * - Removed manual validation (Zod handles name/description checks).
+ * - Route changed from POST /create to POST /rooms for REST consistency.
+ */
+router.post("/rooms", requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const name = String(req.body.name ?? "").trim();
-    const descriptionRaw = req.body.discription;
 
-    if (!name) {
-      return res.status(400).json({ ok: false, error: "name is required" });
+    const parsed = createRoomSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Invalid input",
+      });
     }
-    if (name.length > 100) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "name must be at most 100 characters" });
-    }
-    const discription =
-      typeof descriptionRaw === "string" ? descriptionRaw.trim() : null;
-    if (discription && discription.length > 500) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "description must be at most 500 characters" });
-    }
+
+    const { name, description } = parsed.data;
 
     const room = await prisma.chatRoom.create({
       data: {
         name,
-        description: discription || null,
+        description: description || null,
         User: { connect: { id: userId } },
         ChatRoomMember: {
           create: {
@@ -64,11 +68,25 @@ router.post("/create", requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-//------------------------------------------ List My Rooms ---------------------------------------
-
+/**
+ * GET /rooms
+ *
+ * Lists rooms the authenticated user belongs to.
+ *
+ * Improvements:
+ * - Replaced loading ALL members with:
+ *   1. A single query for just the user's own membership (for myRole).
+ *   2. A _count for total member count.
+ *   This prevents O(n) member loading per room (1000 users = 1000 rows -> 1 row).
+ * - Fixed typo: "discription" -> "description".
+ * - Added pagination with take/cursor.
+ * - Route unchanged (already RESTful: GET /rooms).
+ */
 router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const cursor = req.query.cursor as string | undefined;
 
     const rooms = await prisma.chatRoom.findMany({
       where: {
@@ -78,7 +96,12 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
           },
         },
       },
-      orderBy: [{ updatedAt: "desc" }],
+      orderBy: [{ lastMessageAt: "desc" }, { id: "asc" }],
+      take: limit + 1,
+      ...(cursor && {
+        cursor: { id: cursor },
+        skip: 1,
+      }),
       select: {
         id: true,
         name: true,
@@ -86,12 +109,14 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
         createdBy: true,
         createdAt: true,
         updatedAt: true,
+        // Only fetch the current user's membership — not every member
         ChatRoomMember: {
-          select: {
-            id: true,
-            userId: true,
-            role: true,
-          },
+          where: { userId },
+          select: { role: true },
+        },
+        // Use _count instead of loading all members
+        _count: {
+          select: { ChatRoomMember: true },
         },
         Message: {
           orderBy: { createdAt: "desc" },
@@ -107,22 +132,26 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
       },
     });
 
-    const inbox = rooms.map((room) => {
-      const myMembership = room.ChatRoomMember.find((m) => m.userId === userId);
+    const hasMore = rooms.length > limit;
+    const sliced = hasMore ? rooms.slice(0, limit) : rooms;
 
-      return {
-        roomId: room.id,
-        name: room.name,
-        description: room.description,
-        createdBy: room.createdBy,
-        createdAt: room.createdAt,
-        updatedAt: room.updatedAt,
-        myRole: myMembership?.role ?? "MEMBER",
-        lastMessage: room.Message[0] ?? null,
-        memberCount: room.ChatRoomMember.length,
-      };
+    const inbox = sliced.map((room) => ({
+      roomId: room.id,
+      name: room.name,
+      description: room.description,
+      createdBy: room.createdBy,
+      createdAt: room.createdAt,
+      updatedAt: room.updatedAt,
+      myRole: room.ChatRoomMember[0]?.role ?? "MEMBER",
+      lastMessage: room.Message[0] ?? null,
+      memberCount: room._count.ChatRoomMember,
+    }));
+
+    return res.json({
+      ok: true,
+      rooms: inbox,
+      nextCursor: hasMore ? sliced[sliced.length - 1]?.id ?? null : null,
     });
-    return res.json({ ok: true, rooms: inbox });
   } catch (err) {
     console.log(err);
     return res.status(500).json({ ok: false, error: "server error" });

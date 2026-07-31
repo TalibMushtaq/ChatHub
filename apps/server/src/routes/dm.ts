@@ -219,7 +219,7 @@ router.get(
           content: true,
           createdAt: true,
           messageType: true,
-          fileUri: true,
+          fileUrl: true,
           fileName: true,
           fileSize: true,
           isDeleted: true,
