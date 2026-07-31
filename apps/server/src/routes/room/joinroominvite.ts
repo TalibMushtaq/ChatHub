@@ -1,17 +1,14 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../../../db/prisma";
 import requireAuth from "../../middleware/requireAuth";
+import { requireAdmin } from "../../middleware/requireAdmin";
+import { AppError } from "../../lib/AppError";
+import {
+  sendInvitationSchema,
+  respondInvitationSchema,
+} from "@repo/validators";
 
 const router = Router();
-
-class AppError extends Error {
-  statusCode: number;
-
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
 
 /**
  * POST /:roomId/invitations
@@ -35,42 +32,43 @@ class AppError extends Error {
  *   invites could both pass the duplicate check.
  * - Added structured error handling for P2003 (foreign key = user not found)
  *   and P2002 (unique constraint = invitation already sent).
+ * - Request body validated with Zod via sendInvitationSchema.
+ * - Authorization extracted to requireAdmin middleware.
  */
 router.post(
   "/:roomId/invitations",
   requireAuth,
+  requireAdmin,
   async (req: Request, res: Response) => {
     try {
-      const myId = req.user!.id;
+      const myId = req.user?.id;
+      if (!myId) {
+        return res.status(401).json({ ok: false, error: "Not authenticated" });
+      }
       const roomId = String(req.params.roomId);
-      const targetUser = String(req.body.targetUserId);
 
-      if (targetUser === myId) {
+      const parsed = sendInvitationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          ok: false,
+          error: parsed.error.issues[0]?.message ?? "Invalid input",
+        });
+      }
+
+      const { targetUser } = parsed.data as any;
+      const targetUserId: string = parsed.data.targetUserId;
+
+      if (targetUserId === myId) {
         return res
           .status(400)
           .json({ ok: false, error: "Cannot invite yourself" });
       }
 
-      const verify = await prisma.chatRoomMember.findUnique({
-        where: {
-          userId_chatRoomId: {
-            userId: myId,
-            chatRoomId: roomId,
-          },
-        },
-        select: {
-          role: true,
-        },
-      });
-
-      if (!verify || (verify.role !== "ADMIN" && verify.role !== "OWNER"))
-        return res.status(403).json({ ok: false, error: "Not authorized" });
-
       const sent = await prisma.$transaction(async (tx) => {
         const isMember = await tx.chatRoomMember.findUnique({
           where: {
             userId_chatRoomId: {
-              userId: targetUser,
+              userId: targetUserId,
               chatRoomId: roomId,
             },
           },
@@ -87,7 +85,7 @@ router.post(
         const pending = await tx.roomInvitation.findFirst({
           where: {
             roomId: roomId,
-            invitedUserId: targetUser,
+            invitedUserId: targetUserId,
             status: "PENDING",
           },
           select: {
@@ -102,7 +100,7 @@ router.post(
         return tx.roomInvitation.create({
           data: {
             roomId: roomId,
-            invitedUserId: targetUser,
+            invitedUserId: targetUserId,
             invitedById: myId,
           },
           select: {
@@ -270,6 +268,7 @@ router.get(
  *   to prevent race conditions (e.g., accepting an already-processed invitation).
  * - Added P2002 handling for the unique constraint on room membership, returning
  *   a clear "User is already a member" error instead of a generic 500.
+ * - Request body validated with Zod via respondInvitationSchema.
  */
 router.patch(
   "/invitations/:invitationId",
@@ -278,14 +277,16 @@ router.patch(
     try {
       const myId = req.user!.id;
       const invitationId = String(req.params.invitationId);
-      const status = req.body.status;
 
-      if (status !== "ACCEPTED" && status !== "REJECTED") {
+      const parsed = respondInvitationSchema.safeParse(req.body);
+      if (!parsed.success) {
         return res.status(400).json({
           ok: false,
-          error: "Invalid status value",
+          error: parsed.error.issues[0]?.message ?? "Invalid input",
         });
       }
+
+      const { status } = parsed.data;
 
       if (status === "REJECTED") {
         const result = await prisma.roomInvitation.updateMany({

@@ -1,6 +1,9 @@
-import { Router, Request, Response, response } from "express";
+import { Router, Request, Response } from "express";
 import requireAuth from "../../middleware/requireAuth";
+import { requireAdmin } from "../../middleware/requireAdmin";
 import { prisma } from "../../../db/prisma";
+import { AppError } from "../../lib/AppError";
+import { createJoinLinkSchema } from "@repo/validators";
 import crypto from "crypto";
 
 const router = Router();
@@ -17,7 +20,6 @@ function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-//------------------------------------ Create Room Join Link --------------------------------------------
 /**
  * POST /:roomId/join-links
  *
@@ -32,43 +34,25 @@ function hashToken(token: string): string {
  * Improvements:
  * - Token hashing: Raw tokens are never stored. If the DB is compromised,
  *   attackers get useless hashes. The raw token is only shown to the creator.
+ * - Authorization extracted to requireAdmin middleware.
+ * - Request body validated with Zod via createJoinLinkSchema.
  */
 router.post(
   "/:roomId/join-links",
   requireAuth,
+  requireAdmin,
   async (req: Request, res: Response) => {
     try {
       const myId = req.user!.id;
-      const roomid = String(req.params.roomId);
+      const roomId = String(req.params.roomId);
 
-      const room = await prisma.chatRoom.findUnique({
-        where: {
-          id: roomid,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (!room)
-        return res.status(404).json({ ok: false, error: "Room not found" });
-
-      const isMember = await prisma.chatRoomMember.findUnique({
-        where: {
-          userId_chatRoomId: {
-            userId: myId,
-            chatRoomId: roomid,
-          },
-        },
-        select: {
-          role: true,
-        },
-      });
-
-      if (!isMember || (isMember.role !== "ADMIN" && isMember.role !== "OWNER"))
-        return res
-          .status(403)
-          .json({ ok: false, error: "Not a member or Does not have access" });
+      const parsed = createJoinLinkSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          ok: false,
+          error: parsed.error.issues[0]?.message ?? "Invalid input",
+        });
+      }
 
       const rawToken = crypto.randomBytes(12).toString("hex");
       const hashedToken = hashToken(rawToken);
@@ -77,11 +61,15 @@ router.post(
         data: {
           token: hashedToken,
           room: {
-            connect: { id: roomid },
+            connect: { id: roomId },
           },
           createdBy: {
             connect: { id: myId },
           },
+          ...(parsed.data.maxUses && { maxUses: parsed.data.maxUses }),
+          ...(parsed.data.expiresAt && {
+            expiresAt: new Date(parsed.data.expiresAt),
+          }),
         },
         select: {
           id: true,
@@ -109,6 +97,7 @@ router.post(
     }
   },
 );
+
 /**
  * GET /join/:token
  *
@@ -186,7 +175,8 @@ router.get("/join/:token", requireAuth, async (req: Request, res: Response) => {
  * - Token hashing: Incoming token is hashed before DB lookup.
  * - Atomic slot reservation: updateMany with `where: { usedCount: { lt: maxUses } }`
  *   ensures only one transaction can claim the last slot. If count === 0, someone
- *   else claimed it first → 410 Gone.
+ *   else claimed it first -> 410 Gone.
+ * - Error handling uses AppError consistently.
  */
 router.post(
   "/join/:token",
@@ -203,17 +193,17 @@ router.post(
         });
 
         if (!link) {
-          throw new Error("NOT_FOUND");
+          throw new AppError("Link not found", 404);
         }
 
         const now = new Date();
 
         if (!link.isActive) {
-          throw new Error("INACTIVE");
+          throw new AppError("Link is no longer valid", 410);
         }
 
         if (link.expiresAt && link.expiresAt < now) {
-          throw new Error("EXPIRED");
+          throw new AppError("Link is no longer valid", 410);
         }
 
         // Atomic reservation: try to claim a slot before joining.
@@ -232,7 +222,7 @@ router.post(
           });
 
           if (updated.count === 0) {
-            throw new Error("MAX_USES");
+            throw new AppError("Link is no longer valid", 410);
           }
         }
 
@@ -246,7 +236,7 @@ router.post(
         });
 
         if (member) {
-          throw new Error("ALREADY_MEMBER");
+          throw new AppError("Already a member", 409);
         }
 
         await tx.chatRoomMember.create({
@@ -269,22 +259,19 @@ router.post(
       });
 
       return res.status(200).json({ ok: true });
-    } catch (err) {
-      if (err instanceof Error) {
-        switch (err.message) {
-          case "NOT_FOUND":
-            return res.status(404).json({ ok: false, error: "Link not found" });
-          case "INACTIVE":
-          case "EXPIRED":
-          case "MAX_USES":
-            return res
-              .status(410)
-              .json({ ok: false, error: "Link is no longer valid" });
-          case "ALREADY_MEMBER":
-            return res
-              .status(409)
-              .json({ ok: false, error: "Already a member" });
-        }
+    } catch (err: any) {
+      if (err instanceof AppError) {
+        return res.status(err.statusCode).json({
+          ok: false,
+          error: err.message,
+        });
+      }
+
+      if (err?.code === "P2002") {
+        return res.status(409).json({
+          ok: false,
+          error: "Already a member",
+        });
       }
 
       console.error(err);
@@ -303,36 +290,17 @@ router.post(
  * - Sets isActive to false, preventing further joins via this link.
  * - Existing users who already joined are not affected.
  *
- * Improvements: None — this is a simple status update.
+ * Improvements:
+ * - Authorization extracted to requireAdmin middleware.
  */
 router.patch(
   "/:roomId/join-links/:linkId",
   requireAuth,
+  requireAdmin,
   async (req: Request, res: Response) => {
     try {
-      const userId = req.user!.id;
       const roomId = String(req.params.roomId);
       const linkId = String(req.params.linkId);
-
-      const membership = await prisma.chatRoomMember.findUnique({
-        where: {
-          userId_chatRoomId: {
-            userId,
-            chatRoomId: roomId,
-          },
-        },
-        select: { role: true },
-      });
-
-      if (
-        !membership ||
-        (membership.role !== "OWNER" && membership.role !== "ADMIN")
-      ) {
-        return res.status(403).json({
-          ok: false,
-          error: "Not authorized",
-        });
-      }
 
       const link = await prisma.roomJoinLink.findUnique({
         where: { id: linkId },

@@ -1,16 +1,14 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../../../db/prisma";
 import requireAuth from "../../middleware/requireAuth";
+import { requireAdmin } from "../../middleware/requireAdmin";
+import { AppError } from "../../lib/AppError";
+import {
+  joinRequestActionSchema,
+  joinRequestStatusQuerySchema,
+} from "@repo/validators";
+
 const router = Router();
-
-class AppError extends Error {
-  statusCode: number;
-
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
 
 /**
  * POST /:roomId/join-request
@@ -122,34 +120,20 @@ router.post(
  * - Returns all join requests (optionally filtered by status via query param).
  * - Includes the requesting user and the reviewer (if reviewed) in the response.
  *
- * Improvements: None — this is a read-only endpoint with no write-side concerns.
+ * Improvements:
+ * - Query param validated with Zod via joinRequestStatusQuerySchema.
+ * - Authorization extracted to requireAdmin middleware.
  */
 router.get(
   "/:roomId/join-requests",
   requireAuth,
+  requireAdmin,
   async (req: Request, res: Response) => {
     try {
-      const userId = req.user!.id;
       const roomId = String(req.params.roomId);
-      const status = req.query.status as
-        | "PENDING"
-        | "APPROVED"
-        | "REJECTED"
-        | undefined;
 
-      // 1️⃣ Ensure requester is OWNER or ADMIN
-      const membership = await prisma.chatRoomMember.findUnique({
-        where: {
-          userId_chatRoomId: {
-            userId: userId,
-            chatRoomId: roomId,
-          },
-        },
-      });
-
-      if (!membership || !["OWNER", "ADMIN"].includes(membership.role)) {
-        return res.status(403).json({ error: "Not authorized" });
-      }
+      const queryParsed = joinRequestStatusQuerySchema.safeParse(req.query);
+      const status = queryParsed.success ? queryParsed.data.status : undefined;
 
       const requests = await prisma.roomJoinRequest.findMany({
         where: {
@@ -200,34 +184,28 @@ router.get(
  * Improvements:
  * - The member creation and request status update are wrapped in a transaction
  *   to ensure atomicity — either both succeed or neither does.
+ * - Request body validated with Zod via joinRequestActionSchema.
+ * - Authorization extracted to requireAdmin middleware.
  */
 router.patch(
   "/:roomId/join-requests/:requestId",
   requireAuth,
+  requireAdmin,
   async (req: Request, res: Response) => {
     try {
       const reviewerId = req.user!.id;
       const roomId = String(req.params.roomId);
       const requestId = String(req.params.requestId);
-      const { action } = req.body;
 
-      if (!["APPROVED", "REJECTED"].includes(action)) {
-        return res.status(400).json({ error: "Invalid action" });
+      const parsed = joinRequestActionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          ok: false,
+          error: parsed.error.issues[0]?.message ?? "Invalid input",
+        });
       }
-      const access = await prisma.chatRoomMember.findUnique({
-        where: {
-          userId_chatRoomId: {
-            userId: reviewerId,
-            chatRoomId: roomId,
-          },
-        },
-        select: {
-          role: true,
-        },
-      });
-      if (!access || (access.role !== "ADMIN" && access.role !== "OWNER")) {
-        return res.status(403).json({ ok: false, error: "Not Authorized" });
-      }
+
+      const { action } = parsed.data;
 
       const request = await prisma.roomJoinRequest.findUnique({
         where: {
@@ -266,7 +244,14 @@ router.patch(
       });
 
       return res.status(200).json({ ok: true });
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        return res.status(409).json({
+          ok: false,
+          error: "User is already a member",
+        });
+      }
+
       console.log(err);
       return res.status(500).json({
         ok: false,
