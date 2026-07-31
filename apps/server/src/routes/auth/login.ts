@@ -3,7 +3,10 @@ import express from "express";
 import { verifyPassword } from "../../lib/password";
 import { prisma } from "../../../db/prisma";
 import { userZod } from "@repo/validators";
-import { createRateLimiter } from "../../lib/rateLimiter";
+import {
+  createRateLimiter,
+  setRateLimitHeaders,
+} from "../../lib/rateLimiter";
 import { createLogger } from "../../lib/logger";
 
 const router = express.Router();
@@ -56,7 +59,9 @@ router.post("/login", async (req: Request, res: Response) => {
         : "";
   const rateLimitKey = identifier ? `${clientIp}:${identifier}` : clientIp;
 
-  if (loginRateLimiter(rateLimitKey)) {
+  const rl = await loginRateLimiter(rateLimitKey);
+  setRateLimitHeaders(res, rl);
+  if (!rl.allowed) {
     return res.status(429).json({ ok: false, error: "Too many attempts" });
   }
 

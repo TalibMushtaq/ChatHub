@@ -1,317 +1,131 @@
-# 💬 ChatHubby
+# ChatHubby
 
-A modern real-time chat application built with Next.js, Socket.io, and Prisma. ChatHubby provides a seamless messaging experience with a clean, responsive interface and robust backend architecture.
+A modern real-time chat application built with Next.js, Socket.io, and Prisma.
 
-## ✨ Features
+## Features
 
-- 🔒 User authentication and authorization
-- 💬 Real-time messaging with Socket.io
-- 📱 Responsive web interface
-- 🗄️ PostgreSQL database with Prisma ORM
-- 🎨 Modern UI components with Tailwind CSS
-- 📦 Monorepo architecture with Turborepo
-- 🔧 Type-safe development with TypeScript
+- User authentication with Argon2id password hashing
+- Real-time messaging with Socket.io (chat rooms + direct messages)
+- Room management (create, join requests, invitations, shareable links)
+- Responsive web interface with Tailwind CSS
+- Monorepo architecture with Turborepo
+- Type-safe development with TypeScript + Zod validation
 
-## 🏗️ Architecture
-
-This project uses a monorepo structure powered by Turborepo and PNPM workspaces:
-
-### Applications
-
-- **`apps/web`** - Next.js frontend application (Port 3000)
-- **`apps/ws-server`** - WebSocket server for real-time communication
-- **`apps/http-server`** - Express.js HTTP API server
-
-### Packages
-
-- **`packages/database`** - Prisma database client and schema
-- **`packages/ui`** - Shared React UI components
-- **`packages/cache`** - Caching utilities
-- **`packages/eslint-config`** - Shared ESLint configurations
-- **`packages/typescript-config`** - Shared TypeScript configurations
-- **`packages/tailwind-config`** - Shared Tailwind CSS configuration
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- PNPM 9.0.0+
-- PostgreSQL database
-
-### Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone <repository-url>
-   cd ChatHubby
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   pnpm install
-   ```
-
-3. **Set up environment variables**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your database URL and other configurations
-   ```
-
-4. **Set up the database**
-
-   ```bash
-   pnpm db:migrate
-   pnpm db:generate
-   ```
-
-5. **Start development servers**
-   ```bash
-   pnpm dev
-   ```
-
-This will start all applications in development mode:
-
-- Web app: http://localhost:3000
-- WebSocket server: Configured port
-- HTTP server: Configured port
-
-## 📋 Available Scripts
-
-- `pnpm dev` - Start all applications in development mode
-- `pnpm build` - Build all applications for production
-- `pnpm lint` - Run ESLint across all packages
-- `pnpm format` - Format code with Prettier
-- `pnpm check-types` - Type check all packages
-- `pnpm db:migrate` - Run database migrations
-- `pnpm db:generate` - Generate Prisma client
-
-## 🗄️ Database Schema
-
-The application uses PostgreSQL with Prisma ORM. Key models include:
-
-- **User**: User accounts with authentication
-  - `id`, `email`, `username`, `passwordHash`
-  - `avatar`, `createdAt`, `updatedAt`
-
-## 🛠️ Tech Stack
-
-### Frontend
-
-- **Next.js 16** - React framework with App Router
-- **React 19** - UI library
-- **Tailwind CSS 4** - Utility-first CSS framework
-- **TypeScript** - Type safety
-
-### Backend
-
-- **Express.js** - HTTP server framework
-- **Socket.io** - Real-time communication
-- **Prisma** - Database ORM
-- **PostgreSQL** - Database
-
-### Development Tools
-
-- **Turborepo** - Monorepo build system
-- **PNPM** - Fast, efficient package manager
-- **ESLint** - Code linting
-- **Prettier** - Code formatting
-- **TypeScript** - Static type checking
-
-## 📁 Project Structure
+## Architecture
 
 ```
 ChatHubby/
 ├── apps/
-│   ├── web/                 # Next.js frontend
-│   └── server/         # Express.js HTTP API, Socket.Io
+│   ├── web/                  # Next.js frontend (Port 3000)
+│   └── server/               # Express.js + Socket.io server
 ├── packages/
-│   ├── database/            # Prisma schema and client
-│   ├── ui/                  # Shared React components
-│   ├── cache/               # Caching utilities
-│   ├── eslint-config/       # ESLint configurations
-│   ├── typescript-config/   # TypeScript configurations
-│   └── tailwind-config/     # Tailwind CSS configuration
-├── package.json             # Root package.json
-├── turbo.json              # Turborepo configuration
-└── pnpm-workspace.yaml     # PNPM workspace configuration
+│   ├── validators/           # Shared Zod schemas
+│   ├── eslint-config/        # ESLint configurations
+│   └── typescript-config/    # TypeScript configurations
 ```
 
-## 🔧 Development
-
-### Working with Individual Apps
-
-You can develop specific applications using Turborepo filters:
+## Quick Start
 
 ```bash
-# Develop only the web app
-pnpm turbo dev --filter=web
+# Install dependencies
+pnpm install
 
-# Build only the HTTP server
-pnpm turbo build --filter=http-server
+# Set up environment
+cp .env.example .env
+# Edit .env with your database URL, Redis URL, session secret
 
-# Lint only the UI package
-pnpm turbo lint --filter=@repo/ui
+# Run migrations and generate Prisma client
+pnpm db:migrate
+pnpm db:generate
+
+# Start development
+pnpm dev
 ```
 
-### Database Operations
-
-```bash
-# Generate Prisma client after schema changes
-pnpm turbo db:generate
-
-# Create and apply new migration
-pnpm turbo db:migrate
-
-# Reset database (development only)
-pnpm turbo db:reset
-```
-
-### Code Quality
-
-The project enforces code quality through:
-
-- **ESLint** for consistent code style
-- **TypeScript** for type safety
-- **Prettier** for code formatting
-
-Run quality checks:
-
-```bash
-# Check types across all packages
-pnpm check-types
-
-# Lint all code
-pnpm lint
-
-# Format all code
-pnpm format
-```
-
-## 🌍 Environment Variables
-
-Create a `.env` file in the root directory:
+## Environment Variables
 
 ```env
 # Database
 DATABASE_URL="postgresql://username:password@localhost:5432/chathub"
 
-# Next.js
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key"
+# Redis (used for sessions and rate limiting)
+REDIS_URL="redis://localhost:6379"
 
-# WebSocket Server
-WS_PORT=3001
+# Session
+SESSION_SECRET="your-secret-key"
 
-# HTTP Server
-HTTP_PORT=3002
+# Server
+PORT=3002
 ```
 
-## 🚢 Deployment
+## Tech Stack
 
-### Building for Production
+- **Frontend**: Next.js 16, React 19, Tailwind CSS 4
+- **Backend**: Express.js, Socket.io, Prisma, PostgreSQL
+- **Auth**: Argon2id (argon2id), express-session with Redis store
+- **Validation**: Zod (shared schemas in `@repo/validators`)
+- **Rate Limiting**: Redis-backed with atomic Lua scripts
+- **Build**: Turborepo, PNPM workspaces
+
+## API
+
+### REST Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/signup` | Create account |
+| POST | `/login` | Authenticate |
+| GET | `/me` | Get current user |
+| POST | `/rooms` | Create chat room |
+| GET | `/rooms` | List user's rooms |
+| POST | `/:roomId/invitations` | Invite user to room |
+| POST | `/:roomId/join-request` | Request to join room |
+| PATCH | `/:roomId/join-requests/:id` | Approve/reject join request |
+| POST | `/:roomId/join-links` | Create shareable link |
+| POST | `/join/:token` | Join via link |
+| GET | `/inbox` | List direct messages |
+
+### Socket Events
+
+| Event | Direction | Description |
+|-------|-----------|-------------|
+| `chatroom:join` | Client -> Server | Join a room |
+| `chatroom:joined` | Server -> Client | Confirm join |
+| `chatroom:message` | Client -> Server | Send message |
+| `chatroom:message` | Server -> Client | New message |
+| `chatroom:leave` | Client -> Server | Leave room |
+| `chatroom:error` | Server -> Client | Error response |
+
+## Security Features
+
+- **Session fixation prevention**: Session regenerated on login/signup
+- **Timing attack resistance**: Constant-time password verification with dummy hash
+- **Rate limiting**: Redis-backed, IP+identifier keys, atomic Lua scripts
+- **Input validation**: Zod schemas for all request bodies
+- **Authorization**: Typed `ForbiddenError` for consistent 403 responses
+- **Token hashing**: Join link tokens hashed with SHA-256 before storage
+- **Race condition prevention**: Atomic operations for join links, invitations, requests
+- **No information leakage**: Uniform error messages for auth failures
+
+## Database Schema
+
+Key models: `User`, `ChatRoom`, `ChatRoomMember`, `Message`, `DirectChat`, `RoomInvitation`, `RoomJoinRequest`, `RoomJoinLink`
+
+See `apps/server/db/schema.prisma` for the full schema.
+
+## Development
 
 ```bash
-# Build all applications
+# Type check
+pnpm check-types
+
+# Lint
+pnpm lint
+
+# Build
 pnpm build
-
-# Build specific application
-pnpm turbo build --filter=web
 ```
 
-### Docker Support
+## License
 
-_(Add Docker configuration if needed)_
-
-```bash
-# Build Docker image
-docker build -t chathub .
-
-# Run container
-docker run -p 3000:3000 chathub
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-pnpm test
-
-# Run tests for specific package
-pnpm turbo test --filter=@repo/ui
-
-# Run tests in watch mode
-pnpm test:watch
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Contribution Guidelines
-
-- Follow the existing code style
-- Write tests for new features
-- Update documentation as needed
-- Ensure all CI checks pass
-
-## 📝 API Documentation
-
-### REST API Endpoints
-
-_(Add API documentation once implemented)_
-
-- `GET /api/users` - Get user list
-- `POST /api/auth/login` - User authentication
-- `POST /api/messages` - Send message
-
-### WebSocket Events
-
-_(Add WebSocket event documentation once implemented)_
-
-- `connection` - User connects
-- `message` - Send/receive messages
-- `disconnect` - User disconnects
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-1. **Database Connection Error**
-   - Verify PostgreSQL is running
-   - Check DATABASE_URL in .env file
-   - Run migrations: `pnpm db:migrate`
-
-2. **Port Already in Use**
-   - Check for running processes on ports 3000, 3001, 3002
-   - Kill processes or change ports in configuration
-
-3. **TypeScript Errors**
-   - Run `pnpm check-types` to see detailed errors
-   - Ensure all packages are built: `pnpm build`
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Next.js team for the amazing React framework
-- Socket.io team for real-time communication tools
-- Prisma team for the excellent ORM
-- Vercel for Turborepo and deployment platform
-
-## 🔗 Useful Links
-
-- [Turborepo Documentation](https://turborepo.com/docs)
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Prisma Documentation](https://www.prisma.io/docs)
-- [Socket.io Documentation](https://socket.io/docs)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+MIT

@@ -4,7 +4,10 @@ import { hashPassword } from "../../lib/password";
 import { prisma } from "../../../db/prisma";
 import { userZod } from "@repo/validators";
 import crypto from "node:crypto";
-import { createRateLimiter } from "../../lib/rateLimiter";
+import {
+  createRateLimiter,
+  setRateLimitHeaders,
+} from "../../lib/rateLimiter";
 import { createLogger } from "../../lib/logger";
 
 const router = express.Router();
@@ -55,7 +58,9 @@ router.post("/signup", async (req: Request, res: Response) => {
     : "";
   const rateLimitKey = emailHint ? `${clientIp}:${emailHint}` : clientIp;
 
-  if (signupRateLimiter(rateLimitKey)) {
+  const rl = await signupRateLimiter(rateLimitKey);
+  setRateLimitHeaders(res, rl);
+  if (!rl.allowed) {
     return res.status(429).json({
       ok: false,
       error: "Too many attempts. Please try again later.",
