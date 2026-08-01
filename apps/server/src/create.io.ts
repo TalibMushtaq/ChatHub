@@ -18,7 +18,7 @@ export function createIO(httpServer: HTTPServer) {
   io.use(socketAuth);
   io.on("connection", (socket) => {
     console.log("socket connected :", socket.id);
-    const user = (socket.request as any).user;
+    const { user } = socket.data;
 
     socket.join(`user:${user.id}`);
 

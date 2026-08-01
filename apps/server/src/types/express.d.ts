@@ -1,15 +1,15 @@
 import type { User } from "@prisma/client";
 import type { Server as IOServer } from "socket.io";
 
-type AuthUser = Pick<
+export type AuthUser = Pick<
   User,
-  "id" | "email" | "username" | "avatar" | "createdAt"
+  "id" | "email" | "username" | "displayname" | "avatar" | "createdAt"
 >;
 
 declare global {
   namespace Express {
     interface Request {
-      user?: AuthUser; // make optional for TS safety
+      user?: AuthUser;
       io: IOServer;
     }
   }

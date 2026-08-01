@@ -12,6 +12,12 @@ import room from "./routes/room/room";
 import searchUser from "./routes/searchUser";
 
 const app = express();
+
+// Trust the first proxy (nginx, load balancer, etc.) so that
+// req.protocol and req.secure reflect the original X-Forwarded-* headers.
+// Without this, secure cookies won't work behind a reverse proxy.
+app.set("trust proxy", 1);
+
 const httpServer = http.createServer(app);
 const io = createIO(httpServer);
 app.use(express.json());

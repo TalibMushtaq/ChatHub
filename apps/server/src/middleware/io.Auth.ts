@@ -1,27 +1,51 @@
-import type { Server, Socket } from "socket.io";
+import type { Socket } from "socket.io";
+import type { Request } from "express";
 import { prisma } from "../../db/prisma";
+import { createLogger } from "../lib/logger";
 
-export default async function socketAuth(
+const log = createLogger("ioAuth");
+
+/**
+ * Socket.IO authentication middleware.
+ *
+ * Flow: session check → user lookup → attach to socket.data → continue.
+ *
+ * Changes from original:
+ * - Uses socket.data.user (typed via declaration merging) instead of
+ *   mutating socket.request — this is Socket.IO's recommended pattern.
+ * - Removes all `as any` casts by typing the request through express-session.
+ * - Logs unexpected errors server-side while returning generic errors to client.
+ * - Centralizes the unauthorized response to reduce duplication.
+ */
+export default function socketAuth(
   socket: Socket,
   next: (err?: Error) => void,
-) {
-  try {
-    const req = socket.request as any;
-    if (!req.session || !req.session.userId) {
-      return next(new Error("Unauthorized"));
-    }
+): void {
+  const req = socket.request as Request;
+  const session = req.session;
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.session.userId },
-      select: { id: true, username: true },
-    });
-
-    if (!user) return next(new Error("Unauthorized"));
-
-    req.user = user;
-
-    next(undefined);
-  } catch (err) {
-    next(new Error("Authentication Failed"));
+  if (!session?.userId) {
+    return next(new Error("Unauthorized"));
   }
+
+  prisma.user
+    .findUnique({
+      where: { id: session.userId },
+      select: { id: true, username: true },
+    })
+    .then((user) => {
+      if (!user) {
+        return next(new Error("Unauthorized"));
+      }
+
+      // Store only the fields downstream handlers need.
+      socket.data.user = user;
+      next();
+    })
+    .catch((err: unknown) => {
+      log.error("Database error during socket authentication", err, {
+        userId: session.userId,
+      });
+      next(new Error("Authentication failed"));
+    });
 }

@@ -1,38 +1,26 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import express from "express";
-import { prisma } from "../../../db/prisma";
 import requireAuth from "../../middleware/requireAuth";
 
 const router = express.Router();
 
-router.get("/me", requireAuth, async (req: Request, res: Response) => {
-  try {
-    const userid = req.user!.id;
-
-    if (!userid)
-      return res.status(401).json({ ok: false, error: "Not logged in" });
-
-    const user = await prisma.user.findUnique({
-      where: { id: userid },
-      select: {
-        id: true,
-        email: true,
-        displayname: true,
-        username: true,
-        avatar: true,
-        createdAt: true,
-      },
-    });
-
-    if (!user) {
-      req.session.destroy(() => {});
-      return res.status(401).json({ ok: false, error: "Session expired" });
-    }
-    return res.json({ ok: true, user });
-  } catch (err: any) {
-    console.log(err, "/me end point");
-    return res.status(500).json({ ok: false, error: "Server error" });
-  }
+/**
+ * GET /me
+ *
+ * Returns the authenticated user's profile.
+ *
+ * The requireAuth middleware already:
+ *  1. Validates the session
+ *  2. Loads the user from DB (or cache) with the exact fields below
+ *  3. Attaches the user to req.user
+ *
+ * Therefore no additional database query is needed here.
+ *
+ * AuthUser fields: id, email, username, displayname, avatar, createdAt
+ */
+router.get("/me", requireAuth, (req: Request, res: Response) => {
+  // requireAuth guarantees req.user is defined (returns 401 otherwise).
+  res.json({ ok: true, user: req.user });
 });
 
 export default router;

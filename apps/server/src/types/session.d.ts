@@ -1,17 +1,12 @@
 import "express-session";
+import type { AuthUser } from "./express";
 
 declare module "express-session" {
   interface SessionData {
     userId?: string;
 
     userCache?: {
-      user: {
-        id: string;
-        email: string;
-        username: string;
-        avatar: string | null;
-        createdAt: Date;
-      };
+      user: AuthUser;
       cachedAt: number;
     };
   }

@@ -1,18 +1,34 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import express from "express";
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("logout");
 
 const router = express.Router();
 
-router.post("/logout", async (req: Request, res: Response) => {
-  if (!req.session) return res.status(200).json({ ok: true });
+router.post("/logout", (req: Request, res: Response) => {
+  if (!req.session) {
+    res.json({ ok: true });
+    return;
+  }
+
   req.session.destroy((err) => {
     if (err) {
-      console.error("logout error:", err);
-      return res.status(500).json({ ok: false, error: "Failed to logout" });
+      log.error("Failed to destroy session", err);
+      res.status(500).json({ ok: false, error: "Failed to logout" });
+      return;
     }
-    res.clearCookie("chathubby.sid");
 
-    return res.status(200).json({ ok: true });
+    // Clear the cookie with the same options used when setting it.
+    // The browser requires matching path, httpOnly, secure, and sameSite
+    // to actually remove the cookie.
+    res.clearCookie("chathubby.sid", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+
+    res.json({ ok: true });
   });
 });
 

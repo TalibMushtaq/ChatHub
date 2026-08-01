@@ -5,7 +5,7 @@ import { prisma } from "../../db/prisma";
  * Middleware factory: ensures the authenticated user has OWNER or ADMIN role
  * in the room specified by `req.params.roomId`.
  *
- * Why: Every admin-only endpoint重复 the same findUnique + role check.
+ * Why: Every admin-only endpoint repeats the same findUnique + role check.
  * This extracts that into a single reusable middleware.
  *
  * Usage: router.get("/:roomId/foo", requireAuth, requireAdmin, handler)

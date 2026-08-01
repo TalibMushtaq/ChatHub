@@ -16,8 +16,8 @@ import { chatRoomMessageSchema } from "@repo/validators";
  * - Updates ChatRoom.lastMessageAt on every message for accurate inbox ordering.
  */
 export function registerRoomChat(io: Server, socket: Socket) {
-  const user = (socket.request as any).user;
-  const userId: string = user.id;
+  const { user } = socket.data;
+  const userId = user.id;
 
   // Initialize room cache on socket
   if (!socket.data.rooms) {

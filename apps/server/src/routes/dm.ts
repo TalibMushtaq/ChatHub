@@ -8,7 +8,7 @@ const router = Router();
 
 //Join IO socket DM
 export function registerDirectChat(io: Server, socket: Socket) {
-  const user = (socket.request as any).user;
+  const { user } = socket.data;
 
   socket.on("directChat:join", async ({ directChatId }) => {
     try {
