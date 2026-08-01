@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import express from "express";
-import { verifyPassword } from "../../lib/password";
+import { verifyPassword, hashPassword, passwordNeedsRehash } from "../../lib/password";
 import { prisma } from "../../../db/prisma";
 import { userZod } from "@repo/validators";
 import {
@@ -142,7 +142,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
         log.info("Login successful", { userId: user.id });
 
-        return res.status(200).json({
+        res.status(200).json({
           ok: true,
           user: {
             id: user.id,
@@ -151,6 +151,26 @@ router.post("/login", async (req: Request, res: Response) => {
             displayname: user.displayname,
           },
         });
+
+        // Transparently upgrade password hash if parameters have changed.
+        // Fire-and-forget: runs after response is sent to avoid latency.
+        void (async () => {
+          if (
+            user.passwordHash &&
+            (await passwordNeedsRehash(user.passwordHash))
+          ) {
+            try {
+              const newHash = await hashPassword(password);
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { passwordHash: newHash },
+              });
+              log.info("Password hash upgraded", { userId: user.id });
+            } catch (rehashErr) {
+              log.error("Failed to upgrade password hash", rehashErr);
+            }
+          }
+        })();
       });
     });
   } catch (err: unknown) {

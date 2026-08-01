@@ -17,7 +17,7 @@ export interface RateLimiterOptions {
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
-  retryAfter: number;e
+  retryAfter: number;
   limit: number;
 }
 

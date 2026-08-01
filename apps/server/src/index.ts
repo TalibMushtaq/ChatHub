@@ -1,6 +1,6 @@
 import "./lib/env";
 import express from "express";
-import { connectRedis } from "./lib/redis";
+import { connectRedis, disconnectRedis } from "./lib/redis";
 import { prisma } from "../db/prisma";
 import http from "http";
 import { createIO } from "./create.io";
@@ -57,6 +57,42 @@ async function main() {
     console.log(`web socket server running on ${Port}`);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Graceful shutdown
+// ---------------------------------------------------------------------------
+
+let isShuttingDown = false;
+
+async function shutdown(signal: string): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  console.log(`\n${signal} received, shutting down gracefully...`);
+
+  // Stop accepting new connections.
+  httpServer.close(async () => {
+    console.log("HTTP server closed");
+
+    // Disconnect from Redis.
+    await disconnectRedis();
+
+    // Disconnect from PostgreSQL.
+    await prisma.$disconnect();
+
+    console.log("Shutdown complete");
+    process.exit(0);
+  });
+
+  // Force exit after 10 seconds if graceful shutdown hangs.
+  setTimeout(() => {
+    console.error("Shutdown timed out, forcing exit");
+    process.exit(1);
+  }, 10_000);
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 main().catch((err) => {
   console.error("server failed to start : ", err);
