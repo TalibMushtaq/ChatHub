@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import axios from "axios";
-import StatCard from "./components/StatCard";
 import ActivityChart from "./components/ActivityChart";
 import ServersCard from "./components/ServersCard";
 import ActivityCard from "./components/ActivityCard";
@@ -39,30 +38,6 @@ export default async function DashboardPage() {
             </h2>
           </div>
 
-          {/* Stat Cards */}
-          <StatCard
-            label="Total Members"
-            value="48,291"
-            delta="12.4%"
-            trend="up"
-            icon="👥"
-          />
-
-          <StatCard
-            label="Messages Today"
-            value="9,847"
-            delta="5.2%"
-            trend="up"
-            icon="💬"
-          />
-
-          <StatCard
-            label="Online Now"
-            value="3,104"
-            delta="2.1%"
-            trend="down"
-            icon="🟢"
-          />
           <ActivityChart />
           <ServersCard />
           <ActivityCard />
