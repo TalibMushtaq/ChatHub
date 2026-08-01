@@ -9,6 +9,7 @@ type AuthUser = Pick<User, "id" | "username">;
 declare module "socket.io" {
   interface SocketData {
     user: AuthUser;
+    rooms?: Set<string>;
   }
 }
 

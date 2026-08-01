@@ -6,10 +6,12 @@ export type AuthUser = Pick<
   "id" | "email" | "username" | "displayname" | "avatar" | "createdAt"
 >;
 
+// user is non-optional because requireAuth guarantees it is set before
+// any downstream route runs; this eliminates req.user! assertions.
 declare global {
   namespace Express {
     interface Request {
-      user?: AuthUser;
+      user: AuthUser;
       io: IOServer;
     }
   }

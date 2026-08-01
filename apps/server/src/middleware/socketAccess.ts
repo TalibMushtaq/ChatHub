@@ -1,18 +1,18 @@
 import { prisma } from "../../db/prisma";
-import { ForbiddenError } from "../lib/AppError";
+import { ApiError } from "../lib/ApiError";
 
 /**
  * Asserts that the user is a member of the specified chat room.
  *
  * @param userId    - The ID of the user to check.
  * @param chatRoomId - The ID of the chat room.
- * @throws {ForbiddenError} If the user is not a member of the room.
+ * @throws {ApiError} If the user is not a member of the room.
  *
  * Why this design:
  * - Uses `findUnique` with the compound unique constraint (userId, chatRoomId)
  *   for an O(1) primary-key lookup — no OR clauses, no full-table scan.
  * - Only selects `id` (existence check) — no unnecessary columns.
- * - Throws a typed `ForbiddenError` (HTTP 403) so callers can distinguish
+ * - Throws a typed `ApiError` (HTTP 403) so callers can distinguish
  *   authorization failures from unexpected errors without string comparison.
  * - Framework-agnostic: no Express, no HTTP, no logging. Pure authorization logic.
  * - Prepared for future caching: the (userId, chatRoomId) key is stable and
@@ -29,8 +29,11 @@ export async function assertRoomAccess(
     select: { id: true },
   });
 
+  // Throwing ApiError (instead of returning a value) lets the caller use
+  // a single try/catch or asyncHandler to convert auth failures into
+  // consistent 403 responses without repeating if-statements.
   if (!membership) {
-    throw new ForbiddenError("Not authorized for this room");
+    throw new ApiError("Not authorized for this room", 403, "FORBIDDEN");
   }
 }
 
@@ -39,7 +42,7 @@ export async function assertRoomAccess(
  *
  * @param userId       - The ID of the user to check.
  * @param directChatId - The ID of the direct chat.
- * @throws {ForbiddenError} If the user is not a participant.
+ * @throws {ApiError} If the user is not a participant.
  *
  * Why `findUnique` + in-memory check instead of `findFirst` with OR:
  * - The DirectChat schema has a unique constraint on (user1Id, user2Id),
@@ -58,7 +61,9 @@ export async function assertDirectChatAccess(
     select: { user1Id: true, user2Id: true },
   });
 
+  // Same throw-over-return pattern as assertRoomAccess: keeps the call
+  // site clean and lets asyncHandler translate to HTTP automatically.
   if (!chat || (chat.user1Id !== userId && chat.user2Id !== userId)) {
-    throw new ForbiddenError("Not authorized for this chat");
+    throw new ApiError("Not authorized for this chat", 403, "FORBIDDEN");
   }
 }

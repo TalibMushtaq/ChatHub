@@ -72,7 +72,7 @@ model Message {
   directChatId String?
 
   messageType  MessageType @default(TEXT)
-  fileUrl      String?
+  fileUrl      String?     @map("fileUri")
   fileName     String?
   fileSize     Int?
 

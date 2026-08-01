@@ -7,9 +7,10 @@ import { createIO } from "./create.io";
 import cors from "cors";
 import { sessionMiddleware } from "./middleware/session";
 import authRoutes from "./routes/auth";
-import dmRoutes from "./routes/dm";
+import dmRoutes from "./routes/direct-chat";
 import room from "./routes/room/room";
 import searchUser from "./routes/searchUser";
+import { errorHandler } from "./middleware/error-handler";
 
 const app = express();
 
@@ -48,6 +49,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/dm", dmRoutes);
 app.use("/api/room", room);
 app.use("/api/search", searchUser);
+// Error handler must be mounted after all routes so it can catch
+// exceptions thrown by any preceding middleware or route handler.
+app.use(errorHandler);
 
 async function main() {
   await connectRedis();
