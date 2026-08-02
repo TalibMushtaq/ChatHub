@@ -34,6 +34,16 @@ const loginWithUsername = z.object({
   password: passwordSchema,
 });
 
+export const searchUsersQuerySchema = z.object({
+  query: z.string().min(2).max(100).trim(),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  cursor: z.string().uuid().optional(),
+});
+
+export const userIdParamSchema = z.object({
+  id: z.string().uuid(),
+});
+
 export const userZod = {
   email: emailSchema,
   username: usernameSchema,

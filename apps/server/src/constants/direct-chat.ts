@@ -15,7 +15,7 @@ export const MAX_PAGE_SIZE = 100;
 
 /** Used when creating a message — matches the original send-message response. */
 // `as const` narrows the inferred type to literal booleans, which lets Prisma
-// infer the exact shape of the returned object without manual type annotations.
+// infer the exact shape of the returned object — no manual type annotations needed.
 export const messageCreateSelect = {
   id: true,
   content: true,
