@@ -1,5 +1,9 @@
 {
-  "extends": "@repo/typescript-config/node.json",
-  "include": ["src"],
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "isolatedModules": true
+  },
+  "include": ["src", "tests"],
   "exclude": ["**/*.test.ts"]
 }
