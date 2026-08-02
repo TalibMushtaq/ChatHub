@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import express from "express";
-import { hashPassword } from "../../lib/password";
+import { hashPassword, PASSWORD_HASH_OPTIONS } from "../../lib/password";
 import { prisma } from "../../../db/prisma";
 import { userZod } from "@repo/validators";
 import crypto from "node:crypto";
@@ -9,9 +9,16 @@ import {
   setRateLimitHeaders,
 } from "../../lib/rateLimiter";
 import { createLogger } from "../../lib/logger";
+import { RecoveryCodeService } from "../../services/RecoveryCodeService";
+import { PasswordService } from "../../services/PasswordService";
 
 const router = express.Router();
 const log = createLogger("signup");
+
+const passwordService = new PasswordService(PASSWORD_HASH_OPTIONS,
+  "$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+);
+const recoveryService = new RecoveryCodeService(prisma, passwordService);
 
 /**
  * Type guard for PrismaClientKnownRequestError.
@@ -124,6 +131,12 @@ router.post("/signup", async (req: Request, res: Response) => {
 
     log.info("User created", { userId: user.id, email, username });
 
+    // --- Generate recovery codes ---
+    // Recovery codes are created at signup so the user has an immediate
+    // account-recovery mechanism. They are shown once in the response
+    // and never retrievable again via API.
+    const recoveryCodes = await recoveryService.generate(user.id);
+
     // --- Regenerate session to prevent session fixation ---
     req.session.regenerate((regenErr) => {
       if (regenErr) {
@@ -139,7 +152,11 @@ router.post("/signup", async (req: Request, res: Response) => {
           return res.status(500).json({ ok: false, error: "Server error" });
         }
 
-        return res.status(201).json({ ok: true, user });
+        return res.status(201).json({
+          ok: true,
+          user,
+          recoveryCodes: recoveryCodes.map((c) => c.fullCode),
+        });
       });
     });
   } catch (err: unknown) {

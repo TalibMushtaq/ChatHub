@@ -1,4 +1,10 @@
-export { userZod, searchUsersQuerySchema, userIdParamSchema } from "./user";
+export {
+  userZod,
+  searchUsersQuerySchema,
+  userIdParamSchema,
+  forgotPasswordSchema,
+  regenerateRecoveryCodesSchema,
+} from "./user";
 export { chatRoomMessageSchema } from "./roomChat";
 export {
   startDmSchema,

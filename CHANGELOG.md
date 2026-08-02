@@ -1,3 +1,46 @@
+## [2026-08-02] - Production-grade Recovery Code password recovery system
+**What changed:** Implemented a complete Recovery Code password recovery system:
+
+- **Prisma schema:** Added `RecoveryCode` model with `id`, `userId`, `codeId`, `hash`, `used`, `createdAt`, `usedAt` fields. Composite unique index on `(userId, codeId)` for O(1) code lookup. Composite index on `(userId, used)` for fast unused-code queries. Added `recoveryCodes` relation to `User` model with `onDelete: Cascade`. Created migration `20260802000000_add_recovery_codes`.
+
+- **Recovery code generation (`lib/recoveryCode.ts`):** Uses `crypto.randomBytes` with reject-and-resample to eliminate modulo bias. Format: `RC_{codeId}.{secret}` where codeId is 6 chars and secret is 3×4 groups separated by hyphens. Alphabet excludes visually ambiguous characters (0, O, I, 1, L). `parseRecoveryCode()` validates format before DB lookup.
+
+- **Configuration (`config/recoveryCodes.ts`):** Centralized tunables: `RECOVERY_CODE_COUNT` (10), `RECOVERY_CODE_PREFIX` ("RC"), `RECOVERY_ARGON2_MEMORY_COST` (65536), `RECOVERY_ARGON2_TIME_COST` (3), `RECOVERY_ARGON2_PARALLELISM` (4). Same Argon2id parameters as passwords to avoid weakest-link vulnerability.
+
+- **PasswordService (`services/PasswordService.ts`):** DI-friendly wrapper around Argon2id with `hash()`, `verify()`, `needsRehash()`, and `getDummyHash()`. Constructor accepts `HashOptions` and a dummy hash string for constant-time failure paths.
+
+- **RecoveryCodeService (`services/RecoveryCodeService.ts`):** Core business logic with DI-injected Prisma and PasswordService. Exposes `generate()`, `verify()`, `redeem()`, `regenerate()`, `rotate()`. `redeem()` wraps all writes in a Prisma `$transaction`: atomic conditional `updateMany` on `(id, used: false)`, password update, hard-delete of remaining codes, and insertion of fresh codes. Only one concurrent request can flip `used` from false→true thanks to PostgreSQL row-level locking.
+
+- **Audit logging (`lib/audit.ts`):** Structured `audit()` helper that scrubs sensitive fields (`password`, `recoveryCode`, `hash`, `secret`, `newPassword`) before emitting. Events: `RECOVERY_CODES_CREATED`, `RECOVERY_CODES_REGENERATED`, `RECOVERY_CODE_REDEEMED`, `RECOVERY_CODE_FAILED`, `PASSWORD_RESET_VIA_RECOVERY_CODE`.
+
+- **Route handlers:**
+  - `POST /auth/forgot-password` (`routes/auth/forgotPassword.ts`): Zod-validated body (`forgotPasswordSchema`). Dual rate limiting (per-IP: 5/15min, per-username: 3/15min). Timing-safe username lookup via dummy Argon2 verify when user not found. Unified 400 failure response for all error paths (no enumeration). Returns new plaintext recovery codes on success.
+  - `POST /auth/recovery-codes` (`routes/auth/recoveryCodes.ts`): Authenticated only (`requireAuth`). Requires current password. Hard-deletes old codes and generates fresh batch. Returns plaintext once. No GET endpoint exists.
+  - Updated `POST /auth/signup` (`routes/auth/signup.ts`): Generates 10 recovery codes immediately after user creation and returns them in the signup response.
+
+- **Validators (`packages/validators/src/user.ts`):** Added `forgotPasswordSchema` (validates username, recovery code format with alphabet-aware regex, password strength) and `regenerateRecoveryCodesSchema` (validates currentPassword).
+
+- **Unit tests (`services/recoveryCode.test.ts`):** 12 tests covering: format validation, uniqueness, parsing, generation/storage, valid verification, invalid secret rejection, successful redemption, used-code rejection, concurrent redemption prevention (atomic updateMany), regeneration, and rotation.
+
+**Why:** Account recovery is a critical security surface. The previous system had no recovery mechanism at all. Recovery codes are the industry-standard approach (GitHub, Google, Microsoft) because they are offline-capable, don't require email infrastructure, and provide immediate value to users.
+
+**Security design decisions:**
+- **Enumeration resistance:** All forgot-password failures (invalid username, invalid code, already-used code) return identical 400 `{ ok: false, error: "Invalid request" }`. Dummy Argon2 verification burns CPU time when username doesn't exist.
+- **Atomic redemption:** `updateMany({ where: { id, used: false } })` inside a transaction. PostgreSQL row-level locks prevent two concurrent requests from both succeeding with the same code.
+- **Replay protection:** Used codes are immediately invalidated. After successful redemption, all remaining codes are hard-deleted and replaced with a completely new batch.
+- **Never store plaintext:** Only `codeId` (public lookup key) and Argon2id hashes are persisted.
+- **Rate limiting:** Redis-backed per-IP and per-username limits. Argon2id verification is intentionally expensive (~50-100ms), so the endpoint is also a DoS target — rate limiting is essential.
+- **Single DB lookup for verification:** Query by `(userId, codeId)` composite unique index. No scanning or verifying every hash.
+- **DI for testability:** RecoveryCodeService accepts Prisma and PasswordService in constructor. Unit tests use in-memory mocks with zero database or Argon2 overhead.
+
+**Impact:** New API endpoints: `POST /auth/forgot-password`, `POST /auth/recovery-codes`. Signup response now includes `recoveryCodes` array. Breaking: none for existing endpoints (signup adds a new field, which backward-compatible clients can ignore). Database migration adds `RecoveryCode` table.
+
+**Follow-ups:**
+- Evaluate adding a PostgreSQL functional index on `LOWER(username)` to optimize the username lookup in forgot-password (currently case-sensitive exact match).
+- Consider adding email-based password reset as a secondary recovery mechanism; the RecoveryCodeService public API (`generate`, `verify`, `redeem`, `regenerate`) is designed to be independent and can coexist with email/TOTP/passkey modules.
+- Monitor forgot-password rate-limit Redis key growth under attack traffic.
+- Add integration tests with a real PostgreSQL database in CI.
+
 ## [2026-08-02] - Silence spell-checker false positive in direct-chat constants
 **What changed:** Rephrased a comment in `apps/server/src/constants/direct-chat.ts` (line 17–18) to avoid the word "without," which local spell-checker extensions were incorrectly flagging as an unknown "thout" substring.
 **Why:** Developer experience — persistent red underlines in editors distract from real issues and create noise during reviews.

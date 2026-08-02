@@ -7,7 +7,7 @@ import type { Request, Response, NextFunction, RequestHandler } from "express";
  * This removes repetitive try/catch blocks from every route.
  */
 export function asyncHandler(
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<void>,
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>,
 ): RequestHandler {
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);

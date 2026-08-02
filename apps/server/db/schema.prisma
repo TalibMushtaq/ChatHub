@@ -128,6 +128,7 @@ model User {
   receivedInvitations                 RoomInvitation[] @relation("InvitedUser")
   sentInvitations                     RoomInvitation[] @relation("InvitedBy")
   createdJoinLinks                    RoomJoinLink[]
+  recoveryCodes                       RecoveryCode[]
 
 }
 
@@ -204,4 +205,22 @@ model RoomJoinLink {
 
   @@index([roomId])
   @@index([createdById])
+}
+
+model RecoveryCode {
+  id        String   @id @default(cuid())
+
+  userId    String
+  codeId    String
+
+  hash      String
+
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeId])
+  @@index([userId, used])
 }
