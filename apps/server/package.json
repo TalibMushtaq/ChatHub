@@ -12,6 +12,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
+  "prisma": {
+    "schema": "db/schema.prisma"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
