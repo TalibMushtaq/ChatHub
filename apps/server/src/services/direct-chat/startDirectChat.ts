@@ -44,7 +44,10 @@ export async function startDirectChat(myId: string, otherId: string) {
     // P2002 = unique constraint violation on (user1Id, user2Id).
     // This means a concurrent request created the chat between our
     // check and our create, so we fall back to fetching it.
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
       const existing = await prisma.directChat.findUnique({
         where: { user1Id_user2Id: { user1Id, user2Id } },
         select: chatSelect,

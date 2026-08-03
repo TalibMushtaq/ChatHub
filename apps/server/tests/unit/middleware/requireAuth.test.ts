@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import requireAuth from "../../../src/middleware/requireAuth";
 import { prismaMock, resetPrismaMock } from "../../mocks/prisma";
 import { createAuthUser } from "../../factories/user";
-import { createMockRequest, createMockResponse, createMockNext } from "../../helpers/express";
+import {
+  createMockRequest,
+  createMockResponse,
+  createMockNext,
+} from "../../helpers/express";
 
 describe("requireAuth", () => {
   beforeEach(() => {
@@ -93,7 +97,10 @@ describe("requireAuth", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ ok: false, error: "Internal server error" });
+    expect(res.json).toHaveBeenCalledWith({
+      ok: false,
+      error: "Internal server error",
+    });
     expect(next).not.toHaveBeenCalled();
   });
 });

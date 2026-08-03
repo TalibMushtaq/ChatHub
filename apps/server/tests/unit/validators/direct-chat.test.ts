@@ -90,7 +90,9 @@ describe("direct-chat validators", () => {
 
   describe("directChatIdParamSchema", () => {
     it("should accept a non-empty directChatId", () => {
-      const result = directChatIdParamSchema.safeParse({ directChatId: "dc-1" });
+      const result = directChatIdParamSchema.safeParse({
+        directChatId: "dc-1",
+      });
       expect(result.success).toBe(true);
     });
 

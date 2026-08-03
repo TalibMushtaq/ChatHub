@@ -7,7 +7,11 @@
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
-function formatMessage(level: LogLevel, context: string, message: string): string {
+function formatMessage(
+  level: LogLevel,
+  context: string,
+  message: string,
+): string {
   const timestamp = new Date().toISOString();
   return `[${timestamp}] [${level.toUpperCase()}] [${context}] ${message}`;
 }

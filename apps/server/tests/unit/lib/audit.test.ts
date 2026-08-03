@@ -43,6 +43,8 @@ describe("audit", () => {
   it("should allow empty context", () => {
     audit("RECOVERY_CODES_REGENERATED");
     expect(infoSpy).toHaveBeenCalledOnce();
-    expect(infoSpy.mock.calls[0]![0]).toContain("AUDIT_RECOVERY_CODES_REGENERATED");
+    expect(infoSpy.mock.calls[0]![0]).toContain(
+      "AUDIT_RECOVERY_CODES_REGENERATED",
+    );
   });
 });

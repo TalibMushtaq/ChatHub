@@ -3,7 +3,9 @@ import crypto from "node:crypto";
 /**
  * Factory for creating chat room objects in tests.
  */
-export function createChatRoom(partial?: Partial<ReturnType<typeof createChatRoom>>) {
+export function createChatRoom(
+  partial?: Partial<ReturnType<typeof createChatRoom>>,
+) {
   const id = partial?.id ?? crypto.randomUUID();
   const defaults = {
     id,
@@ -38,7 +40,9 @@ export function createChatRoomMember(
 /**
  * Factory for direct chat records.
  */
-export function createDirectChat(partial?: Partial<ReturnType<typeof createDirectChat>>) {
+export function createDirectChat(
+  partial?: Partial<ReturnType<typeof createDirectChat>>,
+) {
   const id = partial?.id ?? crypto.randomUUID();
   const defaults = {
     id,
@@ -54,7 +58,9 @@ export function createDirectChat(partial?: Partial<ReturnType<typeof createDirec
 /**
  * Factory for message records.
  */
-export function createMessage(partial?: Partial<ReturnType<typeof createMessage>>) {
+export function createMessage(
+  partial?: Partial<ReturnType<typeof createMessage>>,
+) {
   const id = partial?.id ?? crypto.randomUUID();
   const defaults = {
     id,
@@ -78,7 +84,9 @@ export function createMessage(partial?: Partial<ReturnType<typeof createMessage>
 /**
  * Factory for room invitation records.
  */
-export function createRoomInvitation(partial?: Partial<ReturnType<typeof createRoomInvitation>>) {
+export function createRoomInvitation(
+  partial?: Partial<ReturnType<typeof createRoomInvitation>>,
+) {
   const defaults = {
     id: crypto.randomUUID(),
     roomId: crypto.randomUUID(),
@@ -94,7 +102,9 @@ export function createRoomInvitation(partial?: Partial<ReturnType<typeof createR
 /**
  * Factory for room join request records.
  */
-export function createJoinRequest(partial?: Partial<ReturnType<typeof createJoinRequest>>) {
+export function createJoinRequest(
+  partial?: Partial<ReturnType<typeof createJoinRequest>>,
+) {
   const defaults = {
     id: crypto.randomUUID(),
     roomId: crypto.randomUUID(),
@@ -111,7 +121,9 @@ export function createJoinRequest(partial?: Partial<ReturnType<typeof createJoin
 /**
  * Factory for room join link records.
  */
-export function createJoinLink(partial?: Partial<ReturnType<typeof createJoinLink>>) {
+export function createJoinLink(
+  partial?: Partial<ReturnType<typeof createJoinLink>>,
+) {
   const id = partial?.id ?? crypto.randomUUID();
   const defaults = {
     id,

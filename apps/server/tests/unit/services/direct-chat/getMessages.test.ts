@@ -40,7 +40,11 @@ describe("getMessages", () => {
     const messages = [createMessage(), createMessage()];
     prismaMock.message.findMany.mockResolvedValue(messages);
 
-    const result = await getMessages("dc1", { cursor: "m1", direction: "before", limit: 10 });
+    const result = await getMessages("dc1", {
+      cursor: "m1",
+      direction: "before",
+      limit: 10,
+    });
 
     expect(prismaMock.message.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -57,7 +61,10 @@ describe("getMessages", () => {
   it("should return nextCursor null when no messages are returned", async () => {
     prismaMock.message.findMany.mockResolvedValue([]);
 
-    const result = await getMessages("dc1", { cursor: "m1", direction: "before" });
+    const result = await getMessages("dc1", {
+      cursor: "m1",
+      direction: "before",
+    });
 
     expect(result.nextCursor).toBeNull();
   });
@@ -65,9 +72,15 @@ describe("getMessages", () => {
   it("should fall back to legacy for unsupported direction", async () => {
     prismaMock.message.findMany.mockResolvedValue([]);
 
-    const result = await getMessages("dc1", { cursor: "m1", direction: "after" as any });
+    const result = await getMessages("dc1", {
+      cursor: "m1",
+      direction: "after" as any,
+    });
 
-    const callArg = prismaMock.message.findMany.mock.calls[0]![0] as Record<string, unknown>;
+    const callArg = prismaMock.message.findMany.mock.calls[0]![0] as Record<
+      string,
+      unknown
+    >;
     expect(callArg.take).toBe(50);
     expect(callArg.skip).toBeUndefined();
     expect(callArg.cursor).toBeUndefined();

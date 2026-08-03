@@ -122,7 +122,11 @@ export class RecoveryCodeService {
     // a DB transaction on an invalid code.
     const { valid, code } = await this.verify(userId, codeId, secret);
     if (!valid || !code || code.used) {
-      audit("RECOVERY_CODE_FAILED", { userId, codeId, reason: "invalid_or_used" });
+      audit("RECOVERY_CODE_FAILED", {
+        userId,
+        codeId,
+        reason: "invalid_or_used",
+      });
       throw new Error("Invalid or already used recovery code");
     }
 

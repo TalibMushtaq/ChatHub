@@ -48,9 +48,7 @@ export default function AuthCard() {
   const getErrorMessage = (err: unknown, fallback: string) => {
     if (isAxiosError(err)) {
       return (
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        fallback
+        err.response?.data?.error || err.response?.data?.message || fallback
       );
     }
     return fallback;

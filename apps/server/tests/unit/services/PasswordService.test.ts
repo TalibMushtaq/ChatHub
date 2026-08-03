@@ -21,7 +21,10 @@ describe("PasswordService", () => {
   it("should hash a password with argon2", async () => {
     vi.mocked(argon2.hash).mockResolvedValue("hashed");
     const result = await service.hash("password");
-    expect(argon2.hash).toHaveBeenCalledWith("password", expect.objectContaining({ raw: false }));
+    expect(argon2.hash).toHaveBeenCalledWith(
+      "password",
+      expect.objectContaining({ raw: false }),
+    );
     expect(result).toBe("hashed");
   });
 

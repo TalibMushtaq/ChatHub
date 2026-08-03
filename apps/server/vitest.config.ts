@@ -11,10 +11,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json", "html", "lcov"],
       reportsDirectory: "./coverage",
-      include: [
-        "src/**",
-        "../../packages/validators/src/**",
-      ],
+      include: ["src/**", "../../packages/validators/src/**"],
       thresholds: {
         statements: 90,
         branches: 90,
@@ -44,7 +41,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@repo/validators": path.resolve(__dirname, "../../packages/validators/src/index.ts"),
+      "@repo/validators": path.resolve(
+        __dirname,
+        "../../packages/validators/src/index.ts",
+      ),
     },
   },
 });

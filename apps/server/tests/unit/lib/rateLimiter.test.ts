@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { redis } from "../../../src/lib/redis";
-import { createRateLimiter, setRateLimitHeaders } from "../../../src/lib/rateLimiter";
+import {
+  createRateLimiter,
+  setRateLimitHeaders,
+} from "../../../src/lib/rateLimiter";
 
 describe("rateLimiter", () => {
   beforeEach(() => {
@@ -89,7 +92,10 @@ describe("rateLimiter", () => {
     expect(res.setHeader).toHaveBeenCalledWith("RateLimit-Limit", 5);
     expect(res.setHeader).toHaveBeenCalledWith("RateLimit-Remaining", 3);
     expect(res.setHeader).toHaveBeenCalledWith("RateLimit-Reset", 5);
-    expect(res.setHeader).not.toHaveBeenCalledWith("Retry-After", expect.anything);
+    expect(res.setHeader).not.toHaveBeenCalledWith(
+      "Retry-After",
+      expect.anything,
+    );
   });
 
   it("should set Retry-After header when blocked", () => {

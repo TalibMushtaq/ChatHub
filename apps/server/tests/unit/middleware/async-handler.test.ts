@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { asyncHandler } from "../../../src/middleware/async-handler";
-import { createMockRequest, createMockResponse, createMockNext } from "../../helpers/express";
+import {
+  createMockRequest,
+  createMockResponse,
+  createMockNext,
+} from "../../helpers/express";
 
 describe("asyncHandler", () => {
   it("should resolve async handlers and not call next on success", async () => {

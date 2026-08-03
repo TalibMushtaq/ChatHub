@@ -38,10 +38,10 @@ export function resetPrismaMock() {
  * Usage:
  *   prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
  */
-export function createMockTransaction<T>(
-  client: DeepMockProxy<PrismaClient>,
-) {
-  return async (fn: (tx: DeepMockProxy<PrismaClient>) => Promise<T>): Promise<T> => {
+export function createMockTransaction<T>(client: DeepMockProxy<PrismaClient>) {
+  return async (
+    fn: (tx: DeepMockProxy<PrismaClient>) => Promise<T>,
+  ): Promise<T> => {
     return fn(client);
   };
 }

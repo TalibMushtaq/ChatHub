@@ -47,9 +47,15 @@ describe("env loader", () => {
 
     const root = findWorkspaceRoot("/a/b/c");
     expect(root).toBe("/a");
-    expect(existsSpy).toHaveBeenCalledWith(path.join("/a/b/c", "pnpm-workspace.yaml"));
-    expect(existsSpy).toHaveBeenCalledWith(path.join("/a/b", "pnpm-workspace.yaml"));
-    expect(existsSpy).toHaveBeenCalledWith(path.join("/a", "pnpm-workspace.yaml"));
+    expect(existsSpy).toHaveBeenCalledWith(
+      path.join("/a/b/c", "pnpm-workspace.yaml"),
+    );
+    expect(existsSpy).toHaveBeenCalledWith(
+      path.join("/a/b", "pnpm-workspace.yaml"),
+    );
+    expect(existsSpy).toHaveBeenCalledWith(
+      path.join("/a", "pnpm-workspace.yaml"),
+    );
   });
 
   it("findWorkspaceRoot should return null if no workspace file exists", () => {

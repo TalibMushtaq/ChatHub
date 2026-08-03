@@ -18,10 +18,7 @@
 import { Router } from "express";
 import { prisma } from "../../../db/prisma";
 import { asyncHandler } from "../../middleware/async-handler";
-import {
-  createRateLimiter,
-  setRateLimitHeaders,
-} from "../../lib/rateLimiter";
+import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import { createLogger } from "../../lib/logger";
 import { forgotPasswordSchema } from "@repo/validators";
 import { parseRecoveryCode } from "../../lib/recoveryCode";

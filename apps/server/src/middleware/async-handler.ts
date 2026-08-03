@@ -12,6 +12,8 @@ export function asyncHandler(
   return (req, res, next) => {
     // Use Promise.resolve().then(...) instead of Promise.resolve(fn(...))
     // so that synchronous throws inside fn are also forwarded to next(err).
-    Promise.resolve().then(() => fn(req, res, next)).catch(next);
+    Promise.resolve()
+      .then(() => fn(req, res, next))
+      .catch(next);
   };
 }

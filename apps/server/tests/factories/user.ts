@@ -26,7 +26,9 @@ export function createUser(partial?: Partial<ReturnType<typeof createUser>>) {
 /**
  * Factory for the `AuthUser` subset attached to `req.user` by requireAuth.
  */
-export function createAuthUser(partial?: Partial<ReturnType<typeof createAuthUser>>) {
+export function createAuthUser(
+  partial?: Partial<ReturnType<typeof createAuthUser>>,
+) {
   const base = createUser(partial);
   return {
     id: base.id,

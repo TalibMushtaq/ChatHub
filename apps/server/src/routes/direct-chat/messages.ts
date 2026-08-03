@@ -6,10 +6,7 @@ import { sendMessage } from "../../services/direct-chat/sendMessage";
 import { getMessages } from "../../services/direct-chat/getMessages";
 import { editMessage } from "../../services/direct-chat/editMessage";
 import { deleteMessage } from "../../services/direct-chat/deleteMessage";
-import {
-  createRateLimiter,
-  setRateLimitHeaders,
-} from "../../lib/rateLimiter";
+import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import {
   sendMessageSchema,
   getMessagesSchema,
@@ -57,12 +54,10 @@ router.post(
 
     const body = sendMessageSchema.safeParse(req.body);
     if (!body.success) {
-      res
-        .status(400)
-        .json({
-          ok: false,
-          error: body.error.issues[0]?.message ?? "Invalid input",
-        });
+      res.status(400).json({
+        ok: false,
+        error: body.error.issues[0]?.message ?? "Invalid input",
+      });
       return;
     }
 
@@ -130,12 +125,10 @@ router.patch(
 
     const body = editMessageSchema.safeParse(req.body);
     if (!body.success) {
-      res
-        .status(400)
-        .json({
-          ok: false,
-          error: body.error.issues[0]?.message ?? "Invalid input",
-        });
+      res.status(400).json({
+        ok: false,
+        error: body.error.issues[0]?.message ?? "Invalid input",
+      });
       return;
     }
 
@@ -144,14 +137,12 @@ router.patch(
     // Emit only after the edit commits so clients never see a stale
     // message body paired with a new editedAt timestamp.
     if (updated.directChatId) {
-      req.io
-        .to(`directChat:${updated.directChatId}`)
-        .emit("message:edited", {
-          messageId: updated.id,
-          directChatId: updated.directChatId,
-          content: updated.content,
-          editedAt: updated.editedAt,
-        });
+      req.io.to(`directChat:${updated.directChatId}`).emit("message:edited", {
+        messageId: updated.id,
+        directChatId: updated.directChatId,
+        content: updated.content,
+        editedAt: updated.editedAt,
+      });
       req.io
         .to(`directChat:${updated.directChatId}`)
         .emit("inbox:update", { directChatId: updated.directChatId });
@@ -187,13 +178,11 @@ router.delete(
     // Emit only after soft-delete commits so the client doesn't render
     // a deletion marker for a message that is still live in the DB.
     if (deleted.directChatId) {
-      req.io
-        .to(`directChat:${deleted.directChatId}`)
-        .emit("message:deleted", {
-          messageId: deleted.id,
-          directChatId: deleted.directChatId,
-          deletedAt: deleted.deletedAt,
-        });
+      req.io.to(`directChat:${deleted.directChatId}`).emit("message:deleted", {
+        messageId: deleted.id,
+        directChatId: deleted.directChatId,
+        deletedAt: deleted.deletedAt,
+      });
     }
 
     res.json({ ok: true });

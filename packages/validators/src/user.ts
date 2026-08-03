@@ -61,7 +61,9 @@ const recoveryCodeRegex = new RegExp(
 
 export const forgotPasswordSchema = z.object({
   username: z.string().min(1).trim(),
-  recoveryCode: z.string().regex(recoveryCodeRegex, "Invalid recovery code format"),
+  recoveryCode: z
+    .string()
+    .regex(recoveryCodeRegex, "Invalid recovery code format"),
   newPassword: z
     .string()
     .min(8, "Password must be at least 8 characters")

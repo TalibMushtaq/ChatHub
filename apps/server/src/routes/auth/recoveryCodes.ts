@@ -70,7 +70,10 @@ router.post(
     }
 
     // --- Verify current password ---
-    const isValid = await passwordService.verify(user.passwordHash, currentPassword);
+    const isValid = await passwordService.verify(
+      user.passwordHash,
+      currentPassword,
+    );
     if (!isValid) {
       return res.status(403).json({
         ok: false,
