@@ -1,12 +1,13 @@
 import { Request, Response } from "express";
 import express from "express";
-import { verifyPassword, hashPassword, passwordNeedsRehash } from "../../lib/password";
+import {
+  verifyPassword,
+  hashPassword,
+  passwordNeedsRehash,
+} from "../../lib/password";
 import { prisma } from "../../../db/prisma";
 import { userZod } from "@repo/validators";
-import {
-  createRateLimiter,
-  setRateLimitHeaders,
-} from "../../lib/rateLimiter";
+import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import { createLogger } from "../../lib/logger";
 
 const router = express.Router();

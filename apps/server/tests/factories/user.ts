@@ -1,5 +1,19 @@
 import crypto from "node:crypto";
 
+/** Explicit type for the user factory output to avoid circular self-reference (TS2502). */
+type UserFactory = {
+  id: string;
+  email: string;
+  username: string;
+  displayname: string;
+  avatar: string | null;
+  passwordHash: string;
+  createdAt: Date;
+};
+
+/** Explicit type for the auth-user factory output. */
+type AuthUserFactory = Omit<UserFactory, "passwordHash">;
+
 /**
  * Factory for creating user objects in tests.
  *
@@ -8,14 +22,14 @@ import crypto from "node:crypto";
  *
  * Defaults mirror realistic values. Override any field by passing partial data.
  */
-export function createUser(partial?: Partial<ReturnType<typeof createUser>>) {
-  const id = partial?.id ?? crypto.randomUUID();
-  const defaults = {
+export function createUser(partial: Partial<UserFactory> = {}): UserFactory {
+  const id = partial.id ?? crypto.randomUUID();
+  const defaults: UserFactory = {
     id,
     email: `user-${id.slice(0, 8)}@example.com`,
     username: `user_${id.slice(0, 8)}`,
     displayname: `User ${id.slice(0, 8)}`,
-    avatar: null as string | null,
+    avatar: null,
     passwordHash: `$argon2id$v=19$m=65536,t=3,p=4$${"A".repeat(22)}$${"B".repeat(43)}`,
     createdAt: new Date("2024-01-01T00:00:00Z"),
   };
@@ -26,7 +40,9 @@ export function createUser(partial?: Partial<ReturnType<typeof createUser>>) {
 /**
  * Factory for the `AuthUser` subset attached to `req.user` by requireAuth.
  */
-export function createAuthUser(partial?: Partial<ReturnType<typeof createAuthUser>>) {
+export function createAuthUser(
+  partial: Partial<AuthUserFactory> = {},
+): AuthUserFactory {
   const base = createUser(partial);
   return {
     id: base.id,

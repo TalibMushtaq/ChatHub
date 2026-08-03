@@ -4,10 +4,7 @@ import { hashPassword, PASSWORD_HASH_OPTIONS } from "../../lib/password";
 import { prisma } from "../../../db/prisma";
 import { userZod } from "@repo/validators";
 import crypto from "node:crypto";
-import {
-  createRateLimiter,
-  setRateLimitHeaders,
-} from "../../lib/rateLimiter";
+import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import { createLogger } from "../../lib/logger";
 import { RecoveryCodeService } from "../../services/RecoveryCodeService";
 import { PasswordService } from "../../services/PasswordService";
@@ -15,7 +12,8 @@ import { PasswordService } from "../../services/PasswordService";
 const router = express.Router();
 const log = createLogger("signup");
 
-const passwordService = new PasswordService(PASSWORD_HASH_OPTIONS,
+const passwordService = new PasswordService(
+  PASSWORD_HASH_OPTIONS,
   "$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
 );
 const recoveryService = new RecoveryCodeService(prisma, passwordService);
@@ -25,7 +23,9 @@ const recoveryService = new RecoveryCodeService(prisma, passwordService);
  * We check for `code` property since the class isn't directly importable
  * from `@prisma/client` in all versions.
  */
-function isPrismaKnownRequestError(err: unknown): err is { code: string; meta?: { target?: string[] } } {
+function isPrismaKnownRequestError(
+  err: unknown,
+): err is { code: string; meta?: { target?: string[] } } {
   return (
     typeof err === "object" &&
     err !== null &&
@@ -60,9 +60,10 @@ const signupRateLimiter = createRateLimiter({
 router.post("/signup", async (req: Request, res: Response) => {
   // --- Rate limit by IP + email (if provided) for finer granularity ---
   const clientIp = req.ip ?? "unknown";
-  const emailHint = typeof req.body?.email === "string"
-    ? req.body.email.trim().toLowerCase()
-    : "";
+  const emailHint =
+    typeof req.body?.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : "";
   const rateLimitKey = emailHint ? `${clientIp}:${emailHint}` : clientIp;
 
   const rl = await signupRateLimiter(rateLimitKey);

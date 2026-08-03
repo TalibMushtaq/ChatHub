@@ -24,16 +24,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.9
         with:
           # Pin the exact pnpm version declared in packageManager so the CI environment matches local dev.
           version: 10.29.2
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           # Caches the pnpm global store, not node_modules, which keeps restore fast and safe.
@@ -63,7 +63,7 @@ jobs:
         run: pnpm build
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         # Only upload artifacts from one matrix node to avoid redundant uploads.
         if: matrix.node-version == 22
         with:
@@ -81,8 +81,11 @@ jobs:
     needs: ci-matrix
     if: always()
     steps:
-      - name: Check CI matrix result
+      - name: Fail if matrix failed
         if: needs.ci-matrix.result != 'success'
-        run: exit 1
+        run: |
+          echo "::error::ci-matrix result was '${{ needs.ci-matrix.result }}'"
+          exit 1
       - name: CI passed
+        if: needs.ci-matrix.result == 'success'
         run: echo "All CI checks passed"

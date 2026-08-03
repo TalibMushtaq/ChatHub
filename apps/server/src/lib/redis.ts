@@ -16,7 +16,7 @@ function getRedisUrl(): string {
   if (process.env.NODE_ENV === "production") {
     throw new Error(
       "REDIS_URL environment variable is required in production. " +
-        "Set it to your Redis instance URL (e.g., redis://host:port)."
+        "Set it to your Redis instance URL (e.g., redis://host:port).",
     );
   }
 

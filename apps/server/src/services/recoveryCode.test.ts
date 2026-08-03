@@ -7,7 +7,11 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { generateRecoveryCode, generateRecoveryCodes, parseRecoveryCode } from "../lib/recoveryCode";
+import {
+  generateRecoveryCode,
+  generateRecoveryCodes,
+  parseRecoveryCode,
+} from "../lib/recoveryCode";
 import { RecoveryCodeService } from "./RecoveryCodeService";
 import { PasswordService } from "./PasswordService";
 
@@ -58,7 +62,11 @@ function createMockPrisma() {
 
   const prisma = {
     recoveryCode: {
-      async findUnique({ where }: { where: { userId_codeId: { userId: string; codeId: string } } }) {
+      async findUnique({
+        where,
+      }: {
+        where: { userId_codeId: { userId: string; codeId: string } };
+      }) {
         return (
           codes.find(
             (c) =>
@@ -67,7 +75,11 @@ function createMockPrisma() {
           ) ?? null
         );
       },
-      async createMany({ data }: { data: Array<{ userId: string; codeId: string; hash: string }> }) {
+      async createMany({
+        data,
+      }: {
+        data: Array<{ userId: string; codeId: string; hash: string }>;
+      }) {
         for (const d of data) {
           codes.push({
             id: `code-${++idCounter}`,
@@ -81,8 +93,16 @@ function createMockPrisma() {
         }
         return { count: data.length };
       },
-      async updateMany({ where, data }: { where: { id: string; used: boolean }; data: { used: boolean; usedAt: Date } }) {
-        const code = codes.find((c) => c.id === where.id && c.used === where.used);
+      async updateMany({
+        where,
+        data,
+      }: {
+        where: { id: string; used: boolean };
+        data: { used: boolean; usedAt: Date };
+      }) {
+        const code = codes.find(
+          (c) => c.id === where.id && c.used === where.used,
+        );
         if (!code) return { count: 0 };
         code.used = data.used;
         code.usedAt = data.usedAt;
@@ -101,17 +121,27 @@ function createMockPrisma() {
       },
     },
     user: {
-      async update({ where, data }: { where: { id: string }; data: { passwordHash: string } }) {
+      async update({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: { passwordHash: string };
+      }) {
         return { id: where.id, passwordHash: data.passwordHash };
       },
     },
-    $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => {
+    $transaction: async <T>(
+      fn: (tx: typeof prisma) => Promise<T>,
+    ): Promise<T> => {
       return fn(prisma);
     },
     _codes: codes,
   };
 
-  return prisma as unknown as NonNullable<typeof prisma> & { _codes: CodeRow[] };
+  return prisma as unknown as NonNullable<typeof prisma> & {
+    _codes: CodeRow[];
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +151,10 @@ function createMockPrisma() {
 describe("recoveryCode generation", () => {
   it("generates a code with the correct format", () => {
     const code = generateRecoveryCode();
-    assert.match(code.fullCode, /^RC_[A-Z0-9]{6}\.[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    assert.match(
+      code.fullCode,
+      /^RC_[A-Z0-9]{6}\.[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/,
+    );
     assert.strictEqual(code.codeId.length, 6);
     assert.strictEqual(code.secret.length, 14); // 4-4-4 = 12 chars + 2 hyphens
     assert.strictEqual(code.secret.split("-").length, 3);
@@ -201,7 +234,12 @@ describe("RecoveryCodeService", () => {
     const codes = await service.generate("user-1");
     const first = codes[0];
 
-    const newCodes = await service.redeem("user-1", first.codeId, first.secret, "NewPassword123!");
+    const newCodes = await service.redeem(
+      "user-1",
+      first.codeId,
+      first.secret,
+      "NewPassword123!",
+    );
     assert.strictEqual(newCodes.length, 10);
     assert.notStrictEqual(newCodes[0].codeId, first.codeId);
 
@@ -218,7 +256,12 @@ describe("RecoveryCodeService", () => {
     const codes = await service.generate("user-1");
     const first = codes[0];
 
-    await service.redeem("user-1", first.codeId, first.secret, "NewPassword123!");
+    await service.redeem(
+      "user-1",
+      first.codeId,
+      first.secret,
+      "NewPassword123!",
+    );
 
     // After rotation, old codes are deleted; new codes are unused.
     assert.ok(prisma._codes.every((c) => !c.used));
@@ -233,12 +276,23 @@ describe("RecoveryCodeService", () => {
     const first = codes[0];
 
     // First redemption succeeds.
-    await service.redeem("user-1", first.codeId, first.secret, "NewPassword123!");
+    await service.redeem(
+      "user-1",
+      first.codeId,
+      first.secret,
+      "NewPassword123!",
+    );
 
     // Second attempt with the same plaintext code must fail because the
     // old code was deleted during rotation.
     await assert.rejects(
-      async () => service.redeem("user-1", first.codeId, first.secret, "AnotherPassword123!"),
+      async () =>
+        service.redeem(
+          "user-1",
+          first.codeId,
+          first.secret,
+          "AnotherPassword123!",
+        ),
       /Invalid or already used recovery code/,
     );
   });
@@ -256,7 +310,8 @@ describe("RecoveryCodeService", () => {
     stored.used = true;
 
     await assert.rejects(
-      async () => service.redeem("user-1", first.codeId, first.secret, "NewPassword123!"),
+      async () =>
+        service.redeem("user-1", first.codeId, first.secret, "NewPassword123!"),
       /Invalid or already used recovery code/,
     );
   });

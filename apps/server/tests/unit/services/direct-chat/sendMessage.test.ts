@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { sendMessage } from "../../../../src/services/direct-chat/sendMessage";
-import { prismaMock, resetPrismaMock, createMockTransaction } from "../../../mocks/prisma";
+import {
+  prismaMock,
+  resetPrismaMock,
+  createMockTransaction,
+} from "../../../mocks/prisma";
 import { createMessage } from "../../../factories/room";
 
 describe("sendMessage", () => {
@@ -10,8 +14,14 @@ describe("sendMessage", () => {
   });
 
   it("should create a message and bump lastMessageAt atomically", async () => {
-    const msg = createMessage({ directChatId: "dc1", senderId: "u1", content: "hi" });
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    const msg = createMessage({
+      directChatId: "dc1",
+      senderId: "u1",
+      content: "hi",
+    });
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.create.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({ id: "dc1" } as any);
 
@@ -35,7 +45,9 @@ describe("sendMessage", () => {
 
   it("should use the transaction callback correctly", async () => {
     const msg = createMessage();
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.create.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({} as any);
 

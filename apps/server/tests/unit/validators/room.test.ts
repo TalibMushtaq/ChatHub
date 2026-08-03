@@ -147,7 +147,9 @@ describe("room validators", () => {
 
   describe("joinRequestStatusQuerySchema", () => {
     it("should accept PENDING", () => {
-      const result = joinRequestStatusQuerySchema.safeParse({ status: "PENDING" });
+      const result = joinRequestStatusQuerySchema.safeParse({
+        status: "PENDING",
+      });
       expect(result.success).toBe(true);
     });
 
@@ -157,7 +159,9 @@ describe("room validators", () => {
     });
 
     it("should reject an invalid status", () => {
-      const result = joinRequestStatusQuerySchema.safeParse({ status: "BANNED" });
+      const result = joinRequestStatusQuerySchema.safeParse({
+        status: "BANNED",
+      });
       expect(result.success).toBe(false);
     });
   });

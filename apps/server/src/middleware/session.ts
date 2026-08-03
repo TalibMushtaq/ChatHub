@@ -10,7 +10,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 if (!SESSION_SECRET) {
   throw new Error(
     "SESSION_SECRET environment variable is required. " +
-      "Set it to a strong random string (e.g., openssl rand -hex 32)."
+      "Set it to a strong random string (e.g., openssl rand -hex 32).",
   );
 }
 

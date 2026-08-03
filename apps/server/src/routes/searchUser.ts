@@ -83,7 +83,8 @@ router.get(
     res.status(200).json({
       ok: true,
       users,
-      nextCursor: users.length === limit ? users[users.length - 1]?.id : undefined,
+      nextCursor:
+        users.length === limit ? users[users.length - 1]?.id : undefined,
     });
   }),
 );

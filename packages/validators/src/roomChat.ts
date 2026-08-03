@@ -19,6 +19,10 @@ export const chatRoomMessageSchema = z.discriminatedUnion("type", [
     content: z.string().trim().max(2000).optional(),
     fileUrl: z.string().url(),
     fileName: z.string().min(1).max(255),
-    fileSize: z.number().int().positive().max(100 * 1024 * 1024), // 100MB
+    fileSize: z
+      .number()
+      .int()
+      .positive()
+      .max(100 * 1024 * 1024), // 100MB
   }),
 ]);

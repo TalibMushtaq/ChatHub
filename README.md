@@ -71,30 +71,30 @@ PORT=3002
 
 ### REST Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/signup` | Create account |
-| POST | `/login` | Authenticate |
-| GET | `/me` | Get current user |
-| POST | `/rooms` | Create chat room |
-| GET | `/rooms` | List user's rooms |
-| POST | `/:roomId/invitations` | Invite user to room |
-| POST | `/:roomId/join-request` | Request to join room |
-| PATCH | `/:roomId/join-requests/:id` | Approve/reject join request |
-| POST | `/:roomId/join-links` | Create shareable link |
-| POST | `/join/:token` | Join via link |
-| GET | `/inbox` | List direct messages |
+| Method | Endpoint                     | Description                 |
+| ------ | ---------------------------- | --------------------------- |
+| POST   | `/signup`                    | Create account              |
+| POST   | `/login`                     | Authenticate                |
+| GET    | `/me`                        | Get current user            |
+| POST   | `/rooms`                     | Create chat room            |
+| GET    | `/rooms`                     | List user's rooms           |
+| POST   | `/:roomId/invitations`       | Invite user to room         |
+| POST   | `/:roomId/join-request`      | Request to join room        |
+| PATCH  | `/:roomId/join-requests/:id` | Approve/reject join request |
+| POST   | `/:roomId/join-links`        | Create shareable link       |
+| POST   | `/join/:token`               | Join via link               |
+| GET    | `/inbox`                     | List direct messages        |
 
 ### Socket Events
 
-| Event | Direction | Description |
-|-------|-----------|-------------|
-| `chatroom:join` | Client -> Server | Join a room |
-| `chatroom:joined` | Server -> Client | Confirm join |
-| `chatroom:message` | Client -> Server | Send message |
-| `chatroom:message` | Server -> Client | New message |
-| `chatroom:leave` | Client -> Server | Leave room |
-| `chatroom:error` | Server -> Client | Error response |
+| Event              | Direction        | Description    |
+| ------------------ | ---------------- | -------------- |
+| `chatroom:join`    | Client -> Server | Join a room    |
+| `chatroom:joined`  | Server -> Client | Confirm join   |
+| `chatroom:message` | Client -> Server | Send message   |
+| `chatroom:message` | Server -> Client | New message    |
+| `chatroom:leave`   | Client -> Server | Leave room     |
+| `chatroom:error`   | Server -> Client | Error response |
 
 ## Security Features
 

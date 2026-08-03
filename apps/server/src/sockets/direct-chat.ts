@@ -57,8 +57,18 @@ export function emitInboxUpdated(
 // ---------------------------------------------------------------------------
 
 export function registerDirectChat(
-  _io: Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>,
-  socket: Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>,
+  _io: Server<
+    ClientToServerEvents,
+    ServerToClientEvents,
+    InterServerEvents,
+    SocketData
+  >,
+  socket: Socket<
+    ClientToServerEvents,
+    ServerToClientEvents,
+    InterServerEvents,
+    SocketData
+  >,
 ) {
   const { user } = socket.data;
 
@@ -71,8 +81,7 @@ export function registerDirectChat(
       // Narrow to ApiError to preserve the machine-readable code;
       // fall back to a generic code so the client always receives
       // a structured payload it can branch on.
-      const code =
-        err instanceof ApiError ? err.code : undefined;
+      const code = err instanceof ApiError ? err.code : undefined;
       const message =
         err instanceof Error ? err.message : "Failed to join chat";
       socket.emit("directChat:error", {
@@ -90,8 +99,7 @@ export function registerDirectChat(
     } catch (err: unknown) {
       // Same narrowing strategy as join: preserve ApiError codes,
       // default to LEAVE_FAILED so the client never sees an unstructured error.
-      const code =
-        err instanceof ApiError ? err.code : undefined;
+      const code = err instanceof ApiError ? err.code : undefined;
       const message =
         err instanceof Error ? err.message : "Failed to leave chat";
       socket.emit("directChat:error", {

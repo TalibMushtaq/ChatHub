@@ -13,7 +13,9 @@ describe("recoveryCode utilities", () => {
 
   it("should generate a code with correct format", () => {
     const code = generateRecoveryCode();
-    expect(code.fullCode).toMatch(/^RC_[A-Z2-9]{6}\.[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    expect(code.fullCode).toMatch(
+      /^RC_[A-Z2-9]{6}\.[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/,
+    );
     expect(code.codeId).toHaveLength(6);
     expect(code.secret).toHaveLength(14); // 4-4-4 + 2 hyphens
     expect(code.secret.split("-")).toHaveLength(3);

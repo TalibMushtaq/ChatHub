@@ -150,7 +150,7 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
     return res.json({
       ok: true,
       rooms: inbox,
-      nextCursor: hasMore ? sliced[sliced.length - 1]?.id ?? null : null,
+      nextCursor: hasMore ? (sliced[sliced.length - 1]?.id ?? null) : null,
     });
   } catch (err) {
     console.log(err);

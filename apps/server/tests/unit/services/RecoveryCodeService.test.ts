@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import argon2 from "argon2";
 import { RecoveryCodeService } from "../../../src/services/RecoveryCodeService";
 import { PasswordService } from "../../../src/services/PasswordService";
-import { prismaMock, resetPrismaMock, createMockTransaction } from "../../mocks/prisma";
+import {
+  prismaMock,
+  resetPrismaMock,
+  createMockTransaction,
+} from "../../mocks/prisma";
 import { createRecoveryCodeRow } from "../../factories/room";
 
 describe("RecoveryCodeService", () => {
@@ -27,7 +31,9 @@ describe("RecoveryCodeService", () => {
   describe("generate", () => {
     it("should create recovery codes and persist hashes", async () => {
       prismaMock.recoveryCode.createMany.mockResolvedValue({ count: 10 });
-      prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+      prismaMock.$transaction.mockImplementation(
+        createMockTransaction(prismaMock),
+      );
 
       const codes = await service.generate("user-1");
 
@@ -43,7 +49,11 @@ describe("RecoveryCodeService", () => {
 
   describe("verify", () => {
     it("should return valid=true for a matching code", async () => {
-      const row = createRecoveryCodeRow({ userId: "u1", codeId: "ABC123", used: false });
+      const row = createRecoveryCodeRow({
+        userId: "u1",
+        codeId: "ABC123",
+        used: false,
+      });
       prismaMock.recoveryCode.findUnique.mockResolvedValue(row);
       vi.spyOn(passwordService, "verify").mockResolvedValue(true);
 
@@ -63,7 +73,11 @@ describe("RecoveryCodeService", () => {
     });
 
     it("should return valid=false when hash verification fails", async () => {
-      const row = createRecoveryCodeRow({ userId: "u1", codeId: "ABC123", used: false });
+      const row = createRecoveryCodeRow({
+        userId: "u1",
+        codeId: "ABC123",
+        used: false,
+      });
       prismaMock.recoveryCode.findUnique.mockResolvedValue(row);
       vi.spyOn(passwordService, "verify").mockResolvedValue(false);
 
@@ -76,14 +90,25 @@ describe("RecoveryCodeService", () => {
 
   describe("redeem", () => {
     it("should redeem a valid code and rotate the set", async () => {
-      const row = createRecoveryCodeRow({ userId: "u1", codeId: "ABC123", used: false });
+      const row = createRecoveryCodeRow({
+        userId: "u1",
+        codeId: "ABC123",
+        used: false,
+      });
       prismaMock.recoveryCode.findUnique.mockResolvedValue(row);
-      prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+      prismaMock.$transaction.mockImplementation(
+        createMockTransaction(prismaMock),
+      );
       prismaMock.recoveryCode.updateMany.mockResolvedValue({ count: 1 });
       vi.spyOn(passwordService, "verify").mockResolvedValue(true);
       vi.spyOn(passwordService, "hash").mockResolvedValue("new-hash");
 
-      const newCodes = await service.redeem("u1", "ABC123", "secret", "NewPassword1!");
+      const newCodes = await service.redeem(
+        "u1",
+        "ABC123",
+        "secret",
+        "NewPassword1!",
+      );
 
       expect(newCodes).toHaveLength(10);
       // Inside the transaction: updateMany, user.update, deleteMany, createMany
@@ -96,31 +121,41 @@ describe("RecoveryCodeService", () => {
     it("should throw when code is invalid", async () => {
       prismaMock.recoveryCode.findUnique.mockResolvedValue(null);
 
-      await expect(service.redeem("u1", "ABC123", "secret", "pass")).rejects.toThrow(
-        "Invalid or already used recovery code",
-      );
+      await expect(
+        service.redeem("u1", "ABC123", "secret", "pass"),
+      ).rejects.toThrow("Invalid or already used recovery code");
     });
 
     it("should throw when code is already used", async () => {
-      const row = createRecoveryCodeRow({ userId: "u1", codeId: "ABC123", used: true });
+      const row = createRecoveryCodeRow({
+        userId: "u1",
+        codeId: "ABC123",
+        used: true,
+      });
       prismaMock.recoveryCode.findUnique.mockResolvedValue(row);
       vi.spyOn(passwordService, "verify").mockResolvedValue(true);
 
-      await expect(service.redeem("u1", "ABC123", "secret", "pass")).rejects.toThrow(
-        "Invalid or already used recovery code",
-      );
+      await expect(
+        service.redeem("u1", "ABC123", "secret", "pass"),
+      ).rejects.toThrow("Invalid or already used recovery code");
     });
 
     it("should throw when updateMany returns 0 (race condition)", async () => {
-      const row = createRecoveryCodeRow({ userId: "u1", codeId: "ABC123", used: false });
+      const row = createRecoveryCodeRow({
+        userId: "u1",
+        codeId: "ABC123",
+        used: false,
+      });
       prismaMock.recoveryCode.findUnique.mockResolvedValue(row);
-      prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+      prismaMock.$transaction.mockImplementation(
+        createMockTransaction(prismaMock),
+      );
       prismaMock.recoveryCode.updateMany.mockResolvedValue({ count: 0 });
       vi.spyOn(passwordService, "verify").mockResolvedValue(true);
 
-      await expect(service.redeem("u1", "ABC123", "secret", "pass")).rejects.toThrow(
-        "Recovery code already redeemed",
-      );
+      await expect(
+        service.redeem("u1", "ABC123", "secret", "pass"),
+      ).rejects.toThrow("Recovery code already redeemed");
     });
   });
 
@@ -128,13 +163,17 @@ describe("RecoveryCodeService", () => {
     it("should delete all old codes and generate new ones", async () => {
       prismaMock.recoveryCode.deleteMany.mockResolvedValue({ count: 10 });
       prismaMock.recoveryCode.createMany.mockResolvedValue({ count: 10 });
-      prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+      prismaMock.$transaction.mockImplementation(
+        createMockTransaction(prismaMock),
+      );
       vi.spyOn(passwordService, "hash").mockResolvedValue("hash");
 
       const codes = await service.regenerate("u1");
 
       expect(codes).toHaveLength(10);
-      expect(prismaMock.recoveryCode.deleteMany).toHaveBeenCalledWith({ where: { userId: "u1" } });
+      expect(prismaMock.recoveryCode.deleteMany).toHaveBeenCalledWith({
+        where: { userId: "u1" },
+      });
       expect(prismaMock.recoveryCode.createMany).toHaveBeenCalledOnce();
     });
   });
@@ -143,13 +182,17 @@ describe("RecoveryCodeService", () => {
     it("should be an alias for regenerate", async () => {
       prismaMock.recoveryCode.deleteMany.mockResolvedValue({ count: 10 });
       prismaMock.recoveryCode.createMany.mockResolvedValue({ count: 10 });
-      prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+      prismaMock.$transaction.mockImplementation(
+        createMockTransaction(prismaMock),
+      );
       vi.spyOn(passwordService, "hash").mockResolvedValue("hash");
 
       const codes = await service.rotate("u1");
 
       expect(codes).toHaveLength(10);
-      expect(prismaMock.recoveryCode.deleteMany).toHaveBeenCalledWith({ where: { userId: "u1" } });
+      expect(prismaMock.recoveryCode.deleteMany).toHaveBeenCalledWith({
+        where: { userId: "u1" },
+      });
     });
   });
 });

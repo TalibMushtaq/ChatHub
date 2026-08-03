@@ -16,14 +16,30 @@ describe("getInbox", () => {
     prismaMock.directChat.findMany.mockResolvedValue([
       {
         ...dc1,
-        User_DirectChat_user1IdToUser: { id: dc1.user1Id, username: "user1", avatar: null },
-        User_DirectChat_user2IdToUser: { id: dc1.user2Id, username: "user2", avatar: null },
+        User_DirectChat_user1IdToUser: {
+          id: dc1.user1Id,
+          username: "user1",
+          avatar: null,
+        },
+        User_DirectChat_user2IdToUser: {
+          id: dc1.user2Id,
+          username: "user2",
+          avatar: null,
+        },
         Message: [],
       },
       {
         ...dc2,
-        User_DirectChat_user1IdToUser: { id: dc2.user1Id, username: "user3", avatar: null },
-        User_DirectChat_user2IdToUser: { id: dc2.user2Id, username: "user1", avatar: null },
+        User_DirectChat_user1IdToUser: {
+          id: dc2.user1Id,
+          username: "user3",
+          avatar: null,
+        },
+        User_DirectChat_user2IdToUser: {
+          id: dc2.user2Id,
+          username: "user1",
+          avatar: null,
+        },
         Message: [createMessage({ content: "hi" })],
       },
     ] as any);
@@ -54,8 +70,16 @@ describe("getInbox", () => {
     prismaMock.directChat.findMany.mockResolvedValue([
       {
         ...dc,
-        User_DirectChat_user1IdToUser: { id: "u1", username: "a", avatar: null },
-        User_DirectChat_user2IdToUser: { id: "u2", username: "b", avatar: null },
+        User_DirectChat_user1IdToUser: {
+          id: "u1",
+          username: "a",
+          avatar: null,
+        },
+        User_DirectChat_user2IdToUser: {
+          id: "u2",
+          username: "b",
+          avatar: null,
+        },
         Message: [],
       },
     ] as any);

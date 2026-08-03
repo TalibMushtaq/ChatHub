@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { errorHandler } from "../../../src/middleware/error-handler";
 import { ApiError } from "../../../src/lib/ApiError";
 import { Prisma } from "@prisma/client";
-import { createMockRequest, createMockResponse, createMockNext } from "../../helpers/express";
+import {
+  createMockRequest,
+  createMockResponse,
+  createMockNext,
+} from "../../helpers/express";
 
 describe("errorHandler", () => {
   let res: ReturnType<typeof createMockResponse>;
@@ -56,7 +60,10 @@ describe("errorHandler", () => {
     errorHandler(err, req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith({ ok: false, error: "Resource not found" });
+    expect(res.json).toHaveBeenCalledWith({
+      ok: false,
+      error: "Resource not found",
+    });
   });
 
   it("should return 500 for unhandled errors and log them", () => {

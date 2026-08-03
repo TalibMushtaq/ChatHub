@@ -101,7 +101,9 @@ export function generateRecoveryCodes(count: number): GeneratedCode[] {
  * Returns `null` if the format does not match the expected pattern.
  * This is a fast client-side guard before hitting the database.
  */
-export function parseRecoveryCode(fullCode: string): { codeId: string; secret: string } | null {
+export function parseRecoveryCode(
+  fullCode: string,
+): { codeId: string; secret: string } | null {
   const trimmed = fullCode.trim();
   const alphabet = RECOVERY_CODE_ALPHABET;
   const match = trimmed.match(

@@ -3,10 +3,7 @@ import requireAuth from "../../middleware/requireAuth";
 import { asyncHandler } from "../../middleware/async-handler";
 import { startDirectChat } from "../../services/direct-chat/startDirectChat";
 import { getInbox } from "../../services/direct-chat/getInbox";
-import {
-  createRateLimiter,
-  setRateLimitHeaders,
-} from "../../lib/rateLimiter";
+import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import { startDmSchema } from "@repo/validators";
 
 const startDmLimiter = createRateLimiter({
@@ -41,12 +38,10 @@ router.post(
 
     const parsed = startDmSchema.safeParse({ userId: otherId });
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({
-          ok: false,
-          error: parsed.error.issues[0]?.message ?? "Invalid input",
-        });
+      res.status(400).json({
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Invalid input",
+      });
       return;
     }
 

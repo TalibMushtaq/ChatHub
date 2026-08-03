@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { assertRoomAccess, assertDirectChatAccess } from "../../../src/middleware/socketAccess";
+import {
+  assertRoomAccess,
+  assertDirectChatAccess,
+} from "../../../src/middleware/socketAccess";
 import { prismaMock, resetPrismaMock } from "../../mocks/prisma";
 import { createChatRoomMember, createDirectChat } from "../../factories/room";
 import { ApiError } from "../../../src/lib/ApiError";

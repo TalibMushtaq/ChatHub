@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { AppError, ForbiddenError, NotFoundError } from "../../../src/lib/AppError";
+import {
+  AppError,
+  ForbiddenError,
+  NotFoundError,
+} from "../../../src/lib/AppError";
 
 describe("AppError", () => {
   it("should carry a message and status code", () => {

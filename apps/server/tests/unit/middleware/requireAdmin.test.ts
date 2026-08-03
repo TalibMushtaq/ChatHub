@@ -3,7 +3,11 @@ import { requireAdmin } from "../../../src/middleware/requireAdmin";
 import { prismaMock, resetPrismaMock } from "../../mocks/prisma";
 import { createAuthUser } from "../../factories/user";
 import { createChatRoomMember } from "../../factories/room";
-import { createMockRequest, createMockResponse, createMockNext } from "../../helpers/express";
+import {
+  createMockRequest,
+  createMockResponse,
+  createMockNext,
+} from "../../helpers/express";
 
 describe("requireAdmin", () => {
   beforeEach(() => {
@@ -65,7 +69,10 @@ describe("requireAdmin", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ ok: false, error: "Not authorized" });
+    expect(res.json).toHaveBeenCalledWith({
+      ok: false,
+      error: "Not authorized",
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -83,11 +90,16 @@ describe("requireAdmin", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ ok: false, error: "Not authorized" });
+    expect(res.json).toHaveBeenCalledWith({
+      ok: false,
+      error: "Not authorized",
+    });
   });
 
   it("should forward unexpected errors to next", async () => {
-    prismaMock.chatRoomMember.findUnique.mockRejectedValue(new Error("DB down"));
+    prismaMock.chatRoomMember.findUnique.mockRejectedValue(
+      new Error("DB down"),
+    );
 
     const req = createMockRequest({
       user: createAuthUser(),
