@@ -81,8 +81,11 @@ jobs:
     needs: ci-matrix
     if: always()
     steps:
-      - name: Check CI matrix result
+      - name: Fail if matrix failed
         if: needs.ci-matrix.result != 'success'
-        run: exit 1
+        run: |
+          echo "::error::ci-matrix result was '${{ needs.ci-matrix.result }}'"
+          exit 1
       - name: CI passed
+        if: needs.ci-matrix.result == 'success'
         run: echo "All CI checks passed"
