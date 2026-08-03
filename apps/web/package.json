@@ -31,9 +31,9 @@
     "@types/react-dom": "19.2.3",
     "autoprefixer": "^10.5.4",
     "depcheck": "^1.4.7",
-    "eslint": "^9.39.1",
+    "eslint": "^10.8.0",
     "postcss": "^8.5.18",
     "tailwindcss": "^4.3.3",
-    "typescript": "5.9.2"
+    "typescript": "7.0.2"
   }
 }
