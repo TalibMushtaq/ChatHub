@@ -90,7 +90,6 @@ export default function DMMessages({ directChatId }: { directChatId: string }) {
             message={m}
             isOwn={isOwn}
             isFirst={isFirst}
-            currentUserId={currentUserId}
             onDelete={handleDelete}
           />
         );

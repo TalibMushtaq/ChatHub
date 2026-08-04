@@ -69,7 +69,6 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
             message={m}
             isOwn={isOwn}
             isFirst={isFirst}
-            currentUserId={currentUserId}
           />
         );
       })}

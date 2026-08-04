@@ -37,7 +37,6 @@ interface MessageBubbleProps {
   message: Message;
   isOwn: boolean;
   isFirst: boolean;
-  currentUserId: string | null;
   onEdit?: (msg: Message) => void;
   onDelete?: (messageId: string) => void;
 }
@@ -46,7 +45,6 @@ export default function MessageBubble({
   message,
   isOwn,
   isFirst,
-  currentUserId,
   onEdit,
   onDelete,
 }: MessageBubbleProps) {

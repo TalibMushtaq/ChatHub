@@ -48,6 +48,7 @@ export default function AttachmentRenderer({
     return (
       <div className="rounded-lg overflow-hidden max-w-[300px]">
         {downloadUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={downloadUrl}
             alt={filename}
