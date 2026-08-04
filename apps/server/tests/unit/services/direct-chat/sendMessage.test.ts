@@ -25,7 +25,10 @@ describe("sendMessage", () => {
     prismaMock.message.create.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({ id: "dc1" } as any);
 
-    const result = await sendMessage("dc1", "u1", "hi");
+    const result = await sendMessage("dc1", "u1", {
+      content: "hi",
+      messageType: "TEXT",
+    });
 
     expect(prismaMock.message.create).toHaveBeenCalledWith({
       data: {
@@ -51,7 +54,10 @@ describe("sendMessage", () => {
     prismaMock.message.create.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({} as any);
 
-    await sendMessage("dc1", "u1", "hello");
+    await sendMessage("dc1", "u1", {
+      content: "hello",
+      messageType: "TEXT",
+    });
 
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
     const fn = prismaMock.$transaction.mock.calls[0]![0];

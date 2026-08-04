@@ -1,33 +1,38 @@
 "use client";
+
 import { useRef, useState } from "react";
+import { socket } from "../../app/lib/socket";
 import { api } from "../../app/lib/api";
 
-interface DMInputProps {
-  directChatId: string;
+interface RoomInputProps {
+  chatRoomId: string;
 }
 
-export default function DMInput({ directChatId }: DMInputProps) {
+export default function RoomInput({ chatRoomId }: RoomInputProps) {
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const sendMessage = async (
-    content: string | undefined,
-    attachmentIds?: string[],
-    messageType = "TEXT",
-  ) => {
-    await api.post(`/dm/${directChatId}/message`, {
-      content,
-      messageType,
-      attachmentIds,
-      idempotencyKey: crypto.randomUUID(),
-    });
-  };
-
   const send = async () => {
-    if (!text.trim()) return;
-    await sendMessage(text.trim());
+    if (!text.trim() && !uploading) return;
+
+    const payload = {
+      chatRoomId,
+      content: text.trim(),
+      messageType: "TEXT",
+      idempotencyKey: crypto.randomUUID(),
+    };
+
+    socket.emit("chatroom:message", {
+      payload,
+      callback: ({ ok, error }: { ok: boolean; error?: string }) => {
+        if (!ok) {
+          console.error("Failed to send message:", error);
+        }
+      },
+    });
+
     setText("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -43,10 +48,9 @@ export default function DMInput({ directChatId }: DMInputProps) {
       const attachmentIds: string[] = [];
 
       for (const file of Array.from(files)) {
-        // Step 1: Request presigned URL
         const presignRes = await api.post("/attachments/presign", {
-          context: "dm",
-          contextId: directChatId,
+          context: "room",
+          contextId: chatRoomId,
           filename: file.name,
           mimeType: file.type || "application/octet-stream",
           size: file.size,
@@ -54,7 +58,6 @@ export default function DMInput({ directChatId }: DMInputProps) {
 
         const { presignedUrl, attachmentId } = presignRes.data;
 
-        // Step 2: Upload directly to S3
         await fetch(presignedUrl, {
           method: "PUT",
           body: file,
@@ -66,15 +69,27 @@ export default function DMInput({ directChatId }: DMInputProps) {
         attachmentIds.push(attachmentId);
       }
 
-      // Step 3: Determine message type from first file
       const firstFile = files[0];
       let messageType = "FILE";
       if (firstFile?.type.startsWith("image/")) messageType = "IMAGE";
       else if (firstFile?.type.startsWith("video/")) messageType = "VIDEO";
       else if (firstFile?.type.startsWith("audio/")) messageType = "AUDIO";
 
-      // Step 4: Send message with attachments
-      await sendMessage(text.trim() || undefined, attachmentIds, messageType);
+      socket.emit("chatroom:message", {
+        payload: {
+          chatRoomId,
+          content: text.trim() || undefined,
+          messageType,
+          attachmentIds,
+          idempotencyKey: crypto.randomUUID(),
+        },
+        callback: ({ ok, error }: { ok: boolean; error?: string }) => {
+          if (!ok) {
+            console.error("Failed to send message:", error);
+          }
+        },
+      });
+
       setText("");
     } catch (err) {
       console.error("Upload failed:", err);
@@ -111,7 +126,6 @@ export default function DMInput({ directChatId }: DMInputProps) {
           focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_rgba(108,99,255,0.08)]
         "
       >
-        {/* File upload button */}
         <input
           type="file"
           ref={fileInputRef}
@@ -134,7 +148,6 @@ export default function DMInput({ directChatId }: DMInputProps) {
           📎
         </button>
 
-        {/* Textarea */}
         <textarea
           ref={textareaRef}
           value={text}
@@ -153,10 +166,9 @@ export default function DMInput({ directChatId }: DMInputProps) {
           style={{ maxHeight: "160px" }}
         />
 
-        {/* Send button */}
         <button
           onClick={send}
-          disabled={!text.trim() || uploading}
+          disabled={(!text.trim() && !uploading) || uploading}
           className="
             w-8 h-8 flex items-center justify-center rounded-lg shrink-0 cursor-pointer mb-0.5
             bg-primary text-white text-[15px]

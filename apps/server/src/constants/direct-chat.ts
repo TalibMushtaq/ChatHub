@@ -32,9 +32,6 @@ export const messageWithUserSelect = {
   content: true,
   createdAt: true,
   messageType: true,
-  fileUrl: true,
-  fileName: true,
-  fileSize: true,
   isDeleted: true,
   editedAt: true,
   User: {
@@ -43,6 +40,17 @@ export const messageWithUserSelect = {
       username: true,
       displayname: true,
       avatar: true,
+    },
+  },
+  attachments: {
+    select: {
+      id: true,
+      filename: true,
+      mimeType: true,
+      size: true,
+      width: true,
+      height: true,
+      thumbnailKey: true,
     },
   },
 } as const;

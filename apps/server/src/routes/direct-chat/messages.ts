@@ -7,6 +7,9 @@ import { getMessages } from "../../services/direct-chat/getMessages";
 import { editMessage } from "../../services/direct-chat/editMessage";
 import { deleteMessage } from "../../services/direct-chat/deleteMessage";
 import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
+import { S3Service, buildS3ConfigFromEnv } from "../../services/S3Service";
+import { ApiError } from "../../lib/ApiError";
+import { MessageType } from "@prisma/client";
 import {
   sendMessageSchema,
   getMessagesSchema,
@@ -26,6 +29,22 @@ const editDeleteLimiter = createRateLimiter({
   windowMs: 60_000,
   prefix: "dm:editdel",
 });
+
+let s3ServiceInstance: S3Service | null = null;
+function getS3Service(): S3Service {
+  if (!s3ServiceInstance) {
+    const config = buildS3ConfigFromEnv();
+    if (!config) {
+      throw new ApiError(
+        "S3 storage is not configured",
+        503,
+        "S3_NOT_CONFIGURED",
+      );
+    }
+    s3ServiceInstance = new S3Service(config);
+  }
+  return s3ServiceInstance;
+}
 
 const router = Router();
 
@@ -63,7 +82,17 @@ router.post(
 
     await assertDirectChatAccess(senderId, directChatId);
 
-    const result = await sendMessage(directChatId, senderId, body.data.content);
+    const result = await sendMessage(
+      directChatId,
+      senderId,
+      {
+        content: body.data.content,
+        messageType: body.data.messageType as MessageType,
+        attachmentIds: body.data.attachmentIds,
+        idempotencyKey: body.data.idempotencyKey,
+      },
+      getS3Service(),
+    );
     // Emit only after DB commit succeeds: if the transaction rolls back,
     // clients must not see a ghost message.
     req.io

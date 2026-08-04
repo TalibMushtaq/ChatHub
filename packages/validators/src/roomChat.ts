@@ -3,26 +3,52 @@ import { z } from "zod";
 /**
  * Chat room message schema.
  *
- * Why: For TEXT messages, content is required and capped at 2000 chars.
- * For FILE messages, content is optional (file metadata is separate).
- * Prisma can't enforce conditional constraints, so we handle it in Zod.
+ * Validates socket payloads for room chat messages.
+ * TEXT requires content; media/file types require attachments.
+ * SYSTEM is server-only and rejected from clients.
  */
-export const chatRoomMessageSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("TEXT"),
-    chatRoomId: z.string().min(1),
-    content: z.string().trim().min(1).max(2000),
-  }),
-  z.object({
-    type: z.literal("FILE"),
+export const chatRoomMessageSchema = z
+  .object({
     chatRoomId: z.string().min(1),
     content: z.string().trim().max(2000).optional(),
-    fileUrl: z.string().url(),
-    fileName: z.string().min(1).max(255),
-    fileSize: z
-      .number()
-      .int()
-      .positive()
-      .max(100 * 1024 * 1024), // 100MB
-  }),
-]);
+    messageType: z.enum([
+      "TEXT",
+      "IMAGE",
+      "VIDEO",
+      "AUDIO",
+      "VOICE",
+      "FILE",
+    ]),
+    attachmentIds: z.array(z.string().min(1)).max(10).optional(),
+    idempotencyKey: z.string().min(1).max(64).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.messageType === "TEXT") {
+        return !!data.content && data.content.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: "TEXT messages require non-empty content.",
+      path: ["content"],
+    },
+  )
+  .refine(
+    (data) => {
+      if (data.messageType === "TEXT") {
+        return !data.attachmentIds || data.attachmentIds.length === 0;
+      }
+      if (data.messageType === "IMAGE" || data.messageType === "AUDIO" || data.messageType === "FILE") {
+        return (data.attachmentIds?.length ?? 0) >= 1;
+      }
+      if (data.messageType === "VIDEO" || data.messageType === "VOICE") {
+        return (data.attachmentIds?.length ?? 0) === 1;
+      }
+      return true;
+    },
+    {
+      message:
+        "Invalid attachment count for message type. TEXT requires 0, IMAGE/AUDIO/FILE require >=1, VIDEO/VOICE require exactly 1.",
+    },
+  );

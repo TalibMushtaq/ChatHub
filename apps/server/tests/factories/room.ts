@@ -91,10 +91,14 @@ type MessageFactory = {
   senderId: string;
   directChatId: string | null;
   chatRoomId: string | null;
-  messageType: "TEXT" | "FILE";
-  fileUrl: string | null;
-  fileName: string | null;
-  fileSize: number | null;
+  messageType:
+    | "TEXT"
+    | "IMAGE"
+    | "VIDEO"
+    | "AUDIO"
+    | "VOICE"
+    | "FILE"
+    | "SYSTEM";
   isDeleted: boolean;
   editedAt: Date | null;
   deletedAt: Date | null;
@@ -115,9 +119,6 @@ export function createMessage(
     directChatId: null,
     chatRoomId: null,
     messageType: "TEXT",
-    fileUrl: null,
-    fileName: null,
-    fileSize: null,
     isDeleted: false,
     editedAt: null,
     deletedAt: null,

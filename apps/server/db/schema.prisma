@@ -25,7 +25,17 @@ enum JoinRequestStatus {
 
 enum MessageType {
   TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  VOICE
   FILE
+  SYSTEM
+}
+
+enum AttachmentStatus {
+  PENDING
+  ATTACHED
 }
 model ChatRoom {
   id             String           @id @default(cuid())
@@ -72,9 +82,6 @@ model Message {
   directChatId String?
 
   messageType  MessageType @default(TEXT)
-  fileUrl      String?     @map("fileUri")
-  fileName     String?
-  fileSize     Int?
 
   createdAt    DateTime    @default(now())
 
@@ -85,9 +92,32 @@ model Message {
   ChatRoom     ChatRoom?   @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   DirectChat   DirectChat? @relation(fields: [directChatId], references: [id], onDelete: Cascade)
   User         User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  attachments  Attachment[]
 
   @@index([chatRoomId, createdAt])
   @@index([directChatId, createdAt])
+}
+
+model Attachment {
+  id            String           @id @default(cuid())
+  messageId     String?
+  uploaderId    String
+  s3Key         String           @unique
+  filename      String
+  mimeType      String
+  size          Int
+  width         Int?
+  height        Int?
+  duration      Int?
+  thumbnailKey  String?
+  status        AttachmentStatus @default(PENDING)
+  createdAt     DateTime         @default(now())
+
+  Message       Message?         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  User          User             @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([uploaderId, status])
 }
 
 model DirectChat {
@@ -121,6 +151,7 @@ model User {
   DirectChat_DirectChat_user1IdToUser DirectChat[]     @relation("DirectChat_user1IdToUser")
   DirectChat_DirectChat_user2IdToUser DirectChat[]     @relation("DirectChat_user2IdToUser")
   Message                             Message[]
+  Attachment                          Attachment[]
   joinRequests                        RoomJoinRequest[]
   reviewedJoinRequests                RoomJoinRequest[] @relation("JoinRequestReviewedBy")
 

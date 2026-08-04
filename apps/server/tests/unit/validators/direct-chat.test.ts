@@ -22,19 +22,58 @@ describe("direct-chat validators", () => {
   });
 
   describe("sendMessageSchema", () => {
-    it("should accept a valid message", () => {
-      const result = sendMessageSchema.safeParse({ content: "Hello!" });
+    it("should accept a valid TEXT message", () => {
+      const result = sendMessageSchema.safeParse({
+        content: "Hello!",
+        messageType: "TEXT",
+      });
       expect(result.success).toBe(true);
     });
 
-    it("should reject empty content", () => {
-      const result = sendMessageSchema.safeParse({ content: "" });
+    it("should reject TEXT without content", () => {
+      const result = sendMessageSchema.safeParse({
+        messageType: "TEXT",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject empty content for TEXT", () => {
+      const result = sendMessageSchema.safeParse({
+        content: "",
+        messageType: "TEXT",
+      });
       expect(result.success).toBe(false);
     });
 
     it("should reject content that is too long", () => {
-      const result = sendMessageSchema.safeParse({ content: "a".repeat(5001) });
+      const result = sendMessageSchema.safeParse({
+        content: "a".repeat(5001),
+        messageType: "TEXT",
+      });
       expect(result.success).toBe(false);
+    });
+
+    it("should accept IMAGE with attachments", () => {
+      const result = sendMessageSchema.safeParse({
+        messageType: "IMAGE",
+        attachmentIds: ["att-1"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject IMAGE without attachments", () => {
+      const result = sendMessageSchema.safeParse({
+        messageType: "IMAGE",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should accept VIDEO with exactly one attachment", () => {
+      const result = sendMessageSchema.safeParse({
+        messageType: "VIDEO",
+        attachmentIds: ["att-1"],
+      });
+      expect(result.success).toBe(true);
     });
   });
 

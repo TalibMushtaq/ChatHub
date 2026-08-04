@@ -25,6 +25,16 @@ export interface InterServerEvents {
 // `types/socket.io.d.ts`.
 export type { SocketData };
 
+export type AttachmentPayload = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  width?: number | null;
+  height?: number | null;
+  thumbnailKey?: string | null;
+};
+
 export type MessagePayload = {
   id: string;
   content: string | null;
@@ -32,9 +42,7 @@ export type MessagePayload = {
   directChatId: string;
   createdAt: Date;
   messageType: string;
-  fileUrl?: string | null;
-  fileName?: string | null;
-  fileSize?: number | null;
+  attachments: AttachmentPayload[];
   isDeleted: boolean;
   editedAt?: Date | null;
   deletedAt?: Date | null;

@@ -10,6 +10,7 @@ import authRoutes from "./routes/auth";
 import dmRoutes from "./routes/direct-chat";
 import room from "./routes/room/room";
 import searchUser from "./routes/searchUser";
+import attachmentRoutes from "./routes/attachments";
 import { errorHandler } from "./middleware/error-handler";
 
 const app = express();
@@ -48,6 +49,7 @@ app.use((req, _res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/dm", dmRoutes);
 app.use("/api/room", room);
+app.use("/api/attachments", attachmentRoutes);
 app.use("/api/search", searchUser);
 // Error handler must be mounted after all routes so it can catch
 // exceptions thrown by any preceding middleware or route handler.

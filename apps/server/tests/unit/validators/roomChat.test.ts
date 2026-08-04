@@ -5,7 +5,7 @@ describe("roomChat validators", () => {
   describe("TEXT message", () => {
     it("should accept a valid TEXT message", () => {
       const result = chatRoomMessageSchema.safeParse({
-        type: "TEXT",
+        messageType: "TEXT",
         chatRoomId: "room-1",
         content: "Hello!",
       });
@@ -14,7 +14,7 @@ describe("roomChat validators", () => {
 
     it("should reject TEXT message with empty content", () => {
       const result = chatRoomMessageSchema.safeParse({
-        type: "TEXT",
+        messageType: "TEXT",
         chatRoomId: "room-1",
         content: "",
       });
@@ -23,7 +23,7 @@ describe("roomChat validators", () => {
 
     it("should reject TEXT message with missing content", () => {
       const result = chatRoomMessageSchema.safeParse({
-        type: "TEXT",
+        messageType: "TEXT",
         chatRoomId: "room-1",
       });
       expect(result.success).toBe(false);
@@ -31,7 +31,7 @@ describe("roomChat validators", () => {
 
     it("should reject TEXT message with content too long", () => {
       const result = chatRoomMessageSchema.safeParse({
-        type: "TEXT",
+        messageType: "TEXT",
         chatRoomId: "room-1",
         content: "a".repeat(2001),
       });
@@ -39,70 +39,50 @@ describe("roomChat validators", () => {
     });
   });
 
-  describe("FILE message", () => {
-    it("should accept a valid FILE message", () => {
+  describe("IMAGE message", () => {
+    it("should accept IMAGE with attachments", () => {
       const result = chatRoomMessageSchema.safeParse({
-        type: "FILE",
+        messageType: "IMAGE",
         chatRoomId: "room-1",
-        content: "Check this out",
-        fileUrl: "https://example.com/file.pdf",
-        fileName: "file.pdf",
-        fileSize: 1024,
+        attachmentIds: ["att-1", "att-2"],
       });
       expect(result.success).toBe(true);
     });
 
-    it("should accept FILE message without optional content", () => {
+    it("should reject IMAGE without attachments", () => {
       const result = chatRoomMessageSchema.safeParse({
-        type: "FILE",
+        messageType: "IMAGE",
         chatRoomId: "room-1",
-        fileUrl: "https://example.com/file.pdf",
-        fileName: "file.pdf",
-        fileSize: 1024,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("VIDEO message", () => {
+    it("should accept VIDEO with exactly one attachment", () => {
+      const result = chatRoomMessageSchema.safeParse({
+        messageType: "VIDEO",
+        chatRoomId: "room-1",
+        attachmentIds: ["att-1"],
       });
       expect(result.success).toBe(true);
     });
 
-    it("should reject FILE message with invalid URL", () => {
+    it("should reject VIDEO with zero attachments", () => {
       const result = chatRoomMessageSchema.safeParse({
-        type: "FILE",
+        messageType: "VIDEO",
         chatRoomId: "room-1",
-        fileUrl: "not-a-url",
-        fileName: "file.pdf",
-        fileSize: 1024,
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("should reject FILE message with empty fileName", () => {
-      const result = chatRoomMessageSchema.safeParse({
-        type: "FILE",
-        chatRoomId: "room-1",
-        fileUrl: "https://example.com/file.pdf",
-        fileName: "",
-        fileSize: 1024,
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("should reject FILE message with oversized file", () => {
-      const result = chatRoomMessageSchema.safeParse({
-        type: "FILE",
-        chatRoomId: "room-1",
-        fileUrl: "https://example.com/file.pdf",
-        fileName: "file.pdf",
-        fileSize: 101 * 1024 * 1024,
       });
       expect(result.success).toBe(false);
     });
   });
 
   describe("invalid type", () => {
-    it("should reject an unknown message type", () => {
+    it("should reject SYSTEM message from client", () => {
       const result = chatRoomMessageSchema.safeParse({
-        type: "IMAGE",
+        messageType: "SYSTEM",
         chatRoomId: "room-1",
-        content: "Hello",
+        content: "System update",
       });
       expect(result.success).toBe(false);
     });

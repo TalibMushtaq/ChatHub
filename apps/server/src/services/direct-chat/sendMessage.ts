@@ -1,31 +1,100 @@
 import { prisma } from "../../../db/prisma";
 import { messageCreateSelect } from "../../constants/direct-chat";
+import type { MessageType } from "@prisma/client";
+import { S3Service } from "../S3Service";
+import { verifyAttachmentsForMessage } from "../attachment/verifyForMessage";
+import { transitionAttachmentsToAttached } from "../attachment/transitionToAttached";
+import { checkIdempotency, storeIdempotency } from "../idempotency";
+import { ApiError } from "../../lib/ApiError";
 
 /**
- * Send a text message in a direct chat.
+ * Send a message in a direct chat with full attachment support.
  *
- * Creates the message and bumps lastMessageAt atomically in a transaction
- * so the inbox ordering stays consistent.
+ * Transaction flow:
+ * 1. Check idempotency key (if provided)
+ * 2. Verify attachments (if provided)
+ * 3. Create Message
+ * 4. Transition attachments to ATTACHED
+ * 5. Update DirectChat.lastMessageAt
+ * 6. Store idempotency key
  *
- * Returns the created message with the exact original field selection.
+ * All steps are inside a Prisma transaction. If any step fails,
+ * the entire transaction rolls back and no socket events are emitted.
  */
 export async function sendMessage(
   directChatId: string,
   senderId: string,
-  content: string,
+  data: {
+    content?: string;
+    messageType: MessageType;
+    attachmentIds?: string[];
+    idempotencyKey?: string;
+  },
+  s3Service: S3Service,
 ) {
-  // Transaction guarantees that lastMessageAt is updated atomically with
-  // the message creation, so the inbox ordering never shows stale data.
+  const { content, messageType, attachmentIds, idempotencyKey } = data;
+
+  // Step 1: Idempotency check (outside transaction, Redis is not transactional)
+  if (idempotencyKey) {
+    const existingMessageId = await checkIdempotency(senderId, idempotencyKey);
+    if (existingMessageId) {
+      const existing = await prisma.message.findUnique({
+        where: { id: existingMessageId },
+        select: {
+          ...messageCreateSelect,
+          attachments: {
+            select: {
+              id: true,
+              filename: true,
+              mimeType: true,
+              size: true,
+              width: true,
+              height: true,
+              thumbnailKey: true,
+            },
+          },
+        },
+      });
+      if (existing) {
+        return existing;
+      }
+    }
+  }
+
+  // Steps 2-5: Prisma transaction
   const result = await prisma.$transaction(async (tx) => {
+    // Verify attachments if present
+    if (attachmentIds && attachmentIds.length > 0) {
+      await verifyAttachmentsForMessage(tx, s3Service, attachmentIds, senderId);
+    }
+
     const message = await tx.message.create({
       data: {
-        content,
+        content: content ?? null,
         senderId,
         directChatId,
-        messageType: "TEXT",
+        messageType,
       },
-      select: messageCreateSelect,
+      select: {
+        ...messageCreateSelect,
+        attachments: {
+          select: {
+            id: true,
+            filename: true,
+            mimeType: true,
+            size: true,
+            width: true,
+            height: true,
+            thumbnailKey: true,
+          },
+        },
+      },
     });
+
+    // Link attachments
+    if (attachmentIds && attachmentIds.length > 0) {
+      await transitionAttachmentsToAttached(tx, attachmentIds, message.id);
+    }
 
     await tx.directChat.update({
       where: { id: directChatId },
@@ -34,6 +103,11 @@ export async function sendMessage(
 
     return message;
   });
+
+  // Step 6: Store idempotency key (after transaction succeeds)
+  if (idempotencyKey) {
+    await storeIdempotency(senderId, idempotencyKey, result.id);
+  }
 
   return result;
 }

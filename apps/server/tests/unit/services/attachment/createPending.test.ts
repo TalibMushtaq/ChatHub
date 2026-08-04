@@ -1,0 +1,77 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createPendingAttachment } from "../../../../src/services/attachment/createPending";
+import { createMockS3Service, resetMockS3Service } from "../../../mocks/s3";
+import { prismaMock, resetPrismaMock } from "../../../mocks/prisma";
+
+describe("createPendingAttachment", () => {
+  const s3Service = createMockS3Service();
+
+  beforeEach(() => {
+    resetPrismaMock();
+    resetMockS3Service(s3Service);
+    vi.clearAllMocks();
+  });
+
+  it("should create attachment for room context", async () => {
+    prismaMock.attachment.create.mockResolvedValue({
+      id: "att-1",
+      s3Key: "attachments/room/r1/uuid.jpg",
+      filename: "photo.jpg",
+      mimeType: "image/jpeg",
+      size: 1024,
+      status: "PENDING",
+      createdAt: new Date(),
+    } as any);
+
+    const result = await createPendingAttachment(
+      s3Service,
+      "u1",
+      "room",
+      "r1",
+      "photo.jpg",
+      "image/jpeg",
+      1024,
+    );
+
+    expect(result.attachment.s3Key).toContain("attachments/room/r1/");
+    expect(prismaMock.attachment.create).toHaveBeenCalledOnce();
+  });
+
+  it("should create attachment for voice context", async () => {
+    prismaMock.attachment.create.mockResolvedValue({
+      id: "att-1",
+      s3Key: "attachments/voice/dc1/uuid.webm",
+      filename: "voice.webm",
+      mimeType: "audio/webm",
+      size: 1024,
+      status: "PENDING",
+      createdAt: new Date(),
+    } as any);
+
+    const result = await createPendingAttachment(
+      s3Service,
+      "u1",
+      "voice",
+      "dc1",
+      "voice.webm",
+      "audio/webm",
+      1024,
+    );
+
+    expect(result.attachment.s3Key).toContain("attachments/voice/dc1/");
+  });
+
+  it("should reject unsupported MIME type", async () => {
+    await expect(
+      createPendingAttachment(
+        s3Service,
+        "u1",
+        "dm",
+        "dc1",
+        "evil.exe",
+        "application/x-msdownload",
+        1024,
+      ),
+    ).rejects.toThrow("Unsupported MIME type");
+  });
+});

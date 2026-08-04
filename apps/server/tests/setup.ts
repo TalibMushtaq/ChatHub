@@ -74,3 +74,21 @@ vi.mock("argon2", () => ({
   needsRehash: vi.fn(),
   argon2id: 2,
 }));
+
+// ---------------------------------------------------------------------------
+// Mock AWS SDK
+// ---------------------------------------------------------------------------
+
+vi.mock("@aws-sdk/client-s3", () => ({
+  S3Client: vi.fn().mockImplementation(function () {
+    return { send: vi.fn() };
+  }),
+  PutObjectCommand: vi.fn(),
+  GetObjectCommand: vi.fn(),
+  DeleteObjectCommand: vi.fn(),
+  HeadObjectCommand: vi.fn(),
+}));
+
+vi.mock("@aws-sdk/s3-request-presigner", () => ({
+  getSignedUrl: vi.fn().mockResolvedValue("https://s3.mock/presigned-url"),
+}));

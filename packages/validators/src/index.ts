@@ -24,3 +24,13 @@ export {
   createJoinLinkSchema,
   joinRequestStatusQuerySchema,
 } from "./room";
+export {
+  presignSchema,
+  attachmentIdParamSchema,
+  messageAttachmentSchema,
+  messageTypeAttachmentValidationSchema,
+  mimeTypeSchema,
+  MAX_FILE_SIZE,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  ALL_ALLOWED_MIME_TYPES,
+} from "./attachment";
