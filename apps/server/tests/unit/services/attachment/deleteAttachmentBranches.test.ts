@@ -16,9 +16,9 @@ describe("deleteAttachment - branches", () => {
   it("should reject deletion of non-existent attachment", async () => {
     prismaMock.attachment.findUnique.mockResolvedValue(null);
 
-    await expect(
-      deleteAttachment(s3Service, "att-1", "u1"),
-    ).rejects.toThrow("Attachment not found");
+    await expect(deleteAttachment(s3Service, "att-1", "u1")).rejects.toThrow(
+      "Attachment not found",
+    );
   });
 
   it("should reject PENDING attachment deletion by non-uploader", async () => {
@@ -33,9 +33,9 @@ describe("deleteAttachment - branches", () => {
       Message: null,
     } as any);
 
-    await expect(
-      deleteAttachment(s3Service, "att-1", "u1"),
-    ).rejects.toThrow("You do not have permission to delete this attachment");
+    await expect(deleteAttachment(s3Service, "att-1", "u1")).rejects.toThrow(
+      "You do not have permission to delete this attachment",
+    );
   });
 
   it("should reject room attachment deletion by non-admin non-sender", async () => {
@@ -59,8 +59,8 @@ describe("deleteAttachment - branches", () => {
       role: "MEMBER",
     } as any);
 
-    await expect(
-      deleteAttachment(s3Service, "att-1", "u1"),
-    ).rejects.toThrow("You do not have permission to delete this attachment");
+    await expect(deleteAttachment(s3Service, "att-1", "u1")).rejects.toThrow(
+      "You do not have permission to delete this attachment",
+    );
   });
 });

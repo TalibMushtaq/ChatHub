@@ -43,7 +43,7 @@
 
 ## In Progress
 
-> Pick **one** item from High Priority and move it here. Start with *File send support for DMs* — it's the smallest, fastest win.
+> Pick **one** item from High Priority and move it here. Start with _File send support for DMs_ — it's the smallest, fastest win.
 
 ## Completed ✓
 

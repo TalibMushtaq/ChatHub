@@ -32,10 +32,7 @@ export const ALLOWED_AUDIO_MIME_TYPES = [
   "audio/flac",
 ] as const;
 
-export const ALLOWED_VOICE_MIME_TYPES = [
-  "audio/webm",
-  "audio/ogg",
-] as const;
+export const ALLOWED_VOICE_MIME_TYPES = ["audio/webm", "audio/ogg"] as const;
 
 export const ALLOWED_FILE_MIME_TYPES = [
   ...ALLOWED_IMAGE_MIME_TYPES,
@@ -62,7 +59,9 @@ export const ALL_ALLOWED_MIME_TYPES = [
   ]),
 ] as const;
 
-export const mimeTypeSchema = z.enum(ALL_ALLOWED_MIME_TYPES as [string, ...string[]]);
+export const mimeTypeSchema = z.enum(
+  ALL_ALLOWED_MIME_TYPES as [string, ...string[]],
+);
 
 export const presignSchema = z.object({
   context: z.enum(["room", "dm", "voice"]),

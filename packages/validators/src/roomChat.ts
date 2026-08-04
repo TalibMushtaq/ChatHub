@@ -11,14 +11,7 @@ export const chatRoomMessageSchema = z
   .object({
     chatRoomId: z.string().min(1),
     content: z.string().trim().max(2000).optional(),
-    messageType: z.enum([
-      "TEXT",
-      "IMAGE",
-      "VIDEO",
-      "AUDIO",
-      "VOICE",
-      "FILE",
-    ]),
+    messageType: z.enum(["TEXT", "IMAGE", "VIDEO", "AUDIO", "VOICE", "FILE"]),
     attachmentIds: z.array(z.string().min(1)).max(10).optional(),
     idempotencyKey: z.string().min(1).max(64).optional(),
   })
@@ -39,7 +32,11 @@ export const chatRoomMessageSchema = z
       if (data.messageType === "TEXT") {
         return !data.attachmentIds || data.attachmentIds.length === 0;
       }
-      if (data.messageType === "IMAGE" || data.messageType === "AUDIO" || data.messageType === "FILE") {
+      if (
+        data.messageType === "IMAGE" ||
+        data.messageType === "AUDIO" ||
+        data.messageType === "FILE"
+      ) {
         return (data.attachmentIds?.length ?? 0) >= 1;
       }
       if (data.messageType === "VIDEO" || data.messageType === "VOICE") {

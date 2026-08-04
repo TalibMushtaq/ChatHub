@@ -41,6 +41,7 @@
 The previous architecture stored file metadata directly on `Message` rows (`fileUrl`, `fileName`, `fileSize`). This was inflexible, didn't support multiple attachments per message, had no ownership validation, and exposed permanent S3 URLs. The new architecture separates attachments into a dedicated table, supports multiple attachments per message, validates ownership via S3 headObject checks, uses short-lived presigned URLs, and prevents duplicate messages via idempotency keys.
 
 **Impact:**
+
 - All messages now support 0..N attachments with strict type validation.
 - File uploads go directly from client → S3; backend only handles metadata and authorization.
 - Orphaned uploads are tracked as `PENDING` and can be cleaned up asynchronously.
@@ -48,6 +49,7 @@ The previous architecture stored file metadata directly on `Message` rows (`file
 - Both DM and room chat support the full attachment lifecycle.
 
 **Follow-ups:**
+
 - Configure real AWS credentials and S3 bucket for production.
 - Add background worker to clean up `PENDING` attachments older than a configurable TTL.
 - Implement async thumbnail generation pipeline (schema already supports `thumbnailKey`).

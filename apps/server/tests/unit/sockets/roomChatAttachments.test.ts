@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerRoomChat } from "../../../../src/routes/room/roomChat";
-import { prismaMock, resetPrismaMock, createMockTransaction } from "../../mocks/prisma";
+import {
+  prismaMock,
+  resetPrismaMock,
+  createMockTransaction,
+} from "../../mocks/prisma";
 
 // Mock socketAccess
 vi.mock("../../../src/middleware/socketAccess", () => ({

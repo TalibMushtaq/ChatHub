@@ -56,7 +56,8 @@ export const MIME_TYPE_EXTENSIONS: Record<string, string> = {
   "text/plain": "txt",
   "text/markdown": "md",
   "application/msword": "doc",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "docx",
   "application/vnd.ms-excel": "xls",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
 };

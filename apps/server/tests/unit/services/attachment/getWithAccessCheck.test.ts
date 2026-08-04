@@ -36,11 +36,7 @@ describe("getAttachmentWithAccessCheck", () => {
       user2Id: "u2",
     } as any);
 
-    const result = await getAttachmentWithAccessCheck(
-      s3Service,
-      "att-1",
-      "u1",
-    );
+    const result = await getAttachmentWithAccessCheck(s3Service, "att-1", "u1");
 
     expect(result.attachment.filename).toBe("photo.jpg");
     expect(result.downloadUrl).toBe("https://s3.mock/presigned-get");
@@ -61,11 +57,7 @@ describe("getAttachmentWithAccessCheck", () => {
       Message: null,
     } as any);
 
-    const result = await getAttachmentWithAccessCheck(
-      s3Service,
-      "att-1",
-      "u1",
-    );
+    const result = await getAttachmentWithAccessCheck(s3Service, "att-1", "u1");
 
     expect(result.attachment.filename).toBe("photo.jpg");
   });

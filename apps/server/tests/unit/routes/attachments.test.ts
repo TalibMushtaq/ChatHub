@@ -36,9 +36,11 @@ vi.mock("../../../src/middleware/requireAuth", () => ({
 
 // Mock rate limiter
 vi.mock("../../../src/lib/rateLimiter", () => ({
-  createRateLimiter: vi.fn().mockReturnValue(
-    vi.fn().mockResolvedValue({ allowed: true, remaining: 100 }),
-  ),
+  createRateLimiter: vi
+    .fn()
+    .mockReturnValue(
+      vi.fn().mockResolvedValue({ allowed: true, remaining: 100 }),
+    ),
   setRateLimitHeaders: vi.fn(),
 }));
 
@@ -61,15 +63,13 @@ describe("POST /attachments/presign", () => {
 
     const app = createTestApp();
 
-    const res = await supertest(app)
-      .post("/attachments/presign")
-      .send({
-        context: "dm",
-        contextId: "dc1",
-        filename: "photo.jpg",
-        mimeType: "image/jpeg",
-        size: 1024,
-      });
+    const res = await supertest(app).post("/attachments/presign").send({
+      context: "dm",
+      contextId: "dc1",
+      filename: "photo.jpg",
+      mimeType: "image/jpeg",
+      size: 1024,
+    });
 
     expect(res.status).toBe(201);
     expect(res.body.ok).toBe(true);
@@ -81,15 +81,13 @@ describe("POST /attachments/presign", () => {
   it("should reject invalid MIME type", async () => {
     const app = createTestApp();
 
-    const res = await supertest(app)
-      .post("/attachments/presign")
-      .send({
-        context: "dm",
-        contextId: "dc1",
-        filename: "evil.exe",
-        mimeType: "application/x-msdownload",
-        size: 1024,
-      });
+    const res = await supertest(app).post("/attachments/presign").send({
+      context: "dm",
+      contextId: "dc1",
+      filename: "evil.exe",
+      mimeType: "application/x-msdownload",
+      size: 1024,
+    });
 
     expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);

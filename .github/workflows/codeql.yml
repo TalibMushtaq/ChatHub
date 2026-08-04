@@ -7,7 +7,7 @@ on:
     branches: [main, master]
   # Run a full security scan weekly (Monday at 00:00 UTC) in addition to PR/push triggers.
   schedule:
-    - cron: '0 0 * * 1'
+    - cron: "0 0 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

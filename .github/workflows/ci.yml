@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           # Caches the pnpm global store, not node_modules, which keeps restore fast and safe.
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies
         # --frozen-lockfile fails the build if pnpm-lock.yaml is out of sync with package.json.

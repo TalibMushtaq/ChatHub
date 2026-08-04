@@ -92,13 +92,7 @@ type MessageFactory = {
   directChatId: string | null;
   chatRoomId: string | null;
   messageType:
-    | "TEXT"
-    | "IMAGE"
-    | "VIDEO"
-    | "AUDIO"
-    | "VOICE"
-    | "FILE"
-    | "SYSTEM";
+    "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "VOICE" | "FILE" | "SYSTEM";
   isDeleted: boolean;
   editedAt: Date | null;
   deletedAt: Date | null;

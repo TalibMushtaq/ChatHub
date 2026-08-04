@@ -61,8 +61,7 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
 
       {messages.map((m, i) => {
         const isOwn = (m.User?.id ?? m.senderId) === currentUserId;
-        const isFirst =
-          i === 0 || messages[i - 1]?.User?.id !== m.User?.id;
+        const isFirst = i === 0 || messages[i - 1]?.User?.id !== m.User?.id;
 
         return (
           <MessageBubble

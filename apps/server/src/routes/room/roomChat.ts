@@ -182,11 +182,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
         });
 
         if (data.attachmentIds && data.attachmentIds.length > 0) {
-          await transitionAttachmentsToAttached(
-            tx,
-            data.attachmentIds,
-            msg.id,
-          );
+          await transitionAttachmentsToAttached(tx, data.attachmentIds, msg.id);
         }
 
         await tx.chatRoom.update({

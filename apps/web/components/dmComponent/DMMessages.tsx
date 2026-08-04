@@ -66,9 +66,7 @@ export default function DMMessages({ directChatId }: { directChatId: string }) {
   }
 
   return (
-    <div
-      className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-1 bg-bg"
-    >
+    <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-1 bg-bg">
       {messages.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
           <div className="w-12 h-12 rounded-[14px] bg-primary/10 border border-primary/20 flex items-center justify-center text-2xl">
@@ -84,8 +82,7 @@ export default function DMMessages({ directChatId }: { directChatId: string }) {
 
       {messages.map((m, i) => {
         const isOwn = (m.User?.id ?? m.senderId) === currentUserId;
-        const isFirst =
-          i === 0 || messages[i - 1]?.User?.id !== m.User?.id;
+        const isFirst = i === 0 || messages[i - 1]?.User?.id !== m.User?.id;
 
         return (
           <MessageBubble

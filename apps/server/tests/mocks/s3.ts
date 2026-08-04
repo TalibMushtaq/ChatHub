@@ -7,8 +7,12 @@ import { vi } from "vitest";
  */
 export function createMockS3Service() {
   return {
-    generatePresignedPutUrl: vi.fn().mockResolvedValue("https://s3.mock/presigned-put"),
-    generatePresignedGetUrl: vi.fn().mockResolvedValue("https://s3.mock/presigned-get"),
+    generatePresignedPutUrl: vi
+      .fn()
+      .mockResolvedValue("https://s3.mock/presigned-put"),
+    generatePresignedGetUrl: vi
+      .fn()
+      .mockResolvedValue("https://s3.mock/presigned-get"),
     headObject: vi.fn().mockResolvedValue(true),
     deleteObject: vi.fn().mockResolvedValue(undefined),
   };

@@ -77,10 +77,7 @@ export class S3Service {
   /**
    * Generate a short-lived presigned GET URL for downloading an object.
    */
-  async generatePresignedGetUrl(
-    key: string,
-    expiresIn = 300,
-  ): Promise<string> {
+  async generatePresignedGetUrl(key: string, expiresIn = 300): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,

@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { checkIdempotency, storeIdempotency } from "../../../src/services/idempotency";
+import {
+  checkIdempotency,
+  storeIdempotency,
+} from "../../../src/services/idempotency";
 
 // Mock Redis
 const mockRedisGet = vi.fn();

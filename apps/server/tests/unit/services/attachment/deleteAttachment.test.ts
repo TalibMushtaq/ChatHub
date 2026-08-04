@@ -79,8 +79,8 @@ describe("deleteAttachment", () => {
 
     s3Service.deleteObject.mockRejectedValue(new Error("S3 network error"));
 
-    await expect(
-      deleteAttachment(s3Service, "att-1", "u1"),
-    ).rejects.toThrow("Failed to delete attachment from storage");
+    await expect(deleteAttachment(s3Service, "att-1", "u1")).rejects.toThrow(
+      "Failed to delete attachment from storage",
+    );
   });
 });
