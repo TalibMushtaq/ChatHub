@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { api } from "../../app/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { socket } from "../../app/lib/socket";
+import { api } from "../../app/lib/api";
 import MessageBubble, { type Message } from "../shared/MessageBubble";
 
 interface RoomMessagesProps {
@@ -34,15 +34,83 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
       }
     });
 
+    socket.on(
+      "chatroom:message:edited",
+      ({
+        messageId,
+        content,
+        editedAt,
+      }: {
+        messageId: string;
+        content: string;
+        editedAt: string;
+      }) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId ? { ...m, content, editedAt } : m,
+          ),
+        );
+      },
+    );
+
+    socket.on(
+      "chatroom:message:deleted",
+      ({ messageId, deletedAt }: { messageId: string; deletedAt: string }) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? { ...m, isDeleted: true, deletedAt, content: null }
+              : m,
+          ),
+        );
+      },
+    );
+
     return () => {
       socket.emit("chatroom:leave", { chatRoomId });
       socket.off("chatroom:message");
+      socket.off("chatroom:message:edited");
+      socket.off("chatroom:message:deleted");
     };
   }, [chatRoomId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const handleDelete = useCallback(
+    async (messageId: string) => {
+      return new Promise<void>((resolve) => {
+        socket.emit("chatroom:message:delete", {
+          payload: { chatRoomId, messageId },
+          callback: (res: { ok?: boolean; error?: string }) => {
+            if (!res.ok) console.error(res.error);
+            resolve();
+          },
+        });
+      });
+    },
+    [chatRoomId],
+  );
+
+  const handleSubmitEdit = useCallback(
+    async (messageId: string, content: string) => {
+      return new Promise<void>((resolve, reject) => {
+        socket.emit("chatroom:message:edit", {
+          payload: { chatRoomId, messageId, content },
+          callback: (res: { ok?: boolean; error?: string }) => {
+            if (res.ok) {
+              resolve();
+            } else {
+              console.error(res.error);
+              reject(new Error(res.error));
+            }
+          },
+        });
+      });
+    },
+    [chatRoomId],
+  );
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-1 bg-bg">
@@ -69,6 +137,8 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
             message={m}
             isOwn={isOwn}
             isFirst={isFirst}
+            onDelete={handleDelete}
+            onSubmitEdit={handleSubmitEdit}
           />
         );
       })}

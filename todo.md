@@ -14,12 +14,6 @@
   - [ ] Update `GET /api/room/rooms` to include `unreadCount` per room
   - [ ] Emit socket event when mark-read happens
 
-- [ ] **Add Delete, Update to the room chat**
-  - [ ] Add `chatroom:message:edit` socket event handler (5 min window, like DMs)
-  - [ ] Add `chatroom:message:delete` socket event handler (30 min window, soft delete, like DMs)
-  - [ ] Broadcast edits/deletes to room members
-  - [ ] Wire frontend `MessageBubble` edit/delete to room endpoints (currently hardcoded to DM endpoint)
-
 ### Medium Priority
 
 - [ ] **Create Backend Endpoint GET /dashboard/overview**
@@ -42,7 +36,7 @@
 
 ## In Progress
 
-> Pick **one** item from High Priority and move it here. Recommended: _Delete, Update for room chat_ — it's a natural follow-up since the frontend edit/delete UI already exists in `MessageBubble`.
+> Pick **one** item from High Priority and move it here.
 
 ## Completed ✓
 
@@ -62,3 +56,4 @@
 - [x] `POST /auth/forgot-password` (recovery code based password reset)
 - [x] File send support for **Room Chat** (socket handler already supports `messageType: FILE`)
 - [x] File send support for **DMs** (sendMessageSchema accepts messageType + attachmentIds, DMInput has file picker with presigned upload flow)
+- [x] Add Delete, Update to the room chat (chatroom:message:edit/delete socket events, 5min/30min windows, frontend wired via callbacks)

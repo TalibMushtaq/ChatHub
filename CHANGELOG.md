@@ -1,3 +1,30 @@
+## [2026-08-06] - Add Room Chat Edit/Delete
+
+**What changed:**
+
+- **Backend services:** Added `services/room/editMessage.ts` and `services/room/deleteMessage.ts` — mirrors the DM edit/delete pattern with 5-minute edit window and 30-minute delete window.
+- **Socket handlers:** Added `chatroom:message:edit` and `chatroom:message:delete` events in `routes/room/roomChat.ts` with full authorization, time-window, and idempotency checks.
+- **Validators:** Added `chatRoomEditMessageSchema` and `chatRoomDeleteMessageSchema` in `packages/validators/src/roomChat.ts`.
+- **Frontend `MessageBubble`:** Added `onSubmitEdit` callback prop so room messages can use socket emit instead of hardcoded DM REST endpoint. Edit button now correctly hidden after 5 minutes (was 30 minutes).
+- **Frontend `RoomMessages`:** Wired `chatroom:message:edited` and `chatroom:message:deleted` socket listeners, passes `onDelete` and `onSubmitEdit` callbacks to `MessageBubble`.
+- **Bug fix:** Fixed `"Alreadt deleted"` typo in `services/direct-chat/deleteMessage.ts`.
+- **Tests:** Added 10 tests covering edit/delete success, authorization, time windows, and invalid payloads.
+
+**Why:**
+Room chat had no edit/delete support — messages were immutable after sending. This brings feature parity with DM chat, which already supported edit (5 min) and delete (30 min).
+
+**Impact:**
+
+- Room members can now edit their messages within 5 minutes and soft-delete within 30 minutes.
+- The Edit button is only shown within the 5-minute window, matching server-side validation (was incorrectly shown for 30 minutes).
+- No breaking changes — all new socket events are additive.
+
+**Follow-ups:**
+
+- Consider adding a confirmation dialog before deleting a message.
+
+---
+
 ## [2026-08-06] - Make S3 Optional for Text-Only Messages
 
 **What changed:**

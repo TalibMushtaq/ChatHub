@@ -1,9 +1,9 @@
 import { prisma } from "../../../db/prisma";
 import { ApiError } from "../../lib/ApiError";
-import { DELETE_WINDOW_MS } from "../../constants/direct-chat";
+import { DELETE_WINDOW_MS } from "../../constants/room";
 
 /**
- * Soft-delete a direct-chat message within the delete window.
+ * Soft-delete a room message within the delete window.
  *
  * Authorization checks:
  * - Message must exist
@@ -11,7 +11,7 @@ import { DELETE_WINDOW_MS } from "../../constants/direct-chat";
  * - Already-deleted messages are rejected with 400
  * - Deletes are rejected after DELETE_WINDOW_MS
  *
- * Returns the deleted message stub with id, directChatId, deletedAt.
+ * Returns the deleted message stub with id, chatRoomId, deletedAt.
  */
 export async function deleteMessage(userId: string, messageId: string) {
   const msg = await prisma.message.findUnique({
@@ -19,7 +19,7 @@ export async function deleteMessage(userId: string, messageId: string) {
     select: {
       id: true,
       senderId: true,
-      directChatId: true,
+      chatRoomId: true,
       isDeleted: true,
       createdAt: true,
     },
@@ -52,7 +52,7 @@ export async function deleteMessage(userId: string, messageId: string) {
     },
     select: {
       id: true,
-      directChatId: true,
+      chatRoomId: true,
       deletedAt: true,
     },
   });

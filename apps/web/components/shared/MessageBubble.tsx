@@ -39,6 +39,7 @@ interface MessageBubbleProps {
   isFirst: boolean;
   onEdit?: (msg: Message) => void;
   onDelete?: (messageId: string) => void;
+  onSubmitEdit?: (messageId: string, content: string) => Promise<void>;
 }
 
 export default function MessageBubble({
@@ -47,6 +48,7 @@ export default function MessageBubble({
   isFirst,
   onEdit,
   onDelete,
+  onSubmitEdit,
 }: MessageBubbleProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -55,6 +57,8 @@ export default function MessageBubble({
 
   const m = message;
   const isEditing = editingId === m.id;
+  const isWithin5Min =
+    Date.now() - new Date(m.createdAt).getTime() < 5 * 60 * 1000;
   const isWithin30Min =
     Date.now() - new Date(m.createdAt).getTime() < 30 * 60 * 1000;
   const isMenuOpen = menuOpenId === m.id;
@@ -81,9 +85,13 @@ export default function MessageBubble({
   async function submitEdit(messageId: string) {
     if (!editContent.trim()) return;
     try {
-      await api.patch(`/dm/message/${messageId}`, {
-        content: editContent.trim(),
-      });
+      if (onSubmitEdit) {
+        await onSubmitEdit(messageId, editContent.trim());
+      } else {
+        await api.patch(`/dm/message/${messageId}`, {
+          content: editContent.trim(),
+        });
+      }
       setEditingId(null);
     } catch (err) {
       console.error(err);
@@ -188,45 +196,50 @@ export default function MessageBubble({
           )}
 
           {/* 3-dot menu */}
-          {isOwn && !m.isDeleted && !isEditing && isWithin30Min && (
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpenId(isMenuOpen ? null : m.id);
-                }}
-                className="w-6 h-6 flex items-center justify-center rounded-full
+          {isOwn &&
+            !m.isDeleted &&
+            !isEditing &&
+            (isWithin5Min || isWithin30Min) && (
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpenId(isMenuOpen ? null : m.id);
+                  }}
+                  className="w-6 h-6 flex items-center justify-center rounded-full
                   text-muted hover:text-text hover:bg-white/8
                   opacity-0 group-hover:opacity-100 transition-all duration-150 text-lg leading-none"
-              >
-                ···
-              </button>
+                >
+                  ···
+                </button>
 
-              {isMenuOpen && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute bottom-full right-0 mb-1.5 w-36 z-50
+                {isMenuOpen && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-full right-0 mb-1.5 w-36 z-50
                     bg-surface-2 border border-white/10 rounded-xl shadow-xl
                     overflow-hidden py-1"
-                >
-                  <button
-                    onClick={() => startEdit(m)}
-                    className="w-full text-left px-4 py-2 text-[13px] text-text
-                      hover:bg-white/6 transition-colors flex items-center gap-2"
                   >
-                    <span>✏️</span> Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(m.id)}
-                    className="w-full text-left px-4 py-2 text-[13px] text-red-400
+                    {isWithin5Min && (
+                      <button
+                        onClick={() => startEdit(m)}
+                        className="w-full text-left px-4 py-2 text-[13px] text-text
+                        hover:bg-white/6 transition-colors flex items-center gap-2"
+                      >
+                        <span>✏️</span> Edit
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(m.id)}
+                      className="w-full text-left px-4 py-2 text-[13px] text-red-400
                       hover:bg-white/6 transition-colors flex items-center gap-2"
-                  >
-                    <span>🗑️</span> Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+                    >
+                      <span>🗑️</span> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
         </div>
 
         {/* Timestamp + edited indicator */}

@@ -5,7 +5,11 @@ export {
   forgotPasswordSchema,
   regenerateRecoveryCodesSchema,
 } from "./user";
-export { chatRoomMessageSchema } from "./roomChat";
+export {
+  chatRoomMessageSchema,
+  chatRoomEditMessageSchema,
+  chatRoomDeleteMessageSchema,
+} from "./roomChat";
 export {
   startDmSchema,
   sendMessageSchema,

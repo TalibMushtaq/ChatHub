@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const MAX_ROOM_MESSAGE_LENGTH = 2000;
+
 /**
  * Chat room message schema.
  *
@@ -10,7 +12,7 @@ import { z } from "zod";
 export const chatRoomMessageSchema = z
   .object({
     chatRoomId: z.string().min(1),
-    content: z.string().trim().max(2000).optional(),
+    content: z.string().trim().max(MAX_ROOM_MESSAGE_LENGTH).optional(),
     messageType: z.enum(["TEXT", "IMAGE", "VIDEO", "AUDIO", "VOICE", "FILE"]),
     attachmentIds: z.array(z.string().min(1)).max(10).optional(),
     idempotencyKey: z.string().min(1).max(64).optional(),
@@ -49,3 +51,14 @@ export const chatRoomMessageSchema = z
         "Invalid attachment count for message type. TEXT requires 0, IMAGE/AUDIO/FILE require >=1, VIDEO/VOICE require exactly 1.",
     },
   );
+
+export const chatRoomEditMessageSchema = z.object({
+  chatRoomId: z.string().min(1),
+  messageId: z.string().min(1),
+  content: z.string().trim().min(1).max(MAX_ROOM_MESSAGE_LENGTH),
+});
+
+export const chatRoomDeleteMessageSchema = z.object({
+  chatRoomId: z.string().min(1),
+  messageId: z.string().min(1),
+});

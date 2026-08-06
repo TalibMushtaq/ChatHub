@@ -1,12 +1,18 @@
 import type { Server, Socket } from "socket.io";
 import { assertRoomAccess } from "../../middleware/socketAccess";
 import { prisma } from "../../../db/prisma";
-import { chatRoomMessageSchema } from "@repo/validators";
+import {
+  chatRoomMessageSchema,
+  chatRoomEditMessageSchema,
+  chatRoomDeleteMessageSchema,
+} from "@repo/validators";
 import { MessageType } from "@prisma/client";
 import { S3Service, buildS3ConfigFromEnv } from "../../services/S3Service";
 import { verifyAttachmentsForMessage } from "../../services/attachment/verifyForMessage";
 import { transitionAttachmentsToAttached } from "../../services/attachment/transitionToAttached";
 import { checkIdempotency, storeIdempotency } from "../../services/idempotency";
+import { editMessage } from "../../services/room/editMessage";
+import { deleteMessage } from "../../services/room/deleteMessage";
 import { ApiError } from "../../lib/ApiError";
 
 let s3ServiceInstance: S3Service | null = null;
@@ -212,6 +218,95 @@ export function registerRoomChat(io: Server, socket: Socket) {
 
       io.to(`room:${data.chatRoomId}`).emit("chatroom:message", message);
       callback({ ok: true, message });
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        callback({ ok: false, error: err.message, code: err.code });
+      } else {
+        callback({ ok: false, error: "Server error" });
+      }
+    }
+  });
+
+  // Edit message
+  socket.on("chatroom:message:edit", async ({ payload, callback }) => {
+    if (typeof callback !== "function") {
+      socket.emit("chatroom:error", {
+        code: "INVALID_CALLBACK",
+        message: "callback must be a function",
+      });
+      return;
+    }
+
+    try {
+      const result = chatRoomEditMessageSchema.safeParse(payload);
+      if (!result.success) {
+        callback({
+          ok: false,
+          error: result.error.issues[0]?.message ?? "Invalid payload",
+        });
+        return;
+      }
+      const data = result.data;
+
+      if (!socket.data.rooms.has(data.chatRoomId)) {
+        await assertRoomAccess(userId, data.chatRoomId);
+        socket.data.rooms.add(data.chatRoomId);
+      }
+
+      const updated = await editMessage(userId, data.messageId, data.content);
+
+      io.to(`room:${data.chatRoomId}`).emit("chatroom:message:edited", {
+        messageId: updated.id,
+        chatRoomId: updated.chatRoomId,
+        content: updated.content,
+        editedAt: updated.editedAt,
+      });
+
+      callback({ ok: true, message: updated });
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        callback({ ok: false, error: err.message, code: err.code });
+      } else {
+        callback({ ok: false, error: "Server error" });
+      }
+    }
+  });
+
+  // Delete message
+  socket.on("chatroom:message:delete", async ({ payload, callback }) => {
+    if (typeof callback !== "function") {
+      socket.emit("chatroom:error", {
+        code: "INVALID_CALLBACK",
+        message: "callback must be a function",
+      });
+      return;
+    }
+
+    try {
+      const result = chatRoomDeleteMessageSchema.safeParse(payload);
+      if (!result.success) {
+        callback({
+          ok: false,
+          error: result.error.issues[0]?.message ?? "Invalid payload",
+        });
+        return;
+      }
+      const data = result.data;
+
+      if (!socket.data.rooms.has(data.chatRoomId)) {
+        await assertRoomAccess(userId, data.chatRoomId);
+        socket.data.rooms.add(data.chatRoomId);
+      }
+
+      const deleted = await deleteMessage(userId, data.messageId);
+
+      io.to(`room:${data.chatRoomId}`).emit("chatroom:message:deleted", {
+        messageId: deleted.id,
+        chatRoomId: deleted.chatRoomId,
+        deletedAt: deleted.deletedAt,
+      });
+
+      callback({ ok: true });
     } catch (err: any) {
       if (err instanceof ApiError) {
         callback({ ok: false, error: err.message, code: err.code });
