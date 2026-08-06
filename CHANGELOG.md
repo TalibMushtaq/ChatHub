@@ -1,3 +1,25 @@
+## [2026-08-06] - Make S3 Optional for Text-Only Messages
+
+**What changed:**
+- `getS3Service()` in `routes/direct-chat/messages.ts` and `routes/room/roomChat.ts` now returns `S3Service | null` instead of throwing 503 when S3 env vars are missing.
+- S3 is only initialized when `attachmentIds` is present and non-empty. Text-only messages bypass S3 entirely.
+- When attachments are requested but S3 is not configured, a clear 503 error ("File uploads require S3 configuration") is returned.
+- `routes/attachments.ts` presign endpoint unchanged — still throws 503 when S3 is missing (correct behavior since uploads cannot work without it).
+- `services/direct-chat/sendMessage.ts` unchanged — already guards S3 usage behind `attachmentIds` check.
+
+**Why:**
+The previous implementation called `getS3Service()` unconditionally for every message send, even text-only messages. This caused a 503 error when `AWS_REGION` or `AWS_S3_BUCKET_NAME` were not set, making the entire chat system unusable without S3 configuration.
+
+**Impact:**
+- Text-only messages (DM and room chat) now work without S3 configuration.
+- File uploads still require S3 — the error message is clearer and more specific.
+- No frontend changes needed; the presign endpoint correctly rejects uploads when S3 is unavailable.
+
+**Follow-ups:**
+- Consider adding a health-check endpoint or startup warning when S3 is not configured, so operators know file uploads are disabled.
+
+---
+
 ## [2026-08-04] - S3-Backed Attachment Architecture Refactor
 
 **What changed:**

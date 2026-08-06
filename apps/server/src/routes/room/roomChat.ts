@@ -10,16 +10,12 @@ import { checkIdempotency, storeIdempotency } from "../../services/idempotency";
 import { ApiError } from "../../lib/ApiError";
 
 let s3ServiceInstance: S3Service | null = null;
-function getS3Service(): S3Service {
+// Returns null when S3 env vars are missing — callers decide whether
+// that is acceptable (text-only messages) or an error (file uploads).
+function getS3Service(): S3Service | null {
   if (!s3ServiceInstance) {
     const config = buildS3ConfigFromEnv();
-    if (!config) {
-      throw new ApiError(
-        "S3 storage is not configured",
-        503,
-        "S3_NOT_CONFIGURED",
-      );
-    }
+    if (!config) return null;
     s3ServiceInstance = new S3Service(config);
   }
   return s3ServiceInstance;
@@ -106,7 +102,23 @@ export function registerRoomChat(io: Server, socket: Socket) {
         socket.data.rooms.add(data.chatRoomId);
       }
 
-      const s3Service = getS3Service();
+      const hasAttachments =
+        data.attachmentIds && data.attachmentIds.length > 0;
+
+      // Only initialize S3 when attachments are present — text-only messages
+      // work without S3 configuration.
+      let s3Service: S3Service | null = null;
+      if (hasAttachments) {
+        s3Service = getS3Service();
+        if (!s3Service) {
+          callback({
+            ok: false,
+            error: "File uploads require S3 configuration",
+            code: "S3_NOT_CONFIGURED",
+          });
+          return;
+        }
+      }
 
       // Idempotency check (outside transaction)
       if (data.idempotencyKey) {
@@ -147,7 +159,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
         if (data.attachmentIds && data.attachmentIds.length > 0) {
           await verifyAttachmentsForMessage(
             tx,
-            s3Service,
+            s3Service as S3Service,
             data.attachmentIds,
             userId,
           );

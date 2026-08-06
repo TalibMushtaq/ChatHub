@@ -31,16 +31,12 @@ const editDeleteLimiter = createRateLimiter({
 });
 
 let s3ServiceInstance: S3Service | null = null;
-function getS3Service(): S3Service {
+// Returns null when S3 env vars are missing — callers decide whether
+// that is acceptable (text-only messages) or an error (file uploads).
+function getS3Service(): S3Service | null {
   if (!s3ServiceInstance) {
     const config = buildS3ConfigFromEnv();
-    if (!config) {
-      throw new ApiError(
-        "S3 storage is not configured",
-        503,
-        "S3_NOT_CONFIGURED",
-      );
-    }
+    if (!config) return null;
     s3ServiceInstance = new S3Service(config);
   }
   return s3ServiceInstance;
@@ -82,6 +78,23 @@ router.post(
 
     await assertDirectChatAccess(senderId, directChatId);
 
+    const hasAttachments =
+      body.data.attachmentIds && body.data.attachmentIds.length > 0;
+
+    // Only initialize S3 when attachments are present — text-only messages
+    // work without S3 configuration.
+    let s3Service: S3Service | null = null;
+    if (hasAttachments) {
+      s3Service = getS3Service();
+      if (!s3Service) {
+        throw new ApiError(
+          "File uploads require S3 configuration",
+          503,
+          "S3_NOT_CONFIGURED",
+        );
+      }
+    }
+
     const result = await sendMessage(
       directChatId,
       senderId,
@@ -91,7 +104,7 @@ router.post(
         attachmentIds: body.data.attachmentIds,
         idempotencyKey: body.data.idempotencyKey,
       },
-      getS3Service(),
+      s3Service as S3Service,
     );
     // Emit only after DB commit succeeds: if the transaction rolls back,
     // clients must not see a ghost message.

@@ -4,12 +4,6 @@
 
 ### High Priority
 
-- [ ] **Add File send support for DMs**
-  - [ ] Update `sendMessageSchema` in `@repo/validators` to accept `messageType`, `fileUrl`, `fileName`, `fileSize`
-  - [ ] Update `sendMessage` service to handle `FILE` type (like room chat already does)
-  - [ ] Update `messageCreateSelect` to include file fields in response
-  - [ ] Test in Postman
-
 - [ ] **Add "mark as read" / unread count**
   - [ ] Add `DirectChatReadReceipt` model to Prisma schema (userId, directChatId, lastReadMessageId, readAt)
   - [ ] Add `ChatRoomReadReceipt` model to Prisma schema (userId, chatRoomId, lastReadMessageId, readAt)
@@ -24,16 +18,21 @@
   - [ ] Add `chatroom:message:edit` socket event handler (5 min window, like DMs)
   - [ ] Add `chatroom:message:delete` socket event handler (30 min window, soft delete, like DMs)
   - [ ] Broadcast edits/deletes to room members
+  - [ ] Wire frontend `MessageBubble` edit/delete to room endpoints (currently hardcoded to DM endpoint)
 
 ### Medium Priority
 
 - [ ] **Create Backend Endpoint GET /dashboard/overview**
   - [ ] Define what stats to return (total rooms, total DMs, unread messages, recent activity, etc.)
   - [ ] Add route + service
-  - [ ] Add tests
+  - [ ] Update frontend dashboard components to use real data instead of hardcoded mocks
 
 - [ ] **Add DM inbox pagination (cursor / infinite scroll)**
   - [ ] `GET /api/dm/inbox` currently returns ALL chats — add `cursor` + `limit` query params
+
+- [ ] **Add Room messages HTTP endpoint**
+  - [ ] Frontend `RoomMessages` calls `GET /room/:chatRoomId/messages` but no server handler exists
+  - [ ] Create endpoint with cursor pagination (similar to DM messages endpoint)
 
 ### Low Priority / Polish
 
@@ -43,7 +42,7 @@
 
 ## In Progress
 
-> Pick **one** item from High Priority and move it here. Start with _File send support for DMs_ — it's the smallest, fastest win.
+> Pick **one** item from High Priority and move it here. Recommended: _Delete, Update for room chat_ — it's a natural follow-up since the frontend edit/delete UI already exists in `MessageBubble`.
 
 ## Completed ✓
 
@@ -62,3 +61,4 @@
 - [x] Store user snapshot in session
 - [x] `POST /auth/forgot-password` (recovery code based password reset)
 - [x] File send support for **Room Chat** (socket handler already supports `messageType: FILE`)
+- [x] File send support for **DMs** (sendMessageSchema accepts messageType + attachmentIds, DMInput has file picker with presigned upload flow)
