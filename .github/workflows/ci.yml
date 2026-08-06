@@ -84,7 +84,7 @@ jobs:
       - name: Fail if matrix failed
         if: needs.ci-matrix.result != 'success'
         run: |
-          echo "::error::ci-matrix result was '${{ needs.ci-matrix.result }}'"
+          echo "::error::One or more ci-matrix steps failed (install/lint/typecheck/test/build). Check the 'CI (Node 22)' job logs."
           exit 1
       - name: CI passed
         if: needs.ci-matrix.result == 'success'
