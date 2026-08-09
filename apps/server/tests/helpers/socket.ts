@@ -12,7 +12,7 @@ export function createMockSocket(partial?: Partial<Socket>): Socket {
     id: "socket-1",
     data: {
       user: undefined as { id: string; username: string } | undefined,
-      rooms: new Set<string>(),
+      rooms: new Map<string, number>(),
     },
     request: {
       session: {} as any,

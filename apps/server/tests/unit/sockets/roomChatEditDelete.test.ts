@@ -18,7 +18,7 @@ describe("registerRoomChat - edit and delete", () => {
       id: "socket-1",
       data: {
         user: { id: userId, username: "user1" },
-        rooms: new Set<string>(["room-1"]),
+        rooms: new Map<string, number>([["room-1", Date.now() + 60_000]]),
       },
       request: { session: {} },
       join: vi.fn(),

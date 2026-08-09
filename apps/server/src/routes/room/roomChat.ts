@@ -17,12 +17,17 @@ import { getRequiredS3Service } from "../../lib/s3";
 import { onAck } from "../../lib/socketAck";
 import { messageWithAttachmentsSelect } from "../../constants/room";
 
+// How long a room membership check stays cached on a socket. Bounds the
+// window in which a user removed from a room can keep using it.
+const ROOM_ACCESS_TTL_MS = 60_000;
+
 /**
  * Registers chat room socket handlers.
  *
  * Improvements:
  * - Room membership is cached in socket.data.rooms on join, so subsequent
- *   messages don't hit the database for access checks.
+ *   messages don't hit the database for access checks until the cache entry
+ *   expires.
  * - Fixed typo: "paylaod" -> "payload".
  * - Standardized event names: all lowercase "chatroom:*" (was mixed casing).
  * - Replaced generic socket.emit("error") with chatroom:error event.
@@ -34,9 +39,20 @@ export function registerRoomChat(io: Server, socket: Socket) {
   const { user } = socket.data;
   const userId = user.id;
 
-  // Initialize room cache on socket
+  // Room cache: chatRoomId -> timestamp at which the cached membership check
+  // expires and must be re-verified against the database.
   if (!socket.data.rooms) {
-    socket.data.rooms = new Set<string>();
+    socket.data.rooms = new Map<string, number>();
+  }
+
+  // Use cached membership instead of hitting the DB on every event, until the
+  // cached check expires.
+  async function ensureRoomAccess(chatRoomId: string): Promise<void> {
+    const expiresAt = socket.data.rooms.get(chatRoomId);
+    if (expiresAt !== undefined && expiresAt > Date.now()) return;
+
+    await assertRoomAccess(userId, chatRoomId);
+    socket.data.rooms.set(chatRoomId, Date.now() + ROOM_ACCESS_TTL_MS);
   }
 
   // JOIN
@@ -48,8 +64,9 @@ export function registerRoomChat(io: Server, socket: Socket) {
 
       await assertRoomAccess(userId, chatRoomId);
 
-      // Cache membership so future messages skip the DB check
-      socket.data.rooms.add(chatRoomId);
+      // Cache membership so future messages skip the DB check until the TTL
+      // expires.
+      socket.data.rooms.set(chatRoomId, Date.now() + ROOM_ACCESS_TTL_MS);
 
       socket.join(`room:${chatRoomId}`);
       socket.emit("chatroom:joined", { chatRoomId });
@@ -70,13 +87,6 @@ export function registerRoomChat(io: Server, socket: Socket) {
     socket.leave(`room:${chatRoomId}`);
     socket.emit("chatroom:left", { chatRoomId });
   });
-
-  // Use cached membership instead of hitting the DB on every event
-  async function ensureRoomAccess(chatRoomId: string) {
-    if (socket.data.rooms.has(chatRoomId)) return;
-    await assertRoomAccess(userId, chatRoomId);
-    socket.data.rooms.add(chatRoomId);
-  }
 
   // Messages
   onAck(

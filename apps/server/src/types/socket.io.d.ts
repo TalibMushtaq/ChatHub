@@ -9,7 +9,8 @@ type AuthUser = Pick<User, "id" | "username">;
 declare module "socket.io" {
   interface SocketData {
     user: AuthUser;
-    rooms?: Set<string>;
+    /** chatRoomId -> epoch ms at which the cached membership check expires. */
+    rooms?: Map<string, number>;
   }
 }
 
