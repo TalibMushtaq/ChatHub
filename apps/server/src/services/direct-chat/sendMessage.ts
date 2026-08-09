@@ -1,5 +1,5 @@
 import { prisma } from "../../../db/prisma";
-import { messageCreateSelect } from "../../constants/direct-chat";
+import { messageWithAttachmentsSelect } from "../../constants/direct-chat";
 import type { MessageType } from "@prisma/client";
 import { S3Service } from "../S3Service";
 import { verifyAttachmentsForMessage } from "../attachment/verifyForMessage";
@@ -40,20 +40,7 @@ export async function sendMessage(
     if (existingMessageId) {
       const existing = await prisma.message.findUnique({
         where: { id: existingMessageId },
-        select: {
-          ...messageCreateSelect,
-          attachments: {
-            select: {
-              id: true,
-              filename: true,
-              mimeType: true,
-              size: true,
-              width: true,
-              height: true,
-              thumbnailKey: true,
-            },
-          },
-        },
+        select: messageWithAttachmentsSelect,
       });
       if (existing) {
         return existing;
@@ -75,20 +62,7 @@ export async function sendMessage(
         directChatId,
         messageType,
       },
-      select: {
-        ...messageCreateSelect,
-        attachments: {
-          select: {
-            id: true,
-            filename: true,
-            mimeType: true,
-            size: true,
-            width: true,
-            height: true,
-            thumbnailKey: true,
-          },
-        },
-      },
+      select: messageWithAttachmentsSelect,
     });
 
     // Link attachments
