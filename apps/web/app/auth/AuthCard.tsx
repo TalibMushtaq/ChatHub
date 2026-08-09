@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { isAxiosError } from "axios";
 import { api } from "../lib/api";
+import { getErrorMessage } from "../lib/errors";
 import { userZod } from "@repo/validators";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -45,15 +45,6 @@ export default function AuthCard() {
   };
   const strength = getStrength(password);
 
-  const getErrorMessage = (err: unknown, fallback: string) => {
-    if (isAxiosError(err)) {
-      return (
-        err.response?.data?.error || err.response?.data?.message || fallback
-      );
-    }
-    return fallback;
-  };
-
   //---------------HandelLogin--------
   const HandelLogin = async () => {
     try {
@@ -78,7 +69,6 @@ export default function AuthCard() {
       router.push("/dashboard");
       router.refresh();
     } catch (err: unknown) {
-      console.log(err);
       setErrors(getErrorMessage(err, "Login failed"));
     } finally {
       setLoading(false);

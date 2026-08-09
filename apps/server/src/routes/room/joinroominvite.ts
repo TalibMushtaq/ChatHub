@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../../../db/prisma";
 import requireAuth from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
@@ -39,7 +39,7 @@ router.post(
   "/:roomId/invitations",
   requireAuth,
   requireAdmin,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const myId = req.user?.id;
       if (!myId) {
@@ -118,13 +118,6 @@ router.post(
         status: sent.status,
       });
     } catch (err: any) {
-      if (err instanceof AppError) {
-        return res.status(err.statusCode).json({
-          ok: false,
-          error: err.message,
-        });
-      }
-
       if (err?.code === "P2003") {
         return res.status(404).json({
           ok: false,
@@ -139,8 +132,7 @@ router.post(
         });
       }
 
-      console.log(err);
-      return res.status(500).json({ ok: false, error: "Server Error" });
+      return next(err);
     }
   },
 );
@@ -159,7 +151,7 @@ router.post(
 router.get(
   "/invitation/sent",
   requireAuth,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const myId = req.user!.id;
       const invitations = await prisma.roomInvitation.findMany({
@@ -191,8 +183,7 @@ router.get(
 
       return res.status(200).json({ ok: true, invitations });
     } catch (err) {
-      console.log(err);
-      return res.status(500).json({ ok: true, error: "Server Error" });
+      return next(err);
     }
   },
 );
@@ -211,7 +202,7 @@ router.get(
 router.get(
   "/invitation/received",
   requireAuth,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const myId = req.user!.id;
 
@@ -246,8 +237,7 @@ router.get(
         invitations,
       });
     } catch (err) {
-      console.log(err);
-      return res.status(500).json({ ok: false, error: "Server Error" });
+      return next(err);
     }
   },
 );
@@ -273,7 +263,7 @@ router.get(
 router.patch(
   "/invitations/:invitationId",
   requireAuth,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const myId = req.user!.id;
       const invitationId = String(req.params.invitationId);
@@ -349,14 +339,11 @@ router.patch(
           status: "ACCEPTED",
         });
       }
-    } catch (err: any) {
-      if (err instanceof AppError) {
-        return res.status(err.statusCode).json({
-          ok: false,
-          error: err.message,
-        });
-      }
 
+      // Unreachable while respondInvitationSchema only allows the two
+      // statuses above; without it an unhandled status would hang the request.
+      return res.status(400).json({ ok: false, error: "Invalid status" });
+    } catch (err: any) {
       if (err?.code === "P2002") {
         return res.status(409).json({
           ok: false,
@@ -364,11 +351,7 @@ router.patch(
         });
       }
 
-      console.error(err);
-      return res.status(500).json({
-        ok: false,
-        error: "Server error",
-      });
+      return next(err);
     }
   },
 );

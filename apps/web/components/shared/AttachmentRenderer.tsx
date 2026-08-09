@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 
 interface Attachment {
   id: string;
@@ -25,16 +26,23 @@ export default function AttachmentRenderer({
   attachment: Attachment;
 }) {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     api
       .get(`/attachments/${attachment.id}`)
       .then((res) => {
-        if (!cancelled) setDownloadUrl(res.data.downloadUrl);
+        if (!cancelled) {
+          setDownloadUrl(res.data.downloadUrl);
+          setError(null);
+        }
       })
-      .catch(() => {
-        if (!cancelled) setDownloadUrl(null);
+      .catch((err) => {
+        if (!cancelled) {
+          setDownloadUrl(null);
+          setError(getErrorMessage(err, "Attachment unavailable"));
+        }
       });
     return () => {
       cancelled = true;
@@ -42,6 +50,14 @@ export default function AttachmentRenderer({
   }, [attachment.id]);
 
   const { mimeType, filename, size } = attachment;
+
+  if (error) {
+    return (
+      <div className="max-w-[300px] px-3 py-2 rounded-lg bg-surface-2 border border-red-400/30 text-[12px] text-red-400">
+        {error}
+      </div>
+    );
+  }
 
   // Image
   if (mimeType.startsWith("image/")) {

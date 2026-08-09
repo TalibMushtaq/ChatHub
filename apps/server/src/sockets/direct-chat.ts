@@ -7,6 +7,9 @@ import type {
 } from "../types/socket-events";
 import { assertDirectChatAccess } from "../middleware/socketAccess";
 import { ApiError } from "../lib/ApiError";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("directChatSocket");
 
 // ---------------------------------------------------------------------------
 // Room helpers — no raw string literals
@@ -94,15 +97,23 @@ export function registerDirectChat(
       socket.join(getDirectChatRoom(directChatId));
       socket.emit("directChat:joined", { directChatId });
     } catch (err: unknown) {
-      // Narrow to ApiError to preserve the machine-readable code;
-      // fall back to a generic code so the client always receives
-      // a structured payload it can branch on.
-      const code = err instanceof ApiError ? err.code : undefined;
-      const message =
-        err instanceof Error ? err.message : "Failed to join chat";
+      // Narrow to ApiError to preserve the machine-readable code and message;
+      // anything else is unexpected, so it is logged server-side and reported
+      // to the client as a generic structured failure.
+      if (err instanceof ApiError) {
+        socket.emit("directChat:error", {
+          code: err.code ?? "JOIN_FAILED",
+          message: err.message,
+        });
+        return;
+      }
+      log.error("directChat:join failed", err, {
+        userId: user.id,
+        directChatId,
+      });
       socket.emit("directChat:error", {
-        code: code ?? "JOIN_FAILED",
-        message,
+        code: "JOIN_FAILED",
+        message: "Failed to join chat",
       });
     }
   });
@@ -114,13 +125,21 @@ export function registerDirectChat(
       socket.emit("directChat:left", { directChatId });
     } catch (err: unknown) {
       // Same narrowing strategy as join: preserve ApiError codes,
-      // default to LEAVE_FAILED so the client never sees an unstructured error.
-      const code = err instanceof ApiError ? err.code : undefined;
-      const message =
-        err instanceof Error ? err.message : "Failed to leave chat";
+      // log and generalize everything else.
+      if (err instanceof ApiError) {
+        socket.emit("directChat:error", {
+          code: err.code ?? "LEAVE_FAILED",
+          message: err.message,
+        });
+        return;
+      }
+      log.error("directChat:leave failed", err, {
+        userId: user.id,
+        directChatId,
+      });
       socket.emit("directChat:error", {
-        code: code ?? "LEAVE_FAILED",
-        message,
+        code: "LEAVE_FAILED",
+        message: "Failed to leave chat",
       });
     }
   });

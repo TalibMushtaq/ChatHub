@@ -14,6 +14,9 @@ import { checkIdempotency, storeIdempotency } from "../../services/idempotency";
 import { editMessage } from "../../services/room/editMessage";
 import { deleteMessage } from "../../services/room/deleteMessage";
 import { ApiError } from "../../lib/ApiError";
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("roomChat");
 
 let s3ServiceInstance: S3Service | null = null;
 // Returns null when S3 env vars are missing — callers decide whether
@@ -63,10 +66,14 @@ export function registerRoomChat(io: Server, socket: Socket) {
 
       socket.join(`room:${chatRoomId}`);
       socket.emit("chatroom:joined", { chatRoomId });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const expected = err instanceof ApiError;
+      if (!expected) {
+        log.error("chatroom:join failed", err, { userId, chatRoomId });
+      }
       socket.emit("chatroom:error", {
-        code: "JOIN_FAILED",
-        message: err.message,
+        code: expected ? (err.code ?? "JOIN_FAILED") : "JOIN_FAILED",
+        message: expected ? err.message : "Failed to join room",
       });
       socket.disconnect(true);
     }
@@ -218,10 +225,11 @@ export function registerRoomChat(io: Server, socket: Socket) {
 
       io.to(`room:${data.chatRoomId}`).emit("chatroom:message", message);
       callback({ ok: true, message });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof ApiError) {
         callback({ ok: false, error: err.message, code: err.code });
       } else {
+        log.error("chatroom:message failed", err, { userId });
         callback({ ok: false, error: "Server error" });
       }
     }
@@ -263,10 +271,11 @@ export function registerRoomChat(io: Server, socket: Socket) {
       });
 
       callback({ ok: true, message: updated });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof ApiError) {
         callback({ ok: false, error: err.message, code: err.code });
       } else {
+        log.error("chatroom:message:edit failed", err, { userId });
         callback({ ok: false, error: "Server error" });
       }
     }
@@ -307,10 +316,11 @@ export function registerRoomChat(io: Server, socket: Socket) {
       });
 
       callback({ ok: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof ApiError) {
         callback({ ok: false, error: err.message, code: err.code });
       } else {
+        log.error("chatroom:message:delete failed", err, { userId });
         callback({ ok: false, error: "Server error" });
       }
     }

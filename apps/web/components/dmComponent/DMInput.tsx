@@ -1,6 +1,8 @@
 "use client";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 
 interface DMInputProps {
   directChatId: string;
@@ -27,7 +29,12 @@ export default function DMInput({ directChatId }: DMInputProps) {
 
   const send = async () => {
     if (!text.trim()) return;
-    await sendMessage(text.trim());
+    try {
+      await sendMessage(text.trim());
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to send message"));
+      return;
+    }
     setText("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -55,13 +62,19 @@ export default function DMInput({ directChatId }: DMInputProps) {
         const { presignedUrl, attachmentId } = presignRes.data;
 
         // Step 2: Upload directly to S3
-        await fetch(presignedUrl, {
+        const uploadRes = await fetch(presignedUrl, {
           method: "PUT",
           body: file,
           headers: {
             "Content-Type": file.type || "application/octet-stream",
           },
         });
+
+        if (!uploadRes.ok) {
+          throw new Error(
+            `Upload of ${file.name} failed (${uploadRes.status})`,
+          );
+        }
 
         attachmentIds.push(attachmentId);
       }
@@ -77,7 +90,7 @@ export default function DMInput({ directChatId }: DMInputProps) {
       await sendMessage(text.trim() || undefined, attachmentIds, messageType);
       setText("");
     } catch (err) {
-      console.error("Upload failed:", err);
+      toast.error(getErrorMessage(err, "Upload failed"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {

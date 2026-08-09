@@ -15,8 +15,9 @@ const log = createLogger("deleteAttachment");
  * Recovery strategy:
  * 1. Delete the S3 object first.
  * 2. If S3 deletion succeeds, delete the DB row.
- * 3. If DB deletion fails, the S3 object is already gone. Log the error
- *    and return success (the DB row can be cleaned up asynchronously later).
+ * 3. If DB deletion fails, the S3 object is already gone. Log the error and
+ *    report the partial failure via `orphanedRecord` so callers can surface
+ *    it (the DB row can be cleaned up asynchronously later).
  * 4. If S3 deletion fails, do not delete the DB row. Return an error
  *    so the caller can retry or schedule async cleanup.
  */
@@ -76,11 +77,10 @@ export async function deleteAttachment(
   // Step 1: Delete S3 object
   try {
     await s3Service.deleteObject(attachment.s3Key);
-  } catch (err: any) {
-    log.error("S3 delete failed", {
+  } catch (err: unknown) {
+    log.error("S3 delete failed", err, {
       attachmentId,
       s3Key: attachment.s3Key,
-      error: err.message,
     });
     throw new ApiError(
       "Failed to delete attachment from storage. Please retry.",
@@ -92,15 +92,12 @@ export async function deleteAttachment(
   // Step 2: Delete DB row
   try {
     await prisma.attachment.delete({ where: { id: attachmentId } });
-  } catch (err: any) {
-    log.error("DB delete failed after S3 deletion", {
-      attachmentId,
-      error: err.message,
-    });
-    // S3 object is already gone. The DB row is now orphaned and can be
-    // cleaned up by a background worker. We return success to the caller
-    // because the attachment is effectively deleted.
+  } catch (err: unknown) {
+    log.error("DB delete failed after S3 deletion", err, { attachmentId });
+    // S3 object is already gone, so the delete cannot be retried as a whole.
+    // The orphaned DB row is reported to the caller instead of being hidden.
+    return { ok: true, orphanedRecord: true };
   }
 
-  return { ok: true };
+  return { ok: true, orphanedRecord: false };
 }

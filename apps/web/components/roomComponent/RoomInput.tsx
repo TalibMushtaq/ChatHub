@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { socket } from "../../app/lib/socket";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 
 interface RoomInputProps {
   chatRoomId: string;
@@ -28,7 +30,7 @@ export default function RoomInput({ chatRoomId }: RoomInputProps) {
       payload,
       callback: ({ ok, error }: { ok: boolean; error?: string }) => {
         if (!ok) {
-          console.error("Failed to send message:", error);
+          toast.error(error ?? "Failed to send message");
         }
       },
     });
@@ -58,13 +60,19 @@ export default function RoomInput({ chatRoomId }: RoomInputProps) {
 
         const { presignedUrl, attachmentId } = presignRes.data;
 
-        await fetch(presignedUrl, {
+        const uploadRes = await fetch(presignedUrl, {
           method: "PUT",
           body: file,
           headers: {
             "Content-Type": file.type || "application/octet-stream",
           },
         });
+
+        if (!uploadRes.ok) {
+          throw new Error(
+            `Upload of ${file.name} failed (${uploadRes.status})`,
+          );
+        }
 
         attachmentIds.push(attachmentId);
       }
@@ -85,14 +93,14 @@ export default function RoomInput({ chatRoomId }: RoomInputProps) {
         },
         callback: ({ ok, error }: { ok: boolean; error?: string }) => {
           if (!ok) {
-            console.error("Failed to send message:", error);
+            toast.error(error ?? "Failed to send message");
           }
         },
       });
 
       setText("");
     } catch (err) {
-      console.error("Upload failed:", err);
+      toast.error(getErrorMessage(err, "Upload failed"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {

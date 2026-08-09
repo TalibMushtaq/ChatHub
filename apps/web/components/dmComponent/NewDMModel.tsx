@@ -1,6 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 import UserSearch, { User } from "../search/UserSearch";
 
 export default function NewDMModal({ onClose }: { onClose: () => void }) {
@@ -12,8 +14,8 @@ export default function NewDMModal({ onClose }: { onClose: () => void }) {
       const directChatId = res.data.chat.id;
       onClose();
       router.push(`/dashboard/dm/${directChatId}`);
-    } catch {
-      console.error("Failed to start DM");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to start DM"));
     }
   };
 

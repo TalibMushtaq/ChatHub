@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 import { socket } from "../../app/lib/socket";
 import MessageBubble, { type Message } from "../shared/MessageBubble";
 
@@ -19,7 +21,9 @@ export default function DMMessages({ directChatId }: { directChatId: string }) {
       setMessages(msgsRes.data.messages);
     }
 
-    load();
+    load().catch((err) => {
+      toast.error(getErrorMessage(err, "Failed to load messages"));
+    });
 
     socket.emit("directChat:join", { directChatId });
 
@@ -61,7 +65,7 @@ export default function DMMessages({ directChatId }: { directChatId: string }) {
     try {
       await api.delete(`/dm/message/${messageId}`);
     } catch (err) {
-      console.error(err);
+      toast.error(getErrorMessage(err, "Failed to delete message"));
     }
   }
 

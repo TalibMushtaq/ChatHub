@@ -119,9 +119,13 @@ router.delete(
     }
 
     const s3Service = getS3Service();
-    await deleteAttachment(s3Service, params.data.attachmentId, userId);
+    const result = await deleteAttachment(
+      s3Service,
+      params.data.attachmentId,
+      userId,
+    );
 
-    res.json({ ok: true });
+    res.json({ ok: true, orphanedRecord: result.orphanedRecord });
   }),
 );
 

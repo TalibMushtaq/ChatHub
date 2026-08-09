@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { socket } from "../../app/lib/socket";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 import MessageBubble, { type Message } from "../shared/MessageBubble";
 
 interface RoomMessagesProps {
@@ -24,9 +26,15 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
       setMessages(msgsRes.data.messages ?? []);
     }
 
-    load();
+    load().catch((err) => {
+      toast.error(getErrorMessage(err, "Failed to load messages"));
+    });
 
     socket.emit("chatroom:join", { chatRoomId });
+
+    socket.on("chatroom:error", ({ message }: { message?: string }) => {
+      toast.error(message ?? "Chat room error");
+    });
 
     socket.on("chatroom:message", (msg: Message) => {
       if (msg.chatRoomId === chatRoomId) {
@@ -71,6 +79,7 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
       socket.off("chatroom:message");
       socket.off("chatroom:message:edited");
       socket.off("chatroom:message:deleted");
+      socket.off("chatroom:error");
     };
   }, [chatRoomId]);
 
@@ -84,7 +93,9 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
         socket.emit("chatroom:message:delete", {
           payload: { chatRoomId, messageId },
           callback: (res: { ok?: boolean; error?: string }) => {
-            if (!res.ok) console.error(res.error);
+            if (!res.ok) {
+              toast.error(res.error ?? "Failed to delete message");
+            }
             resolve();
           },
         });
@@ -102,8 +113,7 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
             if (res.ok) {
               resolve();
             } else {
-              console.error(res.error);
-              reject(new Error(res.error));
+              reject(new Error(res.error ?? "Failed to edit message"));
             }
           },
         });

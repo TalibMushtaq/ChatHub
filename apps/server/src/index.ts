@@ -12,6 +12,9 @@ import room from "./routes/room/room";
 import searchUser from "./routes/searchUser";
 import attachmentRoutes from "./routes/attachments";
 import { errorHandler } from "./middleware/error-handler";
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("server");
 
 const app = express();
 
@@ -59,14 +62,14 @@ async function main() {
   await connectRedis();
   const sat2 = await prisma.$queryRaw`SELECT 1`;
   if (sat2) {
-    console.log("postgres/prisma db connected");
+    log.info("postgres/prisma db connected");
   }
   app.get("/", (req, res) => {
     res.send("Chathub server running");
   });
   const Port = Number(3100);
   httpServer.listen(Port, () => {
-    console.log(`web socket server running on ${Port}`);
+    log.info(`web socket server running on ${Port}`);
   });
 }
 
@@ -80,25 +83,41 @@ async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  console.log(`\n${signal} received, shutting down gracefully...`);
+  log.info(`${signal} received, shutting down gracefully...`);
 
-  // Stop accepting new connections.
-  httpServer.close(async () => {
-    console.log("HTTP server closed");
+  // Stop accepting new connections. Failures while releasing resources are
+  // logged and produce a non-zero exit code instead of an unhandled rejection.
+  httpServer.close(async (closeErr) => {
+    let exitCode = 0;
 
-    // Disconnect from Redis.
-    await disconnectRedis();
+    if (closeErr) {
+      log.error("HTTP server close failed", closeErr);
+      exitCode = 1;
+    } else {
+      log.info("HTTP server closed");
+    }
 
-    // Disconnect from PostgreSQL.
-    await prisma.$disconnect();
+    try {
+      await disconnectRedis();
+    } catch (err) {
+      log.error("Redis disconnect failed during shutdown", err);
+      exitCode = 1;
+    }
 
-    console.log("Shutdown complete");
-    process.exit(0);
+    try {
+      await prisma.$disconnect();
+    } catch (err) {
+      log.error("Prisma disconnect failed during shutdown", err);
+      exitCode = 1;
+    }
+
+    log.info("Shutdown complete");
+    process.exit(exitCode);
   });
 
   // Force exit after 10 seconds if graceful shutdown hangs.
   setTimeout(() => {
-    console.error("Shutdown timed out, forcing exit");
+    log.error("Shutdown timed out, forcing exit");
     process.exit(1);
   }, 10_000);
 }
@@ -106,7 +125,16 @@ async function shutdown(signal: string): Promise<void> {
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
+process.on("unhandledRejection", (reason) => {
+  log.error("Unhandled promise rejection", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  log.error("Uncaught exception, shutting down", err);
+  void shutdown("uncaughtException");
+});
+
 main().catch((err) => {
-  console.error("server failed to start : ", err);
+  log.error("server failed to start", err);
   process.exit(1);
 });

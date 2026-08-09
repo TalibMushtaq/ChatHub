@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 import AttachmentRenderer from "./AttachmentRenderer";
 
 interface Attachment {
@@ -94,7 +96,7 @@ export default function MessageBubble({
       }
       setEditingId(null);
     } catch (err) {
-      console.error(err);
+      toast.error(getErrorMessage(err, "Failed to edit message"));
     }
   }
 
