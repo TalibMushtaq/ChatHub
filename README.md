@@ -56,6 +56,10 @@ SESSION_SECRET="your-secret-key"
 
 # Server
 PORT=3002
+
+# Comma-separated browser origins allowed to call the API and Socket.IO.
+# Required in production; defaults to the local dev origins otherwise.
+CORS_ORIGINS="http://localhost:5173,http://localhost:3000"
 ```
 
 ## Tech Stack

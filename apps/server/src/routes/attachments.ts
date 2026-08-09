@@ -8,6 +8,7 @@ import { getRequiredS3Service } from "../lib/s3";
 import { createPendingAttachment } from "../services/attachment/createPending";
 import { getAttachmentWithAccessCheck } from "../services/attachment/getWithAccessCheck";
 import { deleteAttachment } from "../services/attachment/deleteAttachment";
+import { assertUploadContextAccess } from "../services/attachment/assertContextAccess";
 
 const presignLimiter = createRateLimiter({
   maxAttempts: 30,
@@ -27,6 +28,8 @@ router.post(
     await enforceRateLimit(res, presignLimiter, `presign:${userId}`);
 
     const parsed = unwrapParsed(presignSchema.safeParse(req.body));
+
+    await assertUploadContextAccess(userId, parsed.context, parsed.contextId);
 
     const s3Service = getRequiredS3Service();
     const { attachment, presignedUrl } = await createPendingAttachment(
