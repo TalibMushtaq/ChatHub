@@ -20,7 +20,9 @@ describe("markRoomRead", () => {
       createdAt: new Date("2026-01-10T12:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.chatRoomReadReceipt.findUnique.mockResolvedValue(null);
     prismaMock.chatRoomReadReceipt.upsert.mockResolvedValue({} as any);
@@ -51,7 +53,9 @@ describe("markRoomRead", () => {
       createdAt: new Date("2026-01-10T14:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.chatRoomReadReceipt.findUnique.mockResolvedValue({
       lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
@@ -72,7 +76,9 @@ describe("markRoomRead", () => {
       createdAt: new Date("2026-01-10T10:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.chatRoomReadReceipt.findUnique.mockResolvedValue({
       lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
@@ -92,7 +98,9 @@ describe("markRoomRead", () => {
       createdAt: new Date("2026-01-10T12:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.chatRoomReadReceipt.findUnique.mockResolvedValue({
       lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
@@ -106,12 +114,14 @@ describe("markRoomRead", () => {
   });
 
   it("should throw MESSAGE_NOT_FOUND when the message does not exist", async () => {
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(null);
 
-    await expect(
-      markRoomRead("u1", "room1", "nonexistent"),
-    ).rejects.toThrow("Message not found");
+    await expect(markRoomRead("u1", "room1", "nonexistent")).rejects.toThrow(
+      "Message not found",
+    );
   });
 
   it("should throw MESSAGE_WRONG_ROOM when the message belongs to a different room", async () => {
@@ -121,12 +131,14 @@ describe("markRoomRead", () => {
       createdAt: new Date("2026-01-10T12:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
 
-    await expect(
-      markRoomRead("u1", "room1", "msg-1"),
-    ).rejects.toThrow("Message does not belong to this room");
+    await expect(markRoomRead("u1", "room1", "msg-1")).rejects.toThrow(
+      "Message does not belong to this room",
+    );
   });
 
   it("should compute unread count excluding own messages", async () => {
@@ -137,7 +149,9 @@ describe("markRoomRead", () => {
       createdAt: new Date("2026-01-10T15:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.chatRoomReadReceipt.findUnique.mockResolvedValue(null);
     prismaMock.chatRoomReadReceipt.upsert.mockResolvedValue({} as any);
@@ -163,7 +177,9 @@ describe("markRoomRead", () => {
       createdAt: new Date("2026-01-10T15:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.chatRoomReadReceipt.findUnique.mockResolvedValue(null);
     prismaMock.chatRoomReadReceipt.upsert.mockResolvedValue({} as any);

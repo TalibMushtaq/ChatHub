@@ -126,9 +126,8 @@ describe("POST /:directChatId/mark-read", () => {
   });
 
   it("should call markDirectChatRead with correct arguments", async () => {
-    const { markDirectChatRead } = await import(
-      "../../../src/services/direct-chat/markRead"
-    );
+    const { markDirectChatRead } =
+      await import("../../../src/services/direct-chat/markRead");
     vi.mocked(markDirectChatRead).mockResolvedValue({
       lastReadMessageId: "msg-2",
       unreadCount: 2,
@@ -144,9 +143,8 @@ describe("POST /:directChatId/mark-read", () => {
   });
 
   it("should return the unreadCount from the service", async () => {
-    const { markDirectChatRead } = await import(
-      "../../../src/services/direct-chat/markRead"
-    );
+    const { markDirectChatRead } =
+      await import("../../../src/services/direct-chat/markRead");
     vi.mocked(markDirectChatRead).mockResolvedValue({
       lastReadMessageId: "msg-3",
       unreadCount: 5,
@@ -218,7 +216,8 @@ describe("POST /:chatRoomId/mark-read", () => {
   });
 
   it("should call markRoomRead with correct arguments", async () => {
-    const { markRoomRead } = await import("../../../src/services/room/markRead");
+    const { markRoomRead } =
+      await import("../../../src/services/room/markRead");
     vi.mocked(markRoomRead).mockResolvedValue({
       lastReadMessageId: "msg-4",
       unreadCount: 3,
@@ -234,7 +233,8 @@ describe("POST /:chatRoomId/mark-read", () => {
   });
 
   it("should return the unreadCount from the service", async () => {
-    const { markRoomRead } = await import("../../../src/services/room/markRead");
+    const { markRoomRead } =
+      await import("../../../src/services/room/markRead");
     vi.mocked(markRoomRead).mockResolvedValue({
       lastReadMessageId: "msg-5",
       unreadCount: 7,

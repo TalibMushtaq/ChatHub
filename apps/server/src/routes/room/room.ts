@@ -2,7 +2,11 @@ import { Router, Request, Response } from "express";
 import requireAuth from "../../middleware/requireAuth";
 import { prisma } from "../../../db/prisma";
 import { AppError } from "../../lib/AppError";
-import { createRoomSchema, chatRoomIdParamSchema, markReadSchema } from "@repo/validators";
+import {
+  createRoomSchema,
+  chatRoomIdParamSchema,
+  markReadSchema,
+} from "@repo/validators";
 import { assertRoomAccess } from "../../middleware/socketAccess";
 import { markRoomRead } from "../../services/room/markRead";
 import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
@@ -143,9 +147,7 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
 
     // Batch-compute unread counts using a single raw query.
     const unreadRows = roomIds.length
-      ? await prisma.$queryRaw<
-          { chatRoomId: string; count: bigint }[]
-        >`
+      ? await prisma.$queryRaw<{ chatRoomId: string; count: bigint }[]>`
           SELECT
             m."chatRoomId" as "chatRoomId",
             COUNT(*)::int as count
@@ -215,7 +217,9 @@ router.post(
       const rate = await markReadLimiter(`markread:${userId}`);
       setRateLimitHeaders(res, rate);
       if (!rate.allowed) {
-        return res.status(429).json({ ok: false, error: "Rate limit exceeded" });
+        return res
+          .status(429)
+          .json({ ok: false, error: "Rate limit exceeded" });
       }
 
       const body = markReadSchema.safeParse(req.body);

@@ -20,7 +20,9 @@ describe("markDirectChatRead", () => {
       createdAt: new Date("2026-01-10T12:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChatReadReceipt.findUnique.mockResolvedValue(null);
     prismaMock.directChatReadReceipt.upsert.mockResolvedValue({} as any);
@@ -51,7 +53,9 @@ describe("markDirectChatRead", () => {
       createdAt: new Date("2026-01-10T14:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChatReadReceipt.findUnique.mockResolvedValue({
       lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
@@ -72,7 +76,9 @@ describe("markDirectChatRead", () => {
       createdAt: new Date("2026-01-10T10:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChatReadReceipt.findUnique.mockResolvedValue({
       lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
@@ -92,7 +98,9 @@ describe("markDirectChatRead", () => {
       createdAt: new Date("2026-01-10T12:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChatReadReceipt.findUnique.mockResolvedValue({
       lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
@@ -106,7 +114,9 @@ describe("markDirectChatRead", () => {
   });
 
   it("should throw MESSAGE_NOT_FOUND when the message does not exist", async () => {
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(null);
 
     await expect(
@@ -121,12 +131,14 @@ describe("markDirectChatRead", () => {
       createdAt: new Date("2026-01-10T12:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
 
-    await expect(
-      markDirectChatRead("u1", "dc1", "msg-1"),
-    ).rejects.toThrow("Message does not belong to this conversation");
+    await expect(markDirectChatRead("u1", "dc1", "msg-1")).rejects.toThrow(
+      "Message does not belong to this conversation",
+    );
   });
 
   it("should compute unread count excluding own messages", async () => {
@@ -137,7 +149,9 @@ describe("markDirectChatRead", () => {
       createdAt: new Date("2026-01-10T15:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChatReadReceipt.findUnique.mockResolvedValue(null);
     prismaMock.directChatReadReceipt.upsert.mockResolvedValue({} as any);
@@ -163,7 +177,9 @@ describe("markDirectChatRead", () => {
       createdAt: new Date("2026-01-10T15:00:00Z"),
     });
 
-    prismaMock.$transaction.mockImplementation(createMockTransaction(prismaMock));
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
     prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChatReadReceipt.findUnique.mockResolvedValue(null);
     prismaMock.directChatReadReceipt.upsert.mockResolvedValue({} as any);

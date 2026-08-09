@@ -6,7 +6,11 @@ import { getInbox } from "../../services/direct-chat/getInbox";
 import { markDirectChatRead } from "../../services/direct-chat/markRead";
 import { assertDirectChatAccess } from "../../middleware/socketAccess";
 import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
-import { startDmSchema, directChatIdParamSchema, markReadSchema } from "@repo/validators";
+import {
+  startDmSchema,
+  directChatIdParamSchema,
+  markReadSchema,
+} from "@repo/validators";
 
 const startDmLimiter = createRateLimiter({
   maxAttempts: 30,
