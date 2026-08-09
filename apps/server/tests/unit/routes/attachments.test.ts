@@ -42,6 +42,7 @@ vi.mock("../../../src/lib/rateLimiter", () => ({
       vi.fn().mockResolvedValue({ allowed: true, remaining: 100 }),
     ),
   setRateLimitHeaders: vi.fn(),
+  enforceRateLimit: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("POST /attachments/presign", () => {

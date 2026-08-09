@@ -3,6 +3,8 @@
  *
  * All business-logic tunables live here so routes/services don't repeat magic numbers.
  */
+import { attachmentSummarySelect } from "./attachment";
+
 export const MAX_MESSAGE_LENGTH = 5000;
 export const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 export const DELETE_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
@@ -42,17 +44,13 @@ export const messageWithUserSelect = {
       avatar: true,
     },
   },
-  attachments: {
-    select: {
-      id: true,
-      filename: true,
-      mimeType: true,
-      size: true,
-      width: true,
-      height: true,
-      thumbnailKey: true,
-    },
-  },
+  attachments: { select: attachmentSummarySelect },
+} as const;
+
+/** Message payload including its attachments — shared by send and replay paths. */
+export const messageWithAttachmentsSelect = {
+  ...messageCreateSelect,
+  attachments: { select: attachmentSummarySelect },
 } as const;
 
 /** Used when returning a newly created chat — matches the original start-dm response. */
