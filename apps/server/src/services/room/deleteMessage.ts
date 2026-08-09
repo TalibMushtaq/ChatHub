@@ -6,16 +6,24 @@ import { DELETE_WINDOW_MS } from "../../constants/room";
  * Soft-delete a room message within the delete window.
  *
  * Authorization checks:
- * - Message must exist
+ * - Message must exist and belong to `chatRoomId`
  * - Only the original sender may delete
  * - Already-deleted messages are rejected with 400
  * - Deletes are rejected after DELETE_WINDOW_MS
  *
+ * Scoping the lookup to `chatRoomId` is what makes the caller's room-level
+ * authorization meaningful: without it, a member of any room could delete one
+ * of their own messages from a different room or direct chat.
+ *
  * Returns the deleted message stub with id, chatRoomId, deletedAt.
  */
-export async function deleteMessage(userId: string, messageId: string) {
-  const msg = await prisma.message.findUnique({
-    where: { id: messageId },
+export async function deleteMessage(
+  userId: string,
+  chatRoomId: string,
+  messageId: string,
+) {
+  const msg = await prisma.message.findFirst({
+    where: { id: messageId, chatRoomId },
     select: {
       id: true,
       senderId: true,

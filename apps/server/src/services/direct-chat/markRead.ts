@@ -49,6 +49,7 @@ export async function markDirectChatRead(
         where: {
           directChatId,
           senderId: { not: userId },
+          isDeleted: false,
           createdAt: { gt: existing.lastReadMessageCreatedAt },
         },
       });
@@ -75,6 +76,7 @@ export async function markDirectChatRead(
       where: {
         directChatId,
         senderId: { not: userId },
+        isDeleted: false,
         createdAt: { gt: message.createdAt },
       },
     });

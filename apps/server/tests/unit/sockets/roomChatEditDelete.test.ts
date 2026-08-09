@@ -44,7 +44,7 @@ describe("registerRoomChat - edit and delete", () => {
     it("should edit a message and broadcast chatroom:message:edited", async () => {
       const { handlers } = createSocketWithHandlers("u1");
 
-      prismaMock.message.findUnique.mockResolvedValue({
+      prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",
         senderId: "u1",
         chatRoomId: "room-1",
@@ -78,7 +78,7 @@ describe("registerRoomChat - edit and delete", () => {
     it("should reject edit from non-sender", async () => {
       const { handlers } = createSocketWithHandlers("u2");
 
-      prismaMock.message.findUnique.mockResolvedValue({
+      prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",
         senderId: "u1",
         chatRoomId: "room-1",
@@ -104,7 +104,7 @@ describe("registerRoomChat - edit and delete", () => {
     it("should reject edit after 5-minute window", async () => {
       const { handlers } = createSocketWithHandlers("u1");
 
-      prismaMock.message.findUnique.mockResolvedValue({
+      prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",
         senderId: "u1",
         chatRoomId: "room-1",
@@ -130,7 +130,7 @@ describe("registerRoomChat - edit and delete", () => {
     it("should reject edit of deleted message", async () => {
       const { handlers } = createSocketWithHandlers("u1");
 
-      prismaMock.message.findUnique.mockResolvedValue({
+      prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",
         senderId: "u1",
         chatRoomId: "room-1",
@@ -150,6 +150,73 @@ describe("registerRoomChat - edit and delete", () => {
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "MESSAGE_NOT_FOUND" }),
+      );
+    });
+
+    it("should reject edit of a message that belongs to another conversation", async () => {
+      const { handlers } = createSocketWithHandlers("u1");
+
+      // The service scopes the lookup to the authorized room, so a message
+      // stored against a different room (or a DM, where chatRoomId is null)
+      // must not be found.
+      prismaMock.message.findFirst.mockImplementation((async (args: any) =>
+        args?.where?.chatRoomId === "room-1"
+          ? null
+          : {
+              id: "msg-1",
+              senderId: "u1",
+              chatRoomId: null,
+              isDeleted: false,
+              createdAt: new Date(Date.now() - 60_000),
+            }) as any);
+
+      const callback = vi.fn();
+      await handlers["chatroom:message:edit"]({
+        payload: {
+          chatRoomId: "room-1",
+          messageId: "msg-1",
+          content: "cross-room edit",
+        },
+        callback,
+      });
+
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: false, code: "MESSAGE_NOT_FOUND" }),
+      );
+      expect(prismaMock.message.update).not.toHaveBeenCalled();
+      expect(mockIo.to).not.toHaveBeenCalled();
+    });
+
+    it("should scope the edit lookup to the authorized room", async () => {
+      const { handlers } = createSocketWithHandlers("u1");
+
+      prismaMock.message.findFirst.mockResolvedValue({
+        id: "msg-1",
+        senderId: "u1",
+        chatRoomId: "room-1",
+        isDeleted: false,
+        createdAt: new Date(Date.now() - 60_000),
+      } as any);
+      prismaMock.message.update.mockResolvedValue({
+        id: "msg-1",
+        content: "updated",
+        editedAt: new Date(),
+        chatRoomId: "room-1",
+      } as any);
+
+      await handlers["chatroom:message:edit"]({
+        payload: {
+          chatRoomId: "room-1",
+          messageId: "msg-1",
+          content: "updated",
+        },
+        callback: vi.fn(),
+      });
+
+      expect(prismaMock.message.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "msg-1", chatRoomId: "room-1" },
+        }),
       );
     });
 
@@ -176,7 +243,7 @@ describe("registerRoomChat - edit and delete", () => {
     it("should delete a message and broadcast chatroom:message:deleted", async () => {
       const { handlers } = createSocketWithHandlers("u1");
 
-      prismaMock.message.findUnique.mockResolvedValue({
+      prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",
         senderId: "u1",
         chatRoomId: "room-1",
@@ -208,7 +275,7 @@ describe("registerRoomChat - edit and delete", () => {
     it("should reject delete from non-sender", async () => {
       const { handlers } = createSocketWithHandlers("u2");
 
-      prismaMock.message.findUnique.mockResolvedValue({
+      prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",
         senderId: "u1",
         chatRoomId: "room-1",
@@ -233,7 +300,7 @@ describe("registerRoomChat - edit and delete", () => {
     it("should reject delete after 30-minute window", async () => {
       const { handlers } = createSocketWithHandlers("u1");
 
-      prismaMock.message.findUnique.mockResolvedValue({
+      prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",
         senderId: "u1",
         chatRoomId: "room-1",
@@ -258,7 +325,7 @@ describe("registerRoomChat - edit and delete", () => {
     it("should reject delete of already-deleted message", async () => {
       const { handlers } = createSocketWithHandlers("u1");
 
-      prismaMock.message.findUnique.mockResolvedValue({
+      prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",
         senderId: "u1",
         chatRoomId: "room-1",
@@ -277,6 +344,64 @@ describe("registerRoomChat - edit and delete", () => {
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "ALREADY_DELETED" }),
+      );
+    });
+
+    it("should reject delete of a message that belongs to another conversation", async () => {
+      const { handlers } = createSocketWithHandlers("u1");
+
+      prismaMock.message.findFirst.mockImplementation((async (args: any) =>
+        args?.where?.chatRoomId === "room-1"
+          ? null
+          : {
+              id: "msg-1",
+              senderId: "u1",
+              chatRoomId: null,
+              isDeleted: false,
+              createdAt: new Date(Date.now() - 60_000),
+            }) as any);
+
+      const callback = vi.fn();
+      await handlers["chatroom:message:delete"]({
+        payload: {
+          chatRoomId: "room-1",
+          messageId: "msg-1",
+        },
+        callback,
+      });
+
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: false, code: "MESSAGE_NOT_FOUND" }),
+      );
+      expect(prismaMock.message.update).not.toHaveBeenCalled();
+      expect(mockIo.to).not.toHaveBeenCalled();
+    });
+
+    it("should scope the delete lookup to the authorized room", async () => {
+      const { handlers } = createSocketWithHandlers("u1");
+
+      prismaMock.message.findFirst.mockResolvedValue({
+        id: "msg-1",
+        senderId: "u1",
+        chatRoomId: "room-1",
+        isDeleted: false,
+        createdAt: new Date(Date.now() - 60_000),
+      } as any);
+      prismaMock.message.update.mockResolvedValue({
+        id: "msg-1",
+        chatRoomId: "room-1",
+        deletedAt: new Date(),
+      } as any);
+
+      await handlers["chatroom:message:delete"]({
+        payload: { chatRoomId: "room-1", messageId: "msg-1" },
+        callback: vi.fn(),
+      });
+
+      expect(prismaMock.message.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "msg-1", chatRoomId: "room-1" },
+        }),
       );
     });
 

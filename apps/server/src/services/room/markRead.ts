@@ -48,6 +48,7 @@ export async function markRoomRead(
         where: {
           chatRoomId,
           senderId: { not: userId },
+          isDeleted: false,
           createdAt: { gt: existing.lastReadMessageCreatedAt },
         },
       });
@@ -74,6 +75,7 @@ export async function markRoomRead(
       where: {
         chatRoomId,
         senderId: { not: userId },
+        isDeleted: false,
         createdAt: { gt: message.createdAt },
       },
     });

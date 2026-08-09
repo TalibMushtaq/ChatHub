@@ -6,19 +6,24 @@ import { EDIT_WINDOW_MS } from "../../constants/room";
  * Edit a room message within the edit window.
  *
  * Authorization checks:
- * - Message must exist and not be soft-deleted
+ * - Message must exist, belong to `chatRoomId`, and not be soft-deleted
  * - Only the original sender may edit
  * - Edits are rejected after EDIT_WINDOW_MS
+ *
+ * Scoping the lookup to `chatRoomId` is what makes the caller's room-level
+ * authorization meaningful: without it, a member of any room could edit one of
+ * their own messages from a different room or direct chat.
  *
  * Returns the updated message with id, content, editedAt, chatRoomId.
  */
 export async function editMessage(
   userId: string,
+  chatRoomId: string,
   messageId: string,
   content: string,
 ) {
-  const msg = await prisma.message.findUnique({
-    where: { id: messageId },
+  const msg = await prisma.message.findFirst({
+    where: { id: messageId, chatRoomId },
     select: {
       id: true,
       senderId: true,
