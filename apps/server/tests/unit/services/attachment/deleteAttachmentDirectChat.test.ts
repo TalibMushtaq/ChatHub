@@ -69,9 +69,9 @@ describe("deleteAttachment - direct chat and orphan branches", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("should delete an ATTACHED attachment whose message row is missing", async () => {
+  it("should let the uploader delete an attachment whose message row is missing", async () => {
     prismaMock.attachment.findUnique.mockResolvedValue(
-      createAttachmentRow({ Message: null, uploaderId: "u2" }),
+      createAttachmentRow({ Message: null, uploaderId: "u1" }),
     );
     prismaMock.attachment.delete.mockResolvedValue({} as any);
 
@@ -79,5 +79,20 @@ describe("deleteAttachment - direct chat and orphan branches", () => {
 
     expect(result.ok).toBe(true);
     expect(prismaMock.attachment.delete).toHaveBeenCalledOnce();
+  });
+
+  it("should reject a non-uploader deleting an attachment whose message row is missing", async () => {
+    prismaMock.attachment.findUnique.mockResolvedValue(
+      createAttachmentRow({ Message: null, uploaderId: "u2" }),
+    );
+
+    await expect(
+      deleteAttachment(s3Service, "att-1", "u1"),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      code: "ATTACHMENT_DELETE_DENIED",
+    });
+    expect(prismaMock.attachment.delete).not.toHaveBeenCalled();
+    expect(s3Service.deleteObject).not.toHaveBeenCalled();
   });
 });
