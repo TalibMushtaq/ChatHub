@@ -61,3 +61,13 @@ export const createJoinLinkSchema = z.object({
 export const joinRequestStatusQuerySchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 });
+
+// --- Read receipts ---
+
+export const chatRoomIdParamSchema = z.object({
+  chatRoomId: z.string().min(1),
+});
+
+export const markReadSchema = z.object({
+  lastReadMessageId: z.string().min(1),
+});

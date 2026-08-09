@@ -13,6 +13,8 @@ export interface ServerToClientEvents {
   "message:edited": (payload: MessageEditedPayload) => void;
   "message:deleted": (payload: MessageDeletedPayload) => void;
   "inbox:update": (payload: { directChatId: string }) => void;
+  "directChat:read": (payload: { directChatId: string; unreadCount: number }) => void;
+  "chatroom:read": (payload: { chatRoomId: string; unreadCount: number }) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

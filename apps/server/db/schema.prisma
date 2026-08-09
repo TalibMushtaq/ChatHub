@@ -38,21 +38,22 @@ enum AttachmentStatus {
   ATTACHED
 }
 model ChatRoom {
-  id             String           @id @default(cuid())
+  id             String                 @id @default(cuid())
   name           String
   description    String?
   createdBy      String
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
   lastMessageAt  DateTime?
 
-  User           User             @relation(fields: [createdBy], references: [id])
+  User           User                   @relation(fields: [createdBy], references: [id])
 
   ChatRoomMember ChatRoomMember[]
   Message        Message[]
   invitations    RoomInvitation[]
   joinRequests   RoomJoinRequest[]
   joinLinks      RoomJoinLink[]
+  readReceipts   ChatRoomReadReceipt[]
 
   @@index([createdBy])
 }
@@ -94,6 +95,9 @@ model Message {
   User         User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
   attachments  Attachment[]
 
+  DirectChatReadReceipt DirectChatReadReceipt[] @relation("DirectChatReadReceiptLastMessage")
+  ChatRoomReadReceipt   ChatRoomReadReceipt[]   @relation("ChatRoomReadReceiptLastMessage")
+
   @@index([chatRoomId, createdAt])
   @@index([directChatId, createdAt])
 }
@@ -129,6 +133,7 @@ model DirectChat {
   User_DirectChat_user1IdToUser User      @relation("DirectChat_user1IdToUser", fields: [user1Id], references: [id], onDelete: Cascade)
   User_DirectChat_user2IdToUser User      @relation("DirectChat_user2IdToUser", fields: [user2Id], references: [id], onDelete: Cascade)
   Message                       Message[]
+  readReceipts                  DirectChatReadReceipt[]
 
   @@unique([user1Id, user2Id])
   @@index([user1Id])
@@ -160,6 +165,8 @@ model User {
   sentInvitations                     RoomInvitation[] @relation("InvitedBy")
   createdJoinLinks                    RoomJoinLink[]
   recoveryCodes                       RecoveryCode[]
+  directChatReadReceipts              DirectChatReadReceipt[]
+  chatRoomReadReceipts                ChatRoomReadReceipt[]
 
 }
 
@@ -254,4 +261,44 @@ model RecoveryCode {
 
   @@unique([userId, codeId])
   @@index([userId, used])
+}
+
+// Tracks the last message each user has read in a direct conversation.
+// The cursor (lastReadMessageId / lastReadMessageCreatedAt) is nullable:
+// if the referenced message is deleted (onDelete: SetNull), the cursor
+// becomes NULL, which the unread-count query treats identically to "no
+// receipt exists" — all messages from other users are considered unread.
+model DirectChatReadReceipt {
+  id                       String    @id @default(cuid())
+  userId                   String
+  directChatId             String
+  lastReadMessageId        String?
+  lastReadMessageCreatedAt DateTime?
+  updatedAt                DateTime  @updatedAt
+
+  User              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  DirectChat        DirectChat @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  LastReadMessage   Message?   @relation("DirectChatReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, directChatId])
+  @@index([userId])
+  @@index([directChatId])
+}
+
+// Same pattern as DirectChatReadReceipt but for chat room conversations.
+model ChatRoomReadReceipt {
+  id                       String    @id @default(cuid())
+  userId                   String
+  chatRoomId               String
+  lastReadMessageId        String?
+  lastReadMessageCreatedAt DateTime?
+  updatedAt                DateTime  @updatedAt
+
+  User              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ChatRoom          ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  LastReadMessage   Message? @relation("ChatRoomReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, chatRoomId])
+  @@index([userId])
+  @@index([chatRoomId])
 }

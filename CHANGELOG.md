@@ -1,3 +1,37 @@
+## [2026-08-09] - Add Mark as Read / Unread Count
+
+**What changed:**
+
+- **Prisma schema:** Added `DirectChatReadReceipt` and `ChatRoomReadReceipt` models with nullable `lastReadMessageId` FK (`onDelete: SetNull`), unique constraints on `(userId, chatId)`, and indexes on `userId` and `chatId`. Added reverse relations on `User`, `DirectChat`, `ChatRoom`, and `Message`.
+- **Migration:** Created `20260809000000_add_read_receipts` with DDL for both tables, unique indexes, and foreign keys.
+- **Validators:** Added `chatRoomIdParamSchema` and shared `markReadSchema` (`{ lastReadMessageId: string }`) in `packages/validators/src/room.ts`, exported from `index.ts`.
+- **Services:** Created `services/direct-chat/markRead.ts` (`markDirectChatRead`) and `services/room/markRead.ts` (`markRoomRead`). Both validate message existence and ownership, compare incoming cursor against existing receipt, only advance forward (never backward), and return `{ lastReadMessageId, unreadCount }` — all inside a single Prisma transaction.
+- **Unread count in inbox:** Updated `services/direct-chat/getInbox.ts` to batch-compute unread counts via a single raw SQL query using `LEFT JOIN` on `DirectChatReadReceipt`. A null cursor counts all messages from other users as unread.
+- **Unread count in rooms:** Updated `GET /rooms` in `routes/room/room.ts` with the same batch-query pattern for `ChatRoomReadReceipt`.
+- **Routes:** Added `POST /api/dm/:directChatId/mark-read` (rate-limited, validates params/body, asserts access, calls service, emits socket event). Added `POST /api/room/:chatRoomId/mark-read` with identical pattern.
+- **Socket events:** Added `directChat:read` and `chatroom:read` to `ServerToClientEvents` in `types/socket-events.ts`. Added `emitDirectChatRead` and `emitChatRoomRead` helpers in `sockets/direct-chat.ts`. Both emit to `user:{userId}` only (multi-tab sync, not broadcast to room members).
+- **Tests:** Added 35 unit tests across 4 test files: `markDirectChatRead` service (8 tests), `markRoomRead` service (8 tests), `getInbox` with unreadCount (6 tests, updated existing), and both mark-read routes (13 tests). Covers cursor advancement, backward-cursor rejection, message validation, ownership checks, unread count computation, and route-level request/response behavior. All 272 tests pass.
+
+**Why:**
+Users had no visibility into which messages were unread. The inbox and room list had no unread badges. Without a read receipt system, there was no way to distinguish read from unread messages or compute per-conversation unread counts efficiently.
+
+**Impact:**
+
+- `GET /api/dm/inbox` now returns `unreadCount` per chat (backward-compatible addition).
+- `GET /api/room/rooms` now returns `unreadCount` per room (backward-compatible addition).
+- Two new POST endpoints for marking conversations as read.
+- Two new socket events for real-time unread badge synchronization across tabs/devices.
+- Database: two new tables with proper indexes for efficient unread queries.
+- No breaking changes — all additions are additive.
+
+**Follow-ups:**
+
+- Run `prisma migrate dev` against a live database to apply the migration.
+- Frontend needs to consume `unreadCount` from inbox/rooms responses and listen for `directChat:read` / `chatroom:read` socket events to update badges in real time.
+- Consider adding integration tests against a real database once the migration is applied.
+
+---
+
 ## [2026-08-06] - Add Room Chat Edit/Delete
 
 **What changed:**

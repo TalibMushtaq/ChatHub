@@ -2,7 +2,10 @@ import { Router, Request, Response } from "express";
 import requireAuth from "../../middleware/requireAuth";
 import { prisma } from "../../../db/prisma";
 import { AppError } from "../../lib/AppError";
-import { createRoomSchema } from "@repo/validators";
+import { createRoomSchema, chatRoomIdParamSchema, markReadSchema } from "@repo/validators";
+import { assertRoomAccess } from "../../middleware/socketAccess";
+import { markRoomRead } from "../../services/room/markRead";
+import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import joinRoomInvite from "./joinroominvite";
 import joinRoomRequest from "./joinroomreq";
 import joinRoomlink from "./joinroomlink";
@@ -135,6 +138,36 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
     const hasMore = rooms.length > limit;
     const sliced = hasMore ? rooms.slice(0, limit) : rooms;
 
+    // Batch-fetch read receipts and compute unread counts (no N+1).
+    const roomIds = sliced.map((r) => r.id);
+
+    // Batch-compute unread counts using a single raw query.
+    const unreadRows = roomIds.length
+      ? await prisma.$queryRaw<
+          { chatRoomId: string; count: bigint }[]
+        >`
+          SELECT
+            m."chatRoomId" as "chatRoomId",
+            COUNT(*)::int as count
+          FROM "Message" m
+          LEFT JOIN "ChatRoomReadReceipt" r
+            ON r."userId" = ${userId}
+            AND r."chatRoomId" = m."chatRoomId"
+          WHERE m."chatRoomId" = ANY(${roomIds})
+            AND m."senderId" != ${userId}
+            AND m."isDeleted" = false
+            AND (
+              r."lastReadMessageCreatedAt" IS NULL
+              OR m."createdAt" > r."lastReadMessageCreatedAt"
+            )
+          GROUP BY m."chatRoomId"
+        `
+      : [];
+
+    const unreadMap = new Map(
+      unreadRows.map((row) => [row.chatRoomId, Number(row.count)]),
+    );
+
     const inbox = sliced.map((room) => ({
       roomId: room.id,
       name: room.name,
@@ -145,6 +178,7 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
       myRole: room.ChatRoomMember[0]?.role ?? "MEMBER",
       lastMessage: room.Message[0] ?? null,
       memberCount: room._count.ChatRoomMember,
+      unreadCount: unreadMap.get(room.id) ?? 0,
     }));
 
     return res.json({
@@ -157,5 +191,61 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
     return res.status(500).json({ ok: false, error: "server error" });
   }
 });
+
+const markReadLimiter = createRateLimiter({
+  maxAttempts: 120,
+  windowMs: 60_000,
+  prefix: "room:markread",
+});
+
+// POST /:chatRoomId/mark-read
+router.post(
+  "/:chatRoomId/mark-read",
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+
+      const params = chatRoomIdParamSchema.safeParse(req.params);
+      if (!params.success) {
+        return res.status(400).json({ ok: false, error: "chatRoomId missing" });
+      }
+      const chatRoomId = params.data.chatRoomId;
+
+      const rate = await markReadLimiter(`markread:${userId}`);
+      setRateLimitHeaders(res, rate);
+      if (!rate.allowed) {
+        return res.status(429).json({ ok: false, error: "Rate limit exceeded" });
+      }
+
+      const body = markReadSchema.safeParse(req.body);
+      if (!body.success) {
+        return res.status(400).json({
+          ok: false,
+          error: body.error.issues[0]?.message ?? "Invalid input",
+        });
+      }
+
+      await assertRoomAccess(userId, chatRoomId);
+
+      const result = await markRoomRead(
+        userId,
+        chatRoomId,
+        body.data.lastReadMessageId,
+      );
+
+      // Emit to all of the user's sessions so tabs/devices stay in sync.
+      req.io.to(`user:${userId}`).emit("chatroom:read", {
+        chatRoomId,
+        unreadCount: result.unreadCount,
+      });
+
+      return res.json({ ok: true, ...result });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ ok: false, error: "server error" });
+    }
+  },
+);
 
 export default router;

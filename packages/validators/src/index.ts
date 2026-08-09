@@ -27,6 +27,8 @@ export {
   joinRequestActionSchema,
   createJoinLinkSchema,
   joinRequestStatusQuerySchema,
+  chatRoomIdParamSchema,
+  markReadSchema,
 } from "./room";
 export {
   presignSchema,

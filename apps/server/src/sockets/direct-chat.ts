@@ -52,6 +52,22 @@ export function emitInboxUpdated(
   io.to(room).emit("inbox:update", payload);
 }
 
+export function emitDirectChatRead(
+  io: Server,
+  userRoom: string,
+  payload: Parameters<ServerToClientEvents["directChat:read"]>[0],
+) {
+  io.to(userRoom).emit("directChat:read", payload);
+}
+
+export function emitChatRoomRead(
+  io: Server,
+  userRoom: string,
+  payload: Parameters<ServerToClientEvents["chatroom:read"]>[0],
+) {
+  io.to(userRoom).emit("chatroom:read", payload);
+}
+
 // ---------------------------------------------------------------------------
 // Socket registration
 // ---------------------------------------------------------------------------
