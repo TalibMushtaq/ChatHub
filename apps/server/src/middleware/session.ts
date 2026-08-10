@@ -1,6 +1,7 @@
 import session from "express-session";
 import { RedisStore } from "connect-redis";
 import { redis } from "../lib/redis";
+import { doubleCsrf } from "csrf-csrf";
 
 // ---------------------------------------------------------------------------
 // Validate required env vars at startup (fail-fast).
@@ -64,3 +65,23 @@ export const sessionMiddleware = session({
     maxAge: COOKIE_MAX_AGE_MS,
   },
 });
+
+// ---------------------------------------------------------------------------
+// CSRF protection (Double Submit Cookie Pattern via csrf-csrf)
+// ---------------------------------------------------------------------------
+
+const { generateCsrfToken, doubleCsrfProtection } = doubleCsrf({
+  getSecret: () => secrets,
+  getSessionIdentifier: (req) => req.session.id,
+  cookieName: "x-csrf-token",
+  cookieOptions: {
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: false,
+  },
+  getCsrfTokenFromRequest: (req) =>
+    req.headers["x-csrf-token"] as string | undefined,
+});
+
+export { generateCsrfToken, doubleCsrfProtection };

@@ -8,8 +8,11 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { getAllowedOrigins } from "./lib/cors";
-import { sessionMiddleware } from "./middleware/session";
-import { generateCsrfToken, doubleCsrfProtection } from "./middleware/csrf";
+import {
+  sessionMiddleware,
+  generateCsrfToken,
+  doubleCsrfProtection,
+} from "./middleware/session";
 import authRoutes from "./routes/auth";
 import dmRoutes from "./routes/direct-chat";
 import room from "./routes/room/room";
