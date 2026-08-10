@@ -6,10 +6,7 @@ const secrets = SESSION_SECRET.split(",")
   .map((s) => s.trim())
   .filter((s): s is string => s.length > 0);
 
-export const {
-  generateCsrfToken,
-  doubleCsrfProtection,
-} = doubleCsrf({
+export const { generateCsrfToken, doubleCsrfProtection } = doubleCsrf({
   getSecret: () => secrets,
   getSessionIdentifier: (req) => req.session.id,
   cookieName: "x-csrf-token",
