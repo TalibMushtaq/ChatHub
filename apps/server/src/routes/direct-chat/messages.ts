@@ -6,9 +6,10 @@ import { sendMessage } from "../../services/direct-chat/sendMessage";
 import { getMessages } from "../../services/direct-chat/getMessages";
 import { editMessage } from "../../services/direct-chat/editMessage";
 import { deleteMessage } from "../../services/direct-chat/deleteMessage";
-import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
-import { S3Service, buildS3ConfigFromEnv } from "../../services/S3Service";
-import { ApiError } from "../../lib/ApiError";
+import { createRateLimiter, enforceRateLimit } from "../../lib/rateLimiter";
+import { unwrapParsed } from "../../lib/validate";
+import type { S3Service } from "../../services/S3Service";
+import { getRequiredS3Service } from "../../lib/s3";
 import { MessageType } from "@prisma/client";
 import {
   sendMessageSchema,
@@ -30,18 +31,6 @@ const editDeleteLimiter = createRateLimiter({
   prefix: "dm:editdel",
 });
 
-let s3ServiceInstance: S3Service | null = null;
-// Returns null when S3 env vars are missing — callers decide whether
-// that is acceptable (text-only messages) or an error (file uploads).
-function getS3Service(): S3Service | null {
-  if (!s3ServiceInstance) {
-    const config = buildS3ConfigFromEnv();
-    if (!config) return null;
-    s3ServiceInstance = new S3Service(config);
-  }
-  return s3ServiceInstance;
-}
-
 const router = Router();
 
 // POST /:directChatId/message
@@ -51,58 +40,35 @@ router.post(
   asyncHandler(async (req, res) => {
     const senderId = req.user.id;
 
-    const params = directChatIdParamSchema.safeParse(req.params);
-    if (!params.success) {
-      res.status(400).json({ ok: false, error: "directChatId missing" });
-      return;
-    }
-    const directChatId = params.data.directChatId;
+    const { directChatId } = unwrapParsed(
+      directChatIdParamSchema.safeParse(req.params),
+      { message: "directChatId missing" },
+    );
 
     // Params are cheap to validate; rate-limit afterwards so we charge
     // the limiter only for structurally valid requests.
-    const rate = await messageLimiter(`msg:${senderId}`);
-    setRateLimitHeaders(res, rate);
-    if (!rate.allowed) {
-      res.status(429).json({ ok: false, error: "Rate limit exceeded" });
-      return;
-    }
+    await enforceRateLimit(res, messageLimiter, `msg:${senderId}`);
 
-    const body = sendMessageSchema.safeParse(req.body);
-    if (!body.success) {
-      res.status(400).json({
-        ok: false,
-        error: body.error.issues[0]?.message ?? "Invalid input",
-      });
-      return;
-    }
+    const body = unwrapParsed(sendMessageSchema.safeParse(req.body));
 
     await assertDirectChatAccess(senderId, directChatId);
 
-    const hasAttachments =
-      body.data.attachmentIds && body.data.attachmentIds.length > 0;
+    const hasAttachments = body.attachmentIds && body.attachmentIds.length > 0;
 
     // Only initialize S3 when attachments are present — text-only messages
     // work without S3 configuration.
-    let s3Service: S3Service | null = null;
-    if (hasAttachments) {
-      s3Service = getS3Service();
-      if (!s3Service) {
-        throw new ApiError(
-          "File uploads require S3 configuration",
-          503,
-          "S3_NOT_CONFIGURED",
-        );
-      }
-    }
+    const s3Service: S3Service | null = hasAttachments
+      ? getRequiredS3Service("File uploads require S3 configuration")
+      : null;
 
     const result = await sendMessage(
       directChatId,
       senderId,
       {
-        content: body.data.content,
-        messageType: body.data.messageType as MessageType,
-        attachmentIds: body.data.attachmentIds,
-        idempotencyKey: body.data.idempotencyKey,
+        content: body.content,
+        messageType: body.messageType as MessageType,
+        attachmentIds: body.attachmentIds,
+        idempotencyKey: body.idempotencyKey,
       },
       s3Service as S3Service,
     );
@@ -123,12 +89,10 @@ router.get(
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
-    const params = directChatIdParamSchema.safeParse(req.params);
-    if (!params.success) {
-      res.status(404).json({ ok: false, error: "chat not found" });
-      return;
-    }
-    const directChatId = params.data.directChatId;
+    const { directChatId } = unwrapParsed(
+      directChatIdParamSchema.safeParse(req.params),
+      { status: 404, message: "chat not found" },
+    );
 
     await assertDirectChatAccess(userId, directChatId);
 
@@ -151,30 +115,16 @@ router.patch(
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
-    const params = messageIdParamSchema.safeParse(req.params);
-    if (!params.success) {
-      res.status(404).json({ ok: false, error: "Message not found" });
-      return;
-    }
-    const messageId = params.data.messageId;
+    const { messageId } = unwrapParsed(
+      messageIdParamSchema.safeParse(req.params),
+      { status: 404, message: "Message not found" },
+    );
 
-    const rate = await editDeleteLimiter(`edit:${userId}`);
-    setRateLimitHeaders(res, rate);
-    if (!rate.allowed) {
-      res.status(429).json({ ok: false, error: "Rate limit exceeded" });
-      return;
-    }
+    await enforceRateLimit(res, editDeleteLimiter, `edit:${userId}`);
 
-    const body = editMessageSchema.safeParse(req.body);
-    if (!body.success) {
-      res.status(400).json({
-        ok: false,
-        error: body.error.issues[0]?.message ?? "Invalid input",
-      });
-      return;
-    }
+    const body = unwrapParsed(editMessageSchema.safeParse(req.body));
 
-    const updated = await editMessage(userId, messageId, body.data.content);
+    const updated = await editMessage(userId, messageId, body.content);
 
     // Emit only after the edit commits so clients never see a stale
     // message body paired with a new editedAt timestamp.
@@ -201,19 +151,12 @@ router.delete(
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
-    const params = messageIdParamSchema.safeParse(req.params);
-    if (!params.success) {
-      res.status(404).json({ ok: false, error: "Message not found" });
-      return;
-    }
-    const messageId = params.data.messageId;
+    const { messageId } = unwrapParsed(
+      messageIdParamSchema.safeParse(req.params),
+      { status: 404, message: "Message not found" },
+    );
 
-    const rate = await editDeleteLimiter(`del:${userId}`);
-    setRateLimitHeaders(res, rate);
-    if (!rate.allowed) {
-      res.status(429).json({ ok: false, error: "Rate limit exceeded" });
-      return;
-    }
+    await enforceRateLimit(res, editDeleteLimiter, `del:${userId}`);
 
     const deleted = await deleteMessage(userId, messageId);
 

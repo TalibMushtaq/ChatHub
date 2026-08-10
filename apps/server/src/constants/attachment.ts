@@ -76,3 +76,25 @@ export const VIDEO_MIME_TYPES = Object.keys(MIME_TYPE_EXTENSIONS).filter((m) =>
 export const AUDIO_MIME_TYPES = Object.keys(MIME_TYPE_EXTENSIONS).filter((m) =>
   m.startsWith("audio/"),
 );
+
+// ---------------------------------------------------------------------------
+// Reusable Prisma select objects
+// ---------------------------------------------------------------------------
+
+/**
+ * Attachment fields returned alongside a message.
+ *
+ * Shared by every message payload (rooms, DMs, idempotent replays) so clients
+ * always receive the same attachment shape.
+ */
+// `as const` narrows the inferred type to literal booleans, which lets Prisma
+// infer the exact shape of the returned object.
+export const attachmentSummarySelect = {
+  id: true,
+  filename: true,
+  mimeType: true,
+  size: true,
+  width: true,
+  height: true,
+  thumbnailKey: true,
+} as const;

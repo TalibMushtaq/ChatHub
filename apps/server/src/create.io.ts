@@ -4,6 +4,7 @@ import { registerDirectChat } from "./sockets/direct-chat";
 import { Server } from "socket.io";
 import type { Server as HTTPServer } from "http";
 import { sessionMiddleware } from "./middleware/session";
+import { getAllowedOrigins } from "./lib/cors";
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -24,7 +25,7 @@ export function createIO(httpServer: HTTPServer): TypedServer {
   // the cast preserves full type safety for emit/on handlers downstream.
   const io = new Server(httpServer, {
     cors: {
-      origin: ["http://localhost:5173", "http://localhost:3000"],
+      origin: getAllowedOrigins(),
       credentials: true,
     },
   }) as TypedServer;

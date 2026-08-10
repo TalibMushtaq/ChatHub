@@ -1,5 +1,6 @@
 import { redis } from "./redis";
 import { createLogger } from "./logger";
+import { ApiError } from "./ApiError";
 
 const log = createLogger("rateLimiter");
 
@@ -135,5 +136,23 @@ export function setRateLimitHeaders(
   res.setHeader("RateLimit-Reset", result.retryAfter || result.limit);
   if (!result.allowed) {
     res.setHeader("Retry-After", result.retryAfter);
+  }
+}
+
+/**
+ * Checks a limiter, writes the rate-limit headers, and throws a 429 ApiError
+ * when the caller is over budget.
+ *
+ * Collapses the check/headers/reject sequence every rate-limited route repeats.
+ */
+export async function enforceRateLimit(
+  res: { setHeader(name: string, value: string | number): void },
+  limiter: (key: string) => Promise<RateLimitResult>,
+  key: string,
+): Promise<void> {
+  const result = await limiter(key);
+  setRateLimitHeaders(res, result);
+  if (!result.allowed) {
+    throw new ApiError("Rate limit exceeded", 429);
   }
 }

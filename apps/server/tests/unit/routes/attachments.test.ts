@@ -42,6 +42,7 @@ vi.mock("../../../src/lib/rateLimiter", () => ({
       vi.fn().mockResolvedValue({ allowed: true, remaining: 100 }),
     ),
   setRateLimitHeaders: vi.fn(),
+  enforceRateLimit: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("POST /attachments/presign", () => {
@@ -51,6 +52,11 @@ describe("POST /attachments/presign", () => {
   });
 
   it("should create a PENDING attachment and return presigned URL", async () => {
+    prismaMock.directChat.findUnique.mockResolvedValue({
+      id: "dc1",
+      user1Id: "user-1",
+      user2Id: "user-2",
+    } as any);
     prismaMock.attachment.create.mockResolvedValue({
       id: "att-1",
       s3Key: "attachments/dm/dc1/uuid.jpg",
@@ -76,6 +82,46 @@ describe("POST /attachments/presign", () => {
     expect(res.body.attachmentId).toBe("att-1");
     expect(res.body.presignedUrl).toBe("https://s3.mock/presigned-url");
     expect(prismaMock.attachment.create).toHaveBeenCalledOnce();
+  });
+
+  it("should reject presigning into a DM the user is not part of", async () => {
+    prismaMock.directChat.findUnique.mockResolvedValue({
+      id: "dc1",
+      user1Id: "user-2",
+      user2Id: "user-3",
+    } as any);
+
+    const app = createTestApp();
+
+    const res = await supertest(app).post("/attachments/presign").send({
+      context: "dm",
+      contextId: "dc1",
+      filename: "photo.jpg",
+      mimeType: "image/jpeg",
+      size: 1024,
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.ok).toBe(false);
+    expect(prismaMock.attachment.create).not.toHaveBeenCalled();
+  });
+
+  it("should reject presigning into a room the user is not a member of", async () => {
+    prismaMock.chatRoomMember.findUnique.mockResolvedValue(null as any);
+
+    const app = createTestApp();
+
+    const res = await supertest(app).post("/attachments/presign").send({
+      context: "room",
+      contextId: "room-1",
+      filename: "photo.jpg",
+      mimeType: "image/jpeg",
+      size: 1024,
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.ok).toBe(false);
+    expect(prismaMock.attachment.create).not.toHaveBeenCalled();
   });
 
   it("should reject invalid MIME type", async () => {

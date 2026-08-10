@@ -7,32 +7,27 @@ import {
   chatRoomDeleteMessageSchema,
 } from "@repo/validators";
 import { MessageType } from "@prisma/client";
-import { S3Service, buildS3ConfigFromEnv } from "../../services/S3Service";
+import type { S3Service } from "../../services/S3Service";
 import { verifyAttachmentsForMessage } from "../../services/attachment/verifyForMessage";
 import { transitionAttachmentsToAttached } from "../../services/attachment/transitionToAttached";
 import { checkIdempotency, storeIdempotency } from "../../services/idempotency";
 import { editMessage } from "../../services/room/editMessage";
 import { deleteMessage } from "../../services/room/deleteMessage";
-import { ApiError } from "../../lib/ApiError";
+import { getRequiredS3Service } from "../../lib/s3";
+import { onAck } from "../../lib/socketAck";
+import { messageWithAttachmentsSelect } from "../../constants/room";
 
-let s3ServiceInstance: S3Service | null = null;
-// Returns null when S3 env vars are missing — callers decide whether
-// that is acceptable (text-only messages) or an error (file uploads).
-function getS3Service(): S3Service | null {
-  if (!s3ServiceInstance) {
-    const config = buildS3ConfigFromEnv();
-    if (!config) return null;
-    s3ServiceInstance = new S3Service(config);
-  }
-  return s3ServiceInstance;
-}
+// How long a room membership check stays cached on a socket. Bounds the
+// window in which a user removed from a room can keep using it.
+const ROOM_ACCESS_TTL_MS = 60_000;
 
 /**
  * Registers chat room socket handlers.
  *
  * Improvements:
  * - Room membership is cached in socket.data.rooms on join, so subsequent
- *   messages don't hit the database for access checks.
+ *   messages don't hit the database for access checks until the cache entry
+ *   expires.
  * - Fixed typo: "paylaod" -> "payload".
  * - Standardized event names: all lowercase "chatroom:*" (was mixed casing).
  * - Replaced generic socket.emit("error") with chatroom:error event.
@@ -44,9 +39,20 @@ export function registerRoomChat(io: Server, socket: Socket) {
   const { user } = socket.data;
   const userId = user.id;
 
-  // Initialize room cache on socket
+  // Room cache: chatRoomId -> timestamp at which the cached membership check
+  // expires and must be re-verified against the database.
   if (!socket.data.rooms) {
-    socket.data.rooms = new Set<string>();
+    socket.data.rooms = new Map<string, number>();
+  }
+
+  // Use cached membership instead of hitting the DB on every event, until the
+  // cached check expires.
+  async function ensureRoomAccess(chatRoomId: string): Promise<void> {
+    const expiresAt = socket.data.rooms.get(chatRoomId);
+    if (expiresAt !== undefined && expiresAt > Date.now()) return;
+
+    await assertRoomAccess(userId, chatRoomId);
+    socket.data.rooms.set(chatRoomId, Date.now() + ROOM_ACCESS_TTL_MS);
   }
 
   // JOIN
@@ -58,8 +64,9 @@ export function registerRoomChat(io: Server, socket: Socket) {
 
       await assertRoomAccess(userId, chatRoomId);
 
-      // Cache membership so future messages skip the DB check
-      socket.data.rooms.add(chatRoomId);
+      // Cache membership so future messages skip the DB check until the TTL
+      // expires.
+      socket.data.rooms.set(chatRoomId, Date.now() + ROOM_ACCESS_TTL_MS);
 
       socket.join(`room:${chatRoomId}`);
       socket.emit("chatroom:joined", { chatRoomId });
@@ -82,49 +89,21 @@ export function registerRoomChat(io: Server, socket: Socket) {
   });
 
   // Messages
-  socket.on("chatroom:message", async ({ payload, callback }) => {
-    if (typeof callback !== "function") {
-      socket.emit("chatroom:error", {
-        code: "INVALID_CALLBACK",
-        message: "callback must be a function",
-      });
-      return;
-    }
-
-    try {
-      const result = chatRoomMessageSchema.safeParse(payload);
-      if (!result.success) {
-        callback({
-          ok: false,
-          error: result.error.issues[0]?.message ?? "Invalid payload",
-        });
-        return;
-      }
-      const data = result.data;
-
-      // Use cached membership instead of hitting the DB on every message
-      if (!socket.data.rooms.has(data.chatRoomId)) {
-        await assertRoomAccess(userId, data.chatRoomId);
-        socket.data.rooms.add(data.chatRoomId);
-      }
+  onAck(
+    socket,
+    "chatroom:message",
+    chatRoomMessageSchema,
+    async (data, ack) => {
+      await ensureRoomAccess(data.chatRoomId);
 
       const hasAttachments =
         data.attachmentIds && data.attachmentIds.length > 0;
 
       // Only initialize S3 when attachments are present — text-only messages
       // work without S3 configuration.
-      let s3Service: S3Service | null = null;
-      if (hasAttachments) {
-        s3Service = getS3Service();
-        if (!s3Service) {
-          callback({
-            ok: false,
-            error: "File uploads require S3 configuration",
-            code: "S3_NOT_CONFIGURED",
-          });
-          return;
-        }
-      }
+      const s3Service: S3Service | null = hasAttachments
+        ? getRequiredS3Service("File uploads require S3 configuration")
+        : null;
 
       // Idempotency check (outside transaction)
       if (data.idempotencyKey) {
@@ -132,29 +111,11 @@ export function registerRoomChat(io: Server, socket: Socket) {
         if (existingId) {
           const existing = await prisma.message.findUnique({
             where: { id: existingId },
-            select: {
-              id: true,
-              content: true,
-              senderId: true,
-              chatRoomId: true,
-              messageType: true,
-              createdAt: true,
-              attachments: {
-                select: {
-                  id: true,
-                  filename: true,
-                  mimeType: true,
-                  size: true,
-                  width: true,
-                  height: true,
-                  thumbnailKey: true,
-                },
-              },
-            },
+            select: messageWithAttachmentsSelect,
           });
           if (existing) {
             io.to(`room:${data.chatRoomId}`).emit("chatroom:message", existing);
-            callback({ ok: true, message: existing });
+            ack({ ok: true, message: existing });
             return;
           }
         }
@@ -178,25 +139,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
             chatRoomId: data.chatRoomId,
             messageType: data.messageType as MessageType,
           },
-          select: {
-            id: true,
-            content: true,
-            senderId: true,
-            chatRoomId: true,
-            messageType: true,
-            createdAt: true,
-            attachments: {
-              select: {
-                id: true,
-                filename: true,
-                mimeType: true,
-                size: true,
-                width: true,
-                height: true,
-                thumbnailKey: true,
-              },
-            },
-          },
+          select: messageWithAttachmentsSelect,
         });
 
         if (data.attachmentIds && data.attachmentIds.length > 0) {
@@ -217,41 +160,17 @@ export function registerRoomChat(io: Server, socket: Socket) {
       }
 
       io.to(`room:${data.chatRoomId}`).emit("chatroom:message", message);
-      callback({ ok: true, message });
-    } catch (err: any) {
-      if (err instanceof ApiError) {
-        callback({ ok: false, error: err.message, code: err.code });
-      } else {
-        callback({ ok: false, error: "Server error" });
-      }
-    }
-  });
+      ack({ ok: true, message });
+    },
+  );
 
   // Edit message
-  socket.on("chatroom:message:edit", async ({ payload, callback }) => {
-    if (typeof callback !== "function") {
-      socket.emit("chatroom:error", {
-        code: "INVALID_CALLBACK",
-        message: "callback must be a function",
-      });
-      return;
-    }
-
-    try {
-      const result = chatRoomEditMessageSchema.safeParse(payload);
-      if (!result.success) {
-        callback({
-          ok: false,
-          error: result.error.issues[0]?.message ?? "Invalid payload",
-        });
-        return;
-      }
-      const data = result.data;
-
-      if (!socket.data.rooms.has(data.chatRoomId)) {
-        await assertRoomAccess(userId, data.chatRoomId);
-        socket.data.rooms.add(data.chatRoomId);
-      }
+  onAck(
+    socket,
+    "chatroom:message:edit",
+    chatRoomEditMessageSchema,
+    async (data, ack) => {
+      await ensureRoomAccess(data.chatRoomId);
 
       const updated = await editMessage(
         userId,
@@ -267,41 +186,17 @@ export function registerRoomChat(io: Server, socket: Socket) {
         editedAt: updated.editedAt,
       });
 
-      callback({ ok: true, message: updated });
-    } catch (err: any) {
-      if (err instanceof ApiError) {
-        callback({ ok: false, error: err.message, code: err.code });
-      } else {
-        callback({ ok: false, error: "Server error" });
-      }
-    }
-  });
+      ack({ ok: true, message: updated });
+    },
+  );
 
   // Delete message
-  socket.on("chatroom:message:delete", async ({ payload, callback }) => {
-    if (typeof callback !== "function") {
-      socket.emit("chatroom:error", {
-        code: "INVALID_CALLBACK",
-        message: "callback must be a function",
-      });
-      return;
-    }
-
-    try {
-      const result = chatRoomDeleteMessageSchema.safeParse(payload);
-      if (!result.success) {
-        callback({
-          ok: false,
-          error: result.error.issues[0]?.message ?? "Invalid payload",
-        });
-        return;
-      }
-      const data = result.data;
-
-      if (!socket.data.rooms.has(data.chatRoomId)) {
-        await assertRoomAccess(userId, data.chatRoomId);
-        socket.data.rooms.add(data.chatRoomId);
-      }
+  onAck(
+    socket,
+    "chatroom:message:delete",
+    chatRoomDeleteMessageSchema,
+    async (data, ack) => {
+      await ensureRoomAccess(data.chatRoomId);
 
       const deleted = await deleteMessage(
         userId,
@@ -315,13 +210,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
         deletedAt: deleted.deletedAt,
       });
 
-      callback({ ok: true });
-    } catch (err: any) {
-      if (err instanceof ApiError) {
-        callback({ ok: false, error: err.message, code: err.code });
-      } else {
-        callback({ ok: false, error: "Server error" });
-      }
-    }
-  });
+      ack({ ok: true });
+    },
+  );
 }

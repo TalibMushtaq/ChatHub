@@ -18,7 +18,7 @@ export default defineConfig({
         functions: 90,
         lines: 90,
       },
-      // Exclude files that are not business logic (entry points, config, routes, sockets, tests)
+      // Exclude files that are not business logic (entry points, config, routes, tests)
       exclude: [
         "node_modules/",
         "dist/",
@@ -28,7 +28,6 @@ export default defineConfig({
         "src/types/**",
         "src/config/**",
         "src/routes/**",
-        "src/sockets/**",
         "src/lib/env.ts",
         "src/lib/redis.ts",
         "src/middleware/session.ts",

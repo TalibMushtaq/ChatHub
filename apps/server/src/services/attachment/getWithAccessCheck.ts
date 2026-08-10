@@ -10,6 +10,8 @@ import { ApiError } from "../../lib/ApiError";
  * - Room messages: user must be a member of the room
  * - DM messages: user must be a participant in the direct chat
  * - PENDING attachments: only the uploader may access
+ * - Anything else (no linked message, or a message linked to neither a room
+ *   nor a direct chat): only the uploader may access
  */
 export async function getAttachmentWithAccessCheck(
   s3Service: S3Service,
@@ -42,7 +44,9 @@ export async function getAttachmentWithAccessCheck(
       );
     }
   } else {
-    // ATTACHED attachments require room/DM membership
+    // ATTACHED attachments require room/DM membership.
+    // The chain below is default-deny: any attachment that is not reachable
+    // through a room or a direct chat falls back to uploader-only access.
     const message = attachment.Message;
     if (message?.chatRoomId) {
       const membership = await prisma.chatRoomMember.findUnique({
@@ -71,6 +75,12 @@ export async function getAttachmentWithAccessCheck(
           "ATTACHMENT_ACCESS_DENIED",
         );
       }
+    } else if (attachment.uploaderId !== userId) {
+      throw new ApiError(
+        "You do not have access to this attachment",
+        403,
+        "ATTACHMENT_ACCESS_DENIED",
+      );
     }
   }
 
