@@ -160,10 +160,13 @@ describe("markDirectChatRead", () => {
     const result = await markDirectChatRead("u1", "dc1", "msg-5");
 
     expect(result.unreadCount).toBe(2);
+    // Must match the isDeleted filter used by the inbox unread query,
+    // otherwise the two counts disagree for a chat with soft deletes.
     expect(prismaMock.message.count).toHaveBeenCalledWith({
       where: {
         directChatId: "dc1",
         senderId: { not: "u1" },
+        isDeleted: false,
         createdAt: { gt: new Date("2026-01-10T15:00:00Z") },
       },
     });

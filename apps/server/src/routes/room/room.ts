@@ -8,6 +8,7 @@ import {
   markReadSchema,
 } from "@repo/validators";
 import { assertRoomAccess } from "../../middleware/socketAccess";
+import { asyncHandler } from "../../middleware/async-handler";
 import { markRoomRead } from "../../services/room/markRead";
 import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import joinRoomInvite from "./joinroominvite";
@@ -207,54 +208,54 @@ const markReadLimiter = createRateLimiter({
 });
 
 // POST /:chatRoomId/mark-read
+// Uses asyncHandler so ApiError statuses (403 FORBIDDEN, 404 MESSAGE_NOT_FOUND,
+// 400 MESSAGE_WRONG_ROOM) reach the shared error handler instead of being
+// flattened into a 500 by a local try/catch.
 router.post(
   "/:chatRoomId/mark-read",
   requireAuth,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userId = req.user!.id;
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
 
-      const params = chatRoomIdParamSchema.safeParse(req.params);
-      if (!params.success) {
-        return res.status(400).json({ ok: false, error: "chatRoomId missing" });
-      }
-      const chatRoomId = params.data.chatRoomId;
-
-      const rate = await markReadLimiter(`markread:${userId}`);
-      setRateLimitHeaders(res, rate);
-      if (!rate.allowed) {
-        return res
-          .status(429)
-          .json({ ok: false, error: "Rate limit exceeded" });
-      }
-
-      const body = markReadSchema.safeParse(req.body);
-      if (!body.success) {
-        return res.status(400).json({
-          ok: false,
-          error: body.error.issues[0]?.message ?? "Invalid input",
-        });
-      }
-
-      await assertRoomAccess(userId, chatRoomId);
-
-      const result = await markRoomRead(
-        userId,
-        chatRoomId,
-        body.data.lastReadMessageId,
-      );
-
-      // Emit to all of the user's sessions so tabs/devices stay in sync.
-      req.io.to(`user:${userId}`).emit("chatroom:read", {
-        chatRoomId,
-        unreadCount: result.unreadCount,
-      });
-
-      return res.json({ ok: true, ...result });
-    } catch (err) {
-      return next(err);
+    const params = chatRoomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "chatRoomId missing" });
+      return;
     }
-  },
+    const chatRoomId = params.data.chatRoomId;
+
+    const rate = await markReadLimiter(`markread:${userId}`);
+    setRateLimitHeaders(res, rate);
+    if (!rate.allowed) {
+      res.status(429).json({ ok: false, error: "Rate limit exceeded" });
+      return;
+    }
+
+    const body = markReadSchema.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({
+        ok: false,
+        error: body.error.issues[0]?.message ?? "Invalid input",
+      });
+      return;
+    }
+
+    await assertRoomAccess(userId, chatRoomId);
+
+    const result = await markRoomRead(
+      userId,
+      chatRoomId,
+      body.data.lastReadMessageId,
+    );
+
+    // Emit to all of the user's sessions so tabs/devices stay in sync.
+    req.io.to(`user:${userId}`).emit("chatroom:read", {
+      chatRoomId,
+      unreadCount: result.unreadCount,
+    });
+
+    res.json({ ok: true, ...result });
+  }),
 );
 
 export default router;

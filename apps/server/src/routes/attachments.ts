@@ -1,13 +1,14 @@
 import { Router } from "express";
 import requireAuth from "../middleware/requireAuth";
 import { asyncHandler } from "../middleware/async-handler";
-import { createRateLimiter, setRateLimitHeaders } from "../lib/rateLimiter";
+import { createRateLimiter, enforceRateLimit } from "../lib/rateLimiter";
+import { unwrapParsed } from "../lib/validate";
 import { presignSchema, attachmentIdParamSchema } from "@repo/validators";
-import { S3Service, buildS3ConfigFromEnv } from "../services/S3Service";
+import { getRequiredS3Service } from "../lib/s3";
 import { createPendingAttachment } from "../services/attachment/createPending";
 import { getAttachmentWithAccessCheck } from "../services/attachment/getWithAccessCheck";
 import { deleteAttachment } from "../services/attachment/deleteAttachment";
-import { ApiError } from "../lib/ApiError";
+import { assertUploadContextAccess } from "../services/attachment/assertContextAccess";
 
 const presignLimiter = createRateLimiter({
   maxAttempts: 30,
@@ -17,23 +18,6 @@ const presignLimiter = createRateLimiter({
 
 const router = Router();
 
-// Lazily initialized S3Service (singleton per process)
-let s3ServiceInstance: S3Service | null = null;
-function getS3Service(): S3Service {
-  if (!s3ServiceInstance) {
-    const config = buildS3ConfigFromEnv();
-    if (!config) {
-      throw new ApiError(
-        "S3 storage is not configured. Please set AWS_REGION and AWS_S3_BUCKET_NAME.",
-        503,
-        "S3_NOT_CONFIGURED",
-      );
-    }
-    s3ServiceInstance = new S3Service(config);
-  }
-  return s3ServiceInstance;
-}
-
 // POST /attachments/presign
 router.post(
   "/presign",
@@ -41,31 +25,21 @@ router.post(
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
-    const rate = await presignLimiter(`presign:${userId}`);
-    setRateLimitHeaders(res, rate);
-    if (!rate.allowed) {
-      res.status(429).json({ ok: false, error: "Rate limit exceeded" });
-      return;
-    }
+    await enforceRateLimit(res, presignLimiter, `presign:${userId}`);
 
-    const parsed = presignSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({
-        ok: false,
-        error: parsed.error.issues[0]?.message ?? "Invalid input",
-      });
-      return;
-    }
+    const parsed = unwrapParsed(presignSchema.safeParse(req.body));
 
-    const s3Service = getS3Service();
+    await assertUploadContextAccess(userId, parsed.context, parsed.contextId);
+
+    const s3Service = getRequiredS3Service();
     const { attachment, presignedUrl } = await createPendingAttachment(
       s3Service,
       userId,
-      parsed.data.context,
-      parsed.data.contextId,
-      parsed.data.filename,
-      parsed.data.mimeType,
-      parsed.data.size,
+      parsed.context,
+      parsed.contextId,
+      parsed.filename,
+      parsed.mimeType,
+      parsed.size,
     );
 
     res.status(201).json({
@@ -84,16 +58,15 @@ router.get(
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
-    const params = attachmentIdParamSchema.safeParse(req.params);
-    if (!params.success) {
-      res.status(404).json({ ok: false, error: "Attachment not found" });
-      return;
-    }
+    const { attachmentId } = unwrapParsed(
+      attachmentIdParamSchema.safeParse(req.params),
+      { status: 404, message: "Attachment not found" },
+    );
 
-    const s3Service = getS3Service();
+    const s3Service = getRequiredS3Service();
     const result = await getAttachmentWithAccessCheck(
       s3Service,
-      params.data.attachmentId,
+      attachmentId,
       userId,
     );
 
@@ -112,18 +85,13 @@ router.delete(
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
-    const params = attachmentIdParamSchema.safeParse(req.params);
-    if (!params.success) {
-      res.status(404).json({ ok: false, error: "Attachment not found" });
-      return;
-    }
-
-    const s3Service = getS3Service();
-    const result = await deleteAttachment(
-      s3Service,
-      params.data.attachmentId,
-      userId,
+    const { attachmentId } = unwrapParsed(
+      attachmentIdParamSchema.safeParse(req.params),
+      { status: 404, message: "Attachment not found" },
     );
+
+    const s3Service = getRequiredS3Service();
+    const result = await deleteAttachment(s3Service, attachmentId, userId);
 
     res.json({ ok: true, orphanedRecord: result.orphanedRecord });
   }),

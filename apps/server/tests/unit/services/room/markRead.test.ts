@@ -141,7 +141,7 @@ describe("markRoomRead", () => {
     );
   });
 
-  it("should compute unread count excluding own messages", async () => {
+  it("should compute unread count excluding own and soft-deleted messages", async () => {
     const msg = createMessage({
       id: "msg-5",
       chatRoomId: "room1",
@@ -160,10 +160,13 @@ describe("markRoomRead", () => {
     const result = await markRoomRead("u1", "room1", "msg-5");
 
     expect(result.unreadCount).toBe(4);
+    // Must match the isDeleted filter used by the rooms-list unread query,
+    // otherwise the two counts disagree for a conversation with soft deletes.
     expect(prismaMock.message.count).toHaveBeenCalledWith({
       where: {
         chatRoomId: "room1",
         senderId: { not: "u1" },
+        isDeleted: false,
         createdAt: { gt: new Date("2026-01-10T15:00:00Z") },
       },
     });

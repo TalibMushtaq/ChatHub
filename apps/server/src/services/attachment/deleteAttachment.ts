@@ -72,6 +72,14 @@ export async function deleteAttachment(
         "ATTACHMENT_DELETE_DENIED",
       );
     }
+  } else if (attachment.uploaderId !== userId) {
+    // Default-deny: an attachment with no linked message is only reachable
+    // by the uploader.
+    throw new ApiError(
+      "You do not have permission to delete this attachment",
+      403,
+      "ATTACHMENT_DELETE_DENIED",
+    );
   }
 
   // Step 1: Delete S3 object

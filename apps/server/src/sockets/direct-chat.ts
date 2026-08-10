@@ -113,7 +113,7 @@ export function registerDirectChat(
       });
       socket.emit("directChat:error", {
         code: "JOIN_FAILED",
-        message: "Failed to join chat",
+        message: err instanceof Error ? err.message : "Failed to join chat",
       });
     }
   });
@@ -139,7 +139,7 @@ export function registerDirectChat(
       });
       socket.emit("directChat:error", {
         code: "LEAVE_FAILED",
-        message: "Failed to leave chat",
+        message: err instanceof Error ? err.message : "Failed to leave chat",
       });
     }
   });

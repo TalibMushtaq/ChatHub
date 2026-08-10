@@ -5,7 +5,14 @@ import { prisma } from "../db/prisma";
 import http from "http";
 import { createIO } from "./create.io";
 import cors from "cors";
-import { sessionMiddleware } from "./middleware/session";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
+import { getAllowedOrigins } from "./lib/cors";
+import {
+  sessionMiddleware,
+  csrfProtection,
+  getCsrfToken,
+} from "./middleware/session";
 import authRoutes from "./routes/auth";
 import dmRoutes from "./routes/direct-chat";
 import room from "./routes/room/room";
@@ -25,11 +32,12 @@ app.set("trust proxy", 1);
 
 const httpServer = http.createServer(app);
 const io = createIO(httpServer);
-app.use(express.json());
+app.use(helmet());
+app.use(express.json({ limit: "100kb" }));
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:3000"],
+    origin: getAllowedOrigins(),
     credentials: true,
   }),
 );
@@ -43,6 +51,17 @@ io.use((socket, next) => {
     next();
   });
 });
+
+// cookie-parser after express-session (session parses its own cookies)
+app.use(cookieParser());
+
+// CSRF token endpoint — runs before csrfProtection so it's excluded
+app.get("/api/csrf-token", (req, res) => {
+  const token = getCsrfToken(req, res);
+  res.json({ csrfToken: token });
+});
+
+app.use(csrfProtection);
 
 app.use((req, _res, next) => {
   req.io = io;

@@ -3,6 +3,8 @@ import supertest from "supertest";
 import express, { Request, Response, NextFunction } from "express";
 import dmChatsRouter from "../../../src/routes/direct-chat/chats";
 import roomRouter from "../../../src/routes/room/room";
+import { ApiError } from "../../../src/lib/ApiError";
+import { assertRoomAccess } from "../../../src/middleware/socketAccess";
 import { prismaMock, resetPrismaMock } from "../../mocks/prisma";
 
 // Shared mock setup for both DM and room route tests
@@ -21,6 +23,7 @@ vi.mock("../../../src/lib/rateLimiter", () => ({
       vi.fn().mockResolvedValue({ allowed: true, remaining: 100 }),
     ),
   setRateLimitHeaders: vi.fn(),
+  enforceRateLimit: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../../src/middleware/socketAccess", () => ({
@@ -170,6 +173,9 @@ describe("POST /:chatRoomId/mark-read", () => {
   beforeEach(() => {
     resetPrismaMock();
     vi.clearAllMocks();
+    // Re-arm the happy-path default: individual tests below replace it with
+    // rejections, and mockClear does not restore implementations.
+    vi.mocked(assertRoomAccess).mockResolvedValue(undefined);
   });
 
   it("should mark a room as read and return ok with unreadCount", async () => {
@@ -249,5 +255,37 @@ describe("POST /:chatRoomId/mark-read", () => {
     expect(res.status).toBe(200);
     expect(res.body.unreadCount).toBe(7);
     expect(res.body.lastReadMessageId).toBe("msg-5");
+  });
+
+  it("should surface the 403 from assertRoomAccess instead of a 500", async () => {
+    vi.mocked(assertRoomAccess).mockRejectedValue(
+      new ApiError("Not authorized for this room", 403, "FORBIDDEN"),
+    );
+
+    const app = createRoomTestApp();
+
+    const res = await supertest(app)
+      .post("/room1/mark-read")
+      .send({ lastReadMessageId: "msg-1" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("FORBIDDEN");
+  });
+
+  it("should surface the 404 from markRoomRead instead of a 500", async () => {
+    const { markRoomRead } =
+      await import("../../../src/services/room/markRead");
+    vi.mocked(markRoomRead).mockRejectedValue(
+      new ApiError("Message not found", 404, "MESSAGE_NOT_FOUND"),
+    );
+
+    const app = createRoomTestApp();
+
+    const res = await supertest(app)
+      .post("/room1/mark-read")
+      .send({ lastReadMessageId: "missing" });
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("MESSAGE_NOT_FOUND");
   });
 });
