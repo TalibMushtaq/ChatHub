@@ -37,9 +37,15 @@ export async function editMessageInScope<F extends MessageScopeField>(
   userId: string,
   messageId: string,
   content: string,
-  { scopeField, editWindowMs }: { scopeField: F; editWindowMs: number },
+  {
+    scopeField,
+    scopeId,
+    editWindowMs,
+  }: { scopeField: F; scopeId?: string; editWindowMs: number },
 ): Promise<EditedMessage<F>> {
   await assertMutable(userId, messageId, {
+    scopeField,
+    scopeId,
     windowMs: editWindowMs,
     kind: "edit",
   });
@@ -72,9 +78,15 @@ export async function editMessageInScope<F extends MessageScopeField>(
 export async function deleteMessageInScope<F extends MessageScopeField>(
   userId: string,
   messageId: string,
-  { scopeField, deleteWindowMs }: { scopeField: F; deleteWindowMs: number },
+  {
+    scopeField,
+    scopeId,
+    deleteWindowMs,
+  }: { scopeField: F; scopeId?: string; deleteWindowMs: number },
 ): Promise<DeletedMessage<F>> {
   await assertMutable(userId, messageId, {
+    scopeField,
+    scopeId,
     windowMs: deleteWindowMs,
     kind: "delete",
   });
@@ -124,19 +136,39 @@ const MUTATION_ERRORS = {
 async function assertMutable(
   userId: string,
   messageId: string,
-  { windowMs, kind }: { windowMs: number; kind: keyof typeof MUTATION_ERRORS },
+  {
+    scopeField,
+    scopeId,
+    windowMs,
+    kind,
+  }: {
+    scopeField: MessageScopeField;
+    scopeId?: string;
+    windowMs: number;
+    kind: keyof typeof MUTATION_ERRORS;
+  },
 ): Promise<void> {
   const errors = MUTATION_ERRORS[kind];
 
-  const msg = await prisma.message.findUnique({
-    where: { id: messageId },
-    select: {
-      id: true,
-      senderId: true,
-      isDeleted: true,
-      createdAt: true,
-    },
-  });
+  const msg = scopeId
+    ? await prisma.message.findFirst({
+        where: { id: messageId, [scopeField]: scopeId },
+        select: {
+          id: true,
+          senderId: true,
+          isDeleted: true,
+          createdAt: true,
+        },
+      })
+    : await prisma.message.findUnique({
+        where: { id: messageId },
+        select: {
+          id: true,
+          senderId: true,
+          isDeleted: true,
+          createdAt: true,
+        },
+      });
 
   if (!msg || (errors.deletedIsNotFound && msg.isDeleted)) {
     throw new ApiError(errors.notFound, 404, "MESSAGE_NOT_FOUND");

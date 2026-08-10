@@ -1,6 +1,8 @@
 import session from "express-session";
 import { RedisStore } from "connect-redis";
 import { redis } from "../lib/redis";
+import csurf from "tiny-csrf";
+import type { Request, Response, NextFunction } from "express";
 
 // ---------------------------------------------------------------------------
 // Validate required env vars at startup (fail-fast).
@@ -27,6 +29,10 @@ if (secrets.length === 0) {
 
 // After validation, secrets is guaranteed non-empty.
 const sessionSecrets = secrets as [string, ...string[]];
+
+// tiny-csrf requires a 32-byte secret (AES-256-CBC). Derive one from the
+// session secret by taking the first 32 characters (padded if necessary).
+const csrfSecret = (SESSION_SECRET + "0".repeat(32)).slice(0, 32);
 
 // ---------------------------------------------------------------------------
 // Cookie & session defaults
@@ -64,3 +70,30 @@ export const sessionMiddleware = session({
     maxAge: COOKIE_MAX_AGE_MS,
   },
 });
+
+// ---------------------------------------------------------------------------
+// CSRF protection (via tiny-csrf — recognized by CodeQL's
+// js/missing-token-validation rule).
+//
+// tiny-csrf reads the token from the x-csrftoken header (or _csrf body
+// field) and validates it against an encrypted CSRF cookie it sets on the
+// response.  The frontend must fetch GET /api/csrf-token to receive the
+// cookie, then include the token in the x-csrftoken header on all
+// state-changing requests.
+// ---------------------------------------------------------------------------
+
+export const csrfProtection = csurf(
+  csrfSecret,
+  ["POST", "PUT", "PATCH", "DELETE"],
+  ["/api/csrf-token"], // token endpoint itself is a GET, but list defensively
+);
+
+/**
+ * Returns the CSRF token for the current request.
+ *
+ * Intended to be called from a route handler that runs *after*
+ * `csrfProtection` has executed (so `req.csrfToken()` is available).
+ */
+export function getCsrfToken(req: Request, res: Response): string {
+  return req.csrfToken();
+}

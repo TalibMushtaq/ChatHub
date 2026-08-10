@@ -86,6 +86,7 @@ export async function markConversationRead(
         where: {
           [scopeField]: scopeId,
           senderId: { not: userId },
+          isDeleted: false,
           createdAt: { gt: after },
         } as Prisma.MessageWhereInput,
       });

@@ -6,8 +6,13 @@ import http from "http";
 import { createIO } from "./create.io";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { getAllowedOrigins } from "./lib/cors";
-import { sessionMiddleware } from "./middleware/session";
+import {
+  sessionMiddleware,
+  csrfProtection,
+  getCsrfToken,
+} from "./middleware/session";
 import authRoutes from "./routes/auth";
 import dmRoutes from "./routes/direct-chat";
 import room from "./routes/room/room";
@@ -43,6 +48,17 @@ io.use((socket, next) => {
     next();
   });
 });
+
+// cookie-parser after express-session (session parses its own cookies)
+app.use(cookieParser());
+
+// CSRF token endpoint — runs before csrfProtection so it's excluded
+app.get("/api/csrf-token", (req, res) => {
+  const token = getCsrfToken(req, res);
+  res.json({ csrfToken: token });
+});
+
+app.use(csrfProtection);
 
 app.use((req, _res, next) => {
   req.io = io;

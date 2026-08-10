@@ -11,7 +11,7 @@ describe("deleteMessage (room)", () => {
   });
 
   it("should soft-delete the message and clear its content", async () => {
-    prismaMock.message.findUnique.mockResolvedValue(
+    prismaMock.message.findFirst.mockResolvedValue(
       createMessage({
         id: "msg-1",
         senderId: "u1",
@@ -25,7 +25,7 @@ describe("deleteMessage (room)", () => {
       deletedAt: new Date(),
     } as any);
 
-    const result = await deleteMessage("u1", "msg-1");
+    const result = await deleteMessage("u1", "r1", "msg-1");
 
     expect(prismaMock.message.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -41,9 +41,9 @@ describe("deleteMessage (room)", () => {
   });
 
   it("should reject a missing message with 404", async () => {
-    prismaMock.message.findUnique.mockResolvedValue(null);
+    prismaMock.message.findFirst.mockResolvedValue(null);
 
-    await expect(deleteMessage("u1", "missing")).rejects.toMatchObject({
+    await expect(deleteMessage("u1", "r1", "missing")).rejects.toMatchObject({
       statusCode: 404,
       code: "MESSAGE_NOT_FOUND",
     });
@@ -51,18 +51,18 @@ describe("deleteMessage (room)", () => {
   });
 
   it("should reject deletion by a user other than the sender", async () => {
-    prismaMock.message.findUnique.mockResolvedValue(
+    prismaMock.message.findFirst.mockResolvedValue(
       createMessage({ id: "msg-1", senderId: "u2", chatRoomId: "r1" }) as any,
     );
 
-    await expect(deleteMessage("u1", "msg-1")).rejects.toMatchObject({
+    await expect(deleteMessage("u1", "r1", "msg-1")).rejects.toMatchObject({
       statusCode: 403,
       code: "FORBIDDEN",
     });
   });
 
   it("should reject an already-deleted message", async () => {
-    prismaMock.message.findUnique.mockResolvedValue(
+    prismaMock.message.findFirst.mockResolvedValue(
       createMessage({
         id: "msg-1",
         senderId: "u1",
@@ -71,14 +71,14 @@ describe("deleteMessage (room)", () => {
       }) as any,
     );
 
-    await expect(deleteMessage("u1", "msg-1")).rejects.toMatchObject({
+    await expect(deleteMessage("u1", "r1", "msg-1")).rejects.toMatchObject({
       statusCode: 400,
       code: "ALREADY_DELETED",
     });
   });
 
   it("should reject deletion after the delete window has expired", async () => {
-    prismaMock.message.findUnique.mockResolvedValue(
+    prismaMock.message.findFirst.mockResolvedValue(
       createMessage({
         id: "msg-1",
         senderId: "u1",
@@ -87,7 +87,7 @@ describe("deleteMessage (room)", () => {
       }) as any,
     );
 
-    await expect(deleteMessage("u1", "msg-1")).rejects.toMatchObject({
+    await expect(deleteMessage("u1", "r1", "msg-1")).rejects.toMatchObject({
       statusCode: 403,
       code: "DELETE_WINDOW_EXPIRED",
     });

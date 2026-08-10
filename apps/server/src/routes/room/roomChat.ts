@@ -172,11 +172,16 @@ export function registerRoomChat(io: Server, socket: Socket) {
     async (data, ack) => {
       await ensureRoomAccess(data.chatRoomId);
 
-      const updated = await editMessage(userId, data.messageId, data.content);
+      const updated = await editMessage(
+        userId,
+        data.chatRoomId,
+        data.messageId,
+        data.content,
+      );
 
       io.to(`room:${data.chatRoomId}`).emit("chatroom:message:edited", {
         messageId: updated.id,
-        chatRoomId: updated.chatRoomId,
+        chatRoomId: data.chatRoomId,
         content: updated.content,
         editedAt: updated.editedAt,
       });
@@ -193,11 +198,15 @@ export function registerRoomChat(io: Server, socket: Socket) {
     async (data, ack) => {
       await ensureRoomAccess(data.chatRoomId);
 
-      const deleted = await deleteMessage(userId, data.messageId);
+      const deleted = await deleteMessage(
+        userId,
+        data.chatRoomId,
+        data.messageId,
+      );
 
       io.to(`room:${data.chatRoomId}`).emit("chatroom:message:deleted", {
         messageId: deleted.id,
-        chatRoomId: deleted.chatRoomId,
+        chatRoomId: data.chatRoomId,
         deletedAt: deleted.deletedAt,
       });
 
