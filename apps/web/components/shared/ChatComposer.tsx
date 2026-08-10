@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   uploadAttachments,
   type AttachmentContext,
 } from "../../app/lib/attachments";
+import { getErrorMessage } from "../../app/lib/errors";
 
 export interface ComposerMessage {
   content?: string;
@@ -47,8 +49,12 @@ export default function ChatComposer({
 
   const send = async () => {
     if (!text.trim()) return;
-    await onSend({ content: text.trim(), messageType: "TEXT" });
-    resetInput();
+    try {
+      await onSend({ content: text.trim(), messageType: "TEXT" });
+      resetInput();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to send message"));
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +75,7 @@ export default function ChatComposer({
       });
       resetInput();
     } catch (err) {
-      console.error("Upload failed:", err);
+      toast.error(getErrorMessage(err, "Upload failed"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {

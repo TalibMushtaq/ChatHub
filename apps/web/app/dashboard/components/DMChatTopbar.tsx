@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { api } from "../../lib/api";
+import { getErrorMessage } from "../../lib/errors";
 
 interface DMChatTopbarProps {
   directChatId: string;
@@ -30,7 +32,7 @@ export default function DMChatTopbar({
           setOtherUser(chat.otherUser);
         }
       } catch (err) {
-        console.error("Failed to load chat info", err);
+        toast.error(getErrorMessage(err, "Failed to load chat info"));
       }
     }
     load();

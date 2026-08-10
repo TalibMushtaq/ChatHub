@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { toast } from "sonner";
 import { socket } from "../../app/lib/socket";
 import MessageTimeline from "../shared/MessageTimeline";
 import {
@@ -23,12 +24,16 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
       });
       socket.on("chatroom:message:edited", onEdited);
       socket.on("chatroom:message:deleted", onDeleted);
+      socket.on("chatroom:error", ({ message }: { message?: string }) => {
+        toast.error(message ?? "Chat room error");
+      });
 
       return () => {
         socket.emit("chatroom:leave", { chatRoomId });
         socket.off("chatroom:message");
         socket.off("chatroom:message:edited");
         socket.off("chatroom:message:deleted");
+        socket.off("chatroom:error");
       };
     },
     [chatRoomId],
@@ -45,7 +50,9 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
         socket.emit("chatroom:message:delete", {
           payload: { chatRoomId, messageId },
           callback: (res: { ok?: boolean; error?: string }) => {
-            if (!res.ok) console.error(res.error);
+            if (!res.ok) {
+              toast.error(res.error ?? "Failed to delete message");
+            }
             resolve();
           },
         });
@@ -62,8 +69,7 @@ export default function RoomMessages({ chatRoomId }: RoomMessagesProps) {
             if (res.ok) {
               resolve();
             } else {
-              console.error(res.error);
-              reject(new Error(res.error));
+              reject(new Error(res.error ?? "Failed to edit message"));
             }
           },
         });

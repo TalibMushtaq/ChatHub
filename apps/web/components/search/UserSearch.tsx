@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 
 export type User = {
   id: string;
@@ -27,8 +29,9 @@ export default function UserSearch({ onSelect }: Props) {
       try {
         const res = await api.get(`/search/users?query=${query}`);
         setResults(res.data.users);
-      } catch {
-        console.error("Search failed");
+      } catch (err) {
+        setResults([]);
+        toast.error(getErrorMessage(err, "Search failed"));
       }
     }, 300);
 

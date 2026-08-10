@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import requireAuth from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
 import { prisma } from "../../../db/prisma";
@@ -41,7 +41,7 @@ router.post(
   "/:roomId/join-links",
   requireAuth,
   requireAdmin,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const myId = req.user!.id;
       const roomId = String(req.params.roomId);
@@ -89,11 +89,7 @@ router.post(
         },
       });
     } catch (err) {
-      console.log(err);
-      return res.status(500).json({
-        ok: false,
-        error: "Server error",
-      });
+      return next(err);
     }
   },
 );
@@ -112,50 +108,53 @@ router.post(
  * - Token hashing: Incoming token is hashed before DB lookup, matching the
  *   hashed storage format from the create endpoint.
  */
-router.get("/join/:token", requireAuth, async (req: Request, res: Response) => {
-  try {
-    const rawToken = String(req.params.token);
-    const hashedToken = hashToken(rawToken);
-    const link = await prisma.roomJoinLink.findUnique({
-      where: { token: hashedToken },
-      select: {
-        token: true,
-        isActive: true,
-        usedCount: true,
-        expiresAt: true,
-        maxUses: true,
-        room: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
+router.get(
+  "/join/:token",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const rawToken = String(req.params.token);
+      const hashedToken = hashToken(rawToken);
+      const link = await prisma.roomJoinLink.findUnique({
+        where: { token: hashedToken },
+        select: {
+          token: true,
+          isActive: true,
+          usedCount: true,
+          expiresAt: true,
+          maxUses: true,
+          room: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+            },
           },
         },
-      },
-    });
-    const now = new Date();
-    if (!link)
-      return res
-        .status(404)
-        .json({ ok: false, error: "link does not exist or is deleted" });
-    if (!link.isActive)
-      return res.status(410).json({ ok: false, error: "link is not usable" });
-    if (link.maxUses !== null && link.usedCount >= link.maxUses)
-      return res.status(410).json({ ok: false, error: "max uses reached" });
-    if (link.expiresAt && link.expiresAt < now)
-      return res.status(410).json({ ok: false, error: "link expired" });
+      });
+      const now = new Date();
+      if (!link)
+        return res
+          .status(404)
+          .json({ ok: false, error: "link does not exist or is deleted" });
+      if (!link.isActive)
+        return res.status(410).json({ ok: false, error: "link is not usable" });
+      if (link.maxUses !== null && link.usedCount >= link.maxUses)
+        return res.status(410).json({ ok: false, error: "max uses reached" });
+      if (link.expiresAt && link.expiresAt < now)
+        return res.status(410).json({ ok: false, error: "link expired" });
 
-    return res.status(200).json({
-      ok: true,
-      room: link.room,
-      expiresAt: link.expiresAt,
-      maxUses: link.maxUses,
-    });
-  } catch (err) {
-    console.log(err);
-    return res.status(500).json({ ok: false, error: "Server error" });
-  }
-});
+      return res.status(200).json({
+        ok: true,
+        room: link.room,
+        expiresAt: link.expiresAt,
+        maxUses: link.maxUses,
+      });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 /**
  * POST /join/:token
@@ -181,7 +180,7 @@ router.get("/join/:token", requireAuth, async (req: Request, res: Response) => {
 router.post(
   "/join/:token",
   requireAuth,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.id;
       const rawToken = String(req.params.token);
@@ -260,13 +259,6 @@ router.post(
 
       return res.status(200).json({ ok: true });
     } catch (err: any) {
-      if (err instanceof AppError) {
-        return res.status(err.statusCode).json({
-          ok: false,
-          error: err.message,
-        });
-      }
-
       if (err?.code === "P2002") {
         return res.status(409).json({
           ok: false,
@@ -274,8 +266,7 @@ router.post(
         });
       }
 
-      console.error(err);
-      return res.status(500).json({ ok: false, error: "Server error" });
+      return next(err);
     }
   },
 );
@@ -297,7 +288,7 @@ router.patch(
   "/:roomId/join-links/:linkId",
   requireAuth,
   requireAdmin,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const roomId = String(req.params.roomId);
       const linkId = String(req.params.linkId);
@@ -324,11 +315,7 @@ router.patch(
         message: "Link deactivated",
       });
     } catch (err) {
-      console.error(err);
-      return res.status(500).json({
-        ok: false,
-        error: "Internal server error",
-      });
+      return next(err);
     }
   },
 );
@@ -347,7 +334,7 @@ router.patch(
 router.get(
   "/join-links/mine",
   requireAuth,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.id;
 
@@ -380,11 +367,7 @@ router.get(
         links,
       });
     } catch (err) {
-      console.error(err);
-      return res.status(500).json({
-        ok: false,
-        error: "Internal server error",
-      });
+      return next(err);
     }
   },
 );

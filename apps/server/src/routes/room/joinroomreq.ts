@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../../../db/prisma";
 import requireAuth from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
@@ -34,7 +34,7 @@ const router = Router();
 router.post(
   "/:roomId/join-request",
   requireAuth,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.id;
       const roomId = String(req.params.roomId);
@@ -80,13 +80,6 @@ router.post(
 
       return res.status(201).json({ ok: true, joinRequest });
     } catch (err: any) {
-      if (err instanceof AppError) {
-        return res.status(err.statusCode).json({
-          ok: false,
-          error: err.message,
-        });
-      }
-
       if (err?.code === "P2003") {
         return res.status(404).json({
           ok: false,
@@ -101,11 +94,7 @@ router.post(
         });
       }
 
-      console.log(err);
-      return res.status(500).json({
-        ok: false,
-        error: "Server error",
-      });
+      return next(err);
     }
   },
 );
@@ -128,7 +117,7 @@ router.get(
   "/:roomId/join-requests",
   requireAuth,
   requireAdmin,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const roomId = String(req.params.roomId);
 
@@ -164,8 +153,7 @@ router.get(
         requests,
       });
     } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Internal server error" });
+      return next(err);
     }
   },
 );
@@ -191,7 +179,7 @@ router.patch(
   "/:roomId/join-requests/:requestId",
   requireAuth,
   requireAdmin,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const reviewerId = req.user!.id;
       const roomId = String(req.params.roomId);
@@ -252,11 +240,7 @@ router.patch(
         });
       }
 
-      console.log(err);
-      return res.status(500).json({
-        ok: false,
-        error: "Server Error",
-      });
+      return next(err);
     }
   },
 );

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { errorHandler } from "../../../src/middleware/error-handler";
 import { ApiError } from "../../../src/lib/ApiError";
+import { AppError, ForbiddenError } from "../../../src/lib/AppError";
 import { Prisma } from "@prisma/client";
 import {
   createMockRequest,
@@ -39,6 +40,39 @@ describe("errorHandler", () => {
       ok: false,
       error: "Not found",
     });
+  });
+
+  it("should handle AppError with its statusCode", () => {
+    const err = new AppError("Invitation already processed", 409);
+    errorHandler(err, req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      ok: false,
+      error: "Invitation already processed",
+    });
+  });
+
+  it("should handle AppError subclasses", () => {
+    const err = new ForbiddenError();
+    errorHandler(err, req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      ok: false,
+      error: "Not authorized",
+    });
+  });
+
+  it("should delegate to next when headers are already sent", () => {
+    const sentRes = createMockResponse();
+    (sentRes as unknown as { headersSent: boolean }).headersSent = true;
+    const err = new Error("Late failure");
+
+    errorHandler(err, req, sentRes, next);
+
+    expect(next).toHaveBeenCalledWith(err);
+    expect(sentRes.json).not.toHaveBeenCalled();
   });
 
   it("should map Prisma P2002 to 409 Conflict", () => {

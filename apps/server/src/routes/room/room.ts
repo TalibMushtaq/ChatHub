@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import requireAuth from "../../middleware/requireAuth";
 import { prisma } from "../../../db/prisma";
 import { AppError } from "../../lib/AppError";
@@ -34,47 +34,50 @@ router.use(joinRoomlink);
  * - Removed manual validation (Zod handles name/description checks).
  * - Route changed from POST /create to POST /rooms for REST consistency.
  */
-router.post("/rooms", requireAuth, async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
+router.post(
+  "/rooms",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.id;
 
-    const parsed = createRoomSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        ok: false,
-        error: parsed.error.issues[0]?.message ?? "Invalid input",
-      });
-    }
+      const parsed = createRoomSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          ok: false,
+          error: parsed.error.issues[0]?.message ?? "Invalid input",
+        });
+      }
 
-    const { name, description } = parsed.data;
+      const { name, description } = parsed.data;
 
-    const room = await prisma.chatRoom.create({
-      data: {
-        name,
-        description: description || null,
-        User: { connect: { id: userId } },
-        ChatRoomMember: {
-          create: {
-            userId,
-            role: "OWNER",
+      const room = await prisma.chatRoom.create({
+        data: {
+          name,
+          description: description || null,
+          User: { connect: { id: userId } },
+          ChatRoomMember: {
+            create: {
+              userId,
+              role: "OWNER",
+            },
           },
         },
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        createdBy: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-    return res.status(201).json({ ok: true, room });
-  } catch (err) {
-    console.log(err);
-    return res.status(500).json({ ok: false, error: "server error" });
-  }
-});
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          createdBy: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      return res.status(201).json({ ok: true, room });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 /**
  * GET /rooms
@@ -90,65 +93,68 @@ router.post("/rooms", requireAuth, async (req: Request, res: Response) => {
  * - Added pagination with take/cursor.
  * - Route unchanged (already RESTful: GET /rooms).
  */
-router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const limit = Math.min(Number(req.query.limit) || 20, 50);
-    const cursor = req.query.cursor as string | undefined;
+router.get(
+  "/rooms",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.id;
+      const limit = Math.min(Number(req.query.limit) || 20, 50);
+      const cursor = req.query.cursor as string | undefined;
 
-    const rooms = await prisma.chatRoom.findMany({
-      where: {
-        ChatRoomMember: {
-          some: {
-            userId,
+      const rooms = await prisma.chatRoom.findMany({
+        where: {
+          ChatRoomMember: {
+            some: {
+              userId,
+            },
           },
         },
-      },
-      orderBy: [{ lastMessageAt: "desc" }, { id: "asc" }],
-      take: limit + 1,
-      ...(cursor && {
-        cursor: { id: cursor },
-        skip: 1,
-      }),
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        createdBy: true,
-        createdAt: true,
-        updatedAt: true,
-        // Only fetch the current user's membership — not every member
-        ChatRoomMember: {
-          where: { userId },
-          select: { role: true },
-        },
-        // Use _count instead of loading all members
-        _count: {
-          select: { ChatRoomMember: true },
-        },
-        Message: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: {
-            id: true,
-            content: true,
-            messageType: true,
-            createdAt: true,
-            isDeleted: true,
+        orderBy: [{ lastMessageAt: "desc" }, { id: "asc" }],
+        take: limit + 1,
+        ...(cursor && {
+          cursor: { id: cursor },
+          skip: 1,
+        }),
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          createdBy: true,
+          createdAt: true,
+          updatedAt: true,
+          // Only fetch the current user's membership — not every member
+          ChatRoomMember: {
+            where: { userId },
+            select: { role: true },
+          },
+          // Use _count instead of loading all members
+          _count: {
+            select: { ChatRoomMember: true },
+          },
+          Message: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              content: true,
+              messageType: true,
+              createdAt: true,
+              isDeleted: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    const hasMore = rooms.length > limit;
-    const sliced = hasMore ? rooms.slice(0, limit) : rooms;
+      const hasMore = rooms.length > limit;
+      const sliced = hasMore ? rooms.slice(0, limit) : rooms;
 
-    // Batch-fetch read receipts and compute unread counts (no N+1).
-    const roomIds = sliced.map((r) => r.id);
+      // Batch-fetch read receipts and compute unread counts (no N+1).
+      const roomIds = sliced.map((r) => r.id);
 
-    // Batch-compute unread counts using a single raw query.
-    const unreadRows = roomIds.length
-      ? await prisma.$queryRaw<{ chatRoomId: string; count: bigint }[]>`
+      // Batch-compute unread counts using a single raw query.
+      const unreadRows = roomIds.length
+        ? await prisma.$queryRaw<{ chatRoomId: string; count: bigint }[]>`
           SELECT
             m."chatRoomId" as "chatRoomId",
             COUNT(*)::int as count
@@ -165,35 +171,35 @@ router.get("/rooms", requireAuth, async (req: Request, res: Response) => {
             )
           GROUP BY m."chatRoomId"
         `
-      : [];
+        : [];
 
-    const unreadMap = new Map(
-      unreadRows.map((row) => [row.chatRoomId, Number(row.count)]),
-    );
+      const unreadMap = new Map(
+        unreadRows.map((row) => [row.chatRoomId, Number(row.count)]),
+      );
 
-    const inbox = sliced.map((room) => ({
-      roomId: room.id,
-      name: room.name,
-      description: room.description,
-      createdBy: room.createdBy,
-      createdAt: room.createdAt,
-      updatedAt: room.updatedAt,
-      myRole: room.ChatRoomMember[0]?.role ?? "MEMBER",
-      lastMessage: room.Message[0] ?? null,
-      memberCount: room._count.ChatRoomMember,
-      unreadCount: unreadMap.get(room.id) ?? 0,
-    }));
+      const inbox = sliced.map((room) => ({
+        roomId: room.id,
+        name: room.name,
+        description: room.description,
+        createdBy: room.createdBy,
+        createdAt: room.createdAt,
+        updatedAt: room.updatedAt,
+        myRole: room.ChatRoomMember[0]?.role ?? "MEMBER",
+        lastMessage: room.Message[0] ?? null,
+        memberCount: room._count.ChatRoomMember,
+        unreadCount: unreadMap.get(room.id) ?? 0,
+      }));
 
-    return res.json({
-      ok: true,
-      rooms: inbox,
-      nextCursor: hasMore ? (sliced[sliced.length - 1]?.id ?? null) : null,
-    });
-  } catch (err) {
-    console.log(err);
-    return res.status(500).json({ ok: false, error: "server error" });
-  }
-});
+      return res.json({
+        ok: true,
+        rooms: inbox,
+        nextCursor: hasMore ? (sliced[sliced.length - 1]?.id ?? null) : null,
+      });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 const markReadLimiter = createRateLimiter({
   maxAttempts: 120,

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 import type { Message } from "./MessageBubble";
 
 export interface TimelineHandlers {
@@ -50,7 +52,9 @@ export function useChatTimeline(
       setMessages(msgsRes.data.messages ?? []);
     }
 
-    load();
+    load().catch((err) => {
+      toast.error(getErrorMessage(err, "Failed to load messages"));
+    });
   }, [messagesPath]);
 
   useEffect(() => {

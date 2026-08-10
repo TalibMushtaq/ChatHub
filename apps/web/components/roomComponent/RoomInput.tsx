@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { socket } from "../../app/lib/socket";
 import ChatComposer, { type ComposerMessage } from "../shared/ChatComposer";
 
@@ -19,7 +20,7 @@ export default function RoomInput({ chatRoomId }: RoomInputProps) {
       },
       callback: ({ ok, error }: { ok: boolean; error?: string }) => {
         if (!ok) {
-          console.error("Failed to send message:", error);
+          toast.error(error ?? "Failed to send message");
         }
       },
     });

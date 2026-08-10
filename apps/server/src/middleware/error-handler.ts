@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { Prisma } from "@prisma/client";
 import { ApiError } from "../lib/ApiError";
+import { AppError } from "../lib/AppError";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("errorHandler");
@@ -9,23 +10,35 @@ const log = createLogger("errorHandler");
  * Centralized Express error handler.
  *
  * Translates:
- * - ApiError → JSON response with statusCode and optional code
+ * - ApiError / AppError → JSON response with statusCode and optional code
  * - Prisma P2002 → 409 Conflict
  * - Prisma P2025 → 404 Not Found
  * - Everything else → 500 Server error (logged)
  */
 export function errorHandler(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ): void {
+  // Responses already sent (e.g. streaming) must be delegated to Express'
+  // default handler, which closes the connection instead of writing twice.
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+
   if (err instanceof ApiError) {
     res.status(err.statusCode).json({
       ok: false,
       error: err.message,
       ...(err.code && { code: err.code }),
     });
+    return;
+  }
+
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ ok: false, error: err.message });
     return;
   }
 
@@ -43,6 +56,9 @@ export function errorHandler(
     }
   }
 
-  log.error("Unhandled error", err);
+  log.error("Unhandled error", err, {
+    method: req.method,
+    path: req.originalUrl ?? req.url,
+  });
   res.status(500).json({ ok: false, error: "Server error" });
 }

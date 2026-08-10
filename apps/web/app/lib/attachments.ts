@@ -34,11 +34,14 @@ export async function uploadAttachments(
 
     const { presignedUrl, attachmentId } = presignRes.data;
 
-    await fetch(presignedUrl, {
+    const uploadRes = await fetch(presignedUrl, {
       method: "PUT",
       body: file,
       headers: { "Content-Type": file.type || DEFAULT_MIME },
     });
+    if (!uploadRes.ok) {
+      throw new Error(`Upload of ${file.name} failed (${uploadRes.status})`);
+    }
 
     attachmentIds.push(attachmentId);
   }

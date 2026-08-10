@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback } from "react";
+import { toast } from "sonner";
 import { api } from "../../app/lib/api";
+import { getErrorMessage } from "../../app/lib/errors";
 import { socket } from "../../app/lib/socket";
 import MessageTimeline from "../shared/MessageTimeline";
 import {
@@ -39,7 +41,7 @@ export default function DMMessages({ directChatId }: { directChatId: string }) {
     try {
       await api.delete(`/dm/message/${messageId}`);
     } catch (err) {
-      console.error(err);
+      toast.error(getErrorMessage(err, "Failed to delete message"));
     }
   }, []);
 

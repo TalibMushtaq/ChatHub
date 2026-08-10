@@ -13,9 +13,13 @@ import { transitionAttachmentsToAttached } from "../../services/attachment/trans
 import { checkIdempotency, storeIdempotency } from "../../services/idempotency";
 import { editMessage } from "../../services/room/editMessage";
 import { deleteMessage } from "../../services/room/deleteMessage";
+import { ApiError } from "../../lib/ApiError";
+import { createLogger } from "../../lib/logger";
 import { getRequiredS3Service } from "../../lib/s3";
 import { onAck } from "../../lib/socketAck";
 import { messageWithAttachmentsSelect } from "../../constants/room";
+
+const log = createLogger("roomChat");
 
 // How long a room membership check stays cached on a socket. Bounds the
 // window in which a user removed from a room can keep using it.
@@ -70,10 +74,14 @@ export function registerRoomChat(io: Server, socket: Socket) {
 
       socket.join(`room:${chatRoomId}`);
       socket.emit("chatroom:joined", { chatRoomId });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const expected = err instanceof ApiError;
+      if (!expected) {
+        log.error("chatroom:join failed", err, { userId, chatRoomId });
+      }
       socket.emit("chatroom:error", {
-        code: "JOIN_FAILED",
-        message: err.message,
+        code: expected ? (err.code ?? "JOIN_FAILED") : "JOIN_FAILED",
+        message: expected ? err.message : "Failed to join room",
       });
       socket.disconnect(true);
     }
