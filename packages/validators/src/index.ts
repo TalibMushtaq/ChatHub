@@ -17,6 +17,7 @@ export {
   editMessageSchema,
   messageIdParamSchema,
   directChatIdParamSchema,
+  getInboxQuerySchema,
 } from "./direct-chat";
 export {
   roomIdSchema,

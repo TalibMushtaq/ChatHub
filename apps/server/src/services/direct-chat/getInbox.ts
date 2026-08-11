@@ -1,7 +1,8 @@
 import { prisma } from "../../../db/prisma";
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "../../constants/direct-chat";
 
 /**
- * Load the direct-chat inbox for a user.
+ * Load the direct-chat inbox for a user with cursor pagination.
  *
  * Returns one entry per chat with:
  * - directChatId
@@ -13,13 +14,23 @@ import { prisma } from "../../../db/prisma";
  * Unread count is computed in a single batch query to avoid N+1.
  * A null cursor (or no receipt) counts all messages from other users as unread.
  */
-export async function getInbox(userId: string) {
-  // 1. Fetch all chats and their last messages in one query.
+export async function getInbox(
+  userId: string,
+  options: { cursor?: string; limit?: number } = {},
+) {
+  const limit = Math.min(options.limit ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+  const hasCursor = !!options.cursor;
+
+  // 1. Fetch one page of chats (limit + 1 to detect whether more pages exist).
   const chats = await prisma.directChat.findMany({
     where: {
       OR: [{ user1Id: userId }, { user2Id: userId }],
     },
+    // Cursor is keyed on the unique `id` while the sort keys stay stable,
+    // so Prisma can index-seek to the cursor row and continue the ordering.
+    ...(hasCursor && { cursor: { id: options.cursor! }, skip: 1 }),
     orderBy: [{ lastMessageAt: "desc" }, { createdAt: "desc" }],
+    take: limit + 1,
     select: {
       id: true,
       user1Id: true,
@@ -45,12 +56,16 @@ export async function getInbox(userId: string) {
     },
   });
 
-  if (chats.length === 0) return [];
+  const hasMore = chats.length > limit;
+  const sliced = hasMore ? chats.slice(0, limit) : chats;
+
+  if (sliced.length === 0)
+    return { inbox: [], nextCursor: null as string | null };
 
   // 2. Batch-compute unread counts using a single raw query.
   //    For chats with a cursor: count messages where createdAt > cursor AND senderId != userId.
   //    For chats without a cursor: count all messages where senderId != userId.
-  const chatIds = chats.map((c) => c.id);
+  const chatIds = sliced.map((c) => c.id);
 
   const unreadRows = await prisma.$queryRaw<
     { directChatId: string; count: bigint }[]
@@ -77,7 +92,7 @@ export async function getInbox(userId: string) {
   );
 
   // 3. Assemble the inbox with unread counts.
-  const inbox = chats.map((chat) => {
+  const inbox = sliced.map((chat) => {
     const otherUser =
       chat.user1Id === userId
         ? chat.User_DirectChat_user2IdToUser
@@ -91,5 +106,8 @@ export async function getInbox(userId: string) {
     };
   });
 
-  return inbox;
+  return {
+    inbox,
+    nextCursor: hasMore ? (sliced[sliced.length - 1]?.id ?? null) : null,
+  };
 }

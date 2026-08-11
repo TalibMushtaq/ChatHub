@@ -24,13 +24,29 @@ export default function DMChatTopbar({
   useEffect(() => {
     async function load() {
       try {
-        const inboxRes = await api.get("/dm/inbox");
-        const chat = inboxRes.data.inbox.find(
-          (c: { directChatId: string }) => c.directChatId === directChatId,
-        );
-        if (chat) {
-          setOtherUser(chat.otherUser);
-        }
+        // The inbox is paginated, so the open chat may not be on the first
+        // page — follow the cursor through subsequent pages until it's found.
+        let cursor: string | undefined;
+        do {
+          const inboxRes = await api.get("/dm/inbox", {
+            params: cursor ? { cursor, limit: 50 } : { limit: 50 },
+          });
+          const { inbox, nextCursor } = inboxRes.data as {
+            inbox: {
+              directChatId: string;
+              otherUser: { username: string; avatar?: string };
+            }[];
+            nextCursor: string | null;
+          };
+          const chat = inbox.find(
+            (c: { directChatId: string }) => c.directChatId === directChatId,
+          );
+          if (chat) {
+            setOtherUser(chat.otherUser);
+            return;
+          }
+          cursor = nextCursor ?? undefined;
+        } while (cursor);
       } catch (err) {
         toast.error(getErrorMessage(err, "Failed to load chat info"));
       }

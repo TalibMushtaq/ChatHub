@@ -46,7 +46,7 @@ describe("getInbox", () => {
 
     prismaMock.$queryRaw.mockResolvedValue([]);
 
-    const inbox = await getInbox("u1");
+    const { inbox } = await getInbox("u1");
 
     expect(inbox).toHaveLength(2);
     expect(inbox[0]?.otherUser.id).toBe("u2");
@@ -62,7 +62,7 @@ describe("getInbox", () => {
   it("should return empty array when user has no chats", async () => {
     prismaMock.directChat.findMany.mockResolvedValue([]);
 
-    const inbox = await getInbox("u1");
+    const { inbox } = await getInbox("u1");
 
     expect(inbox).toEqual([]);
   });
@@ -87,7 +87,7 @@ describe("getInbox", () => {
     ] as any);
     prismaMock.$queryRaw.mockResolvedValue([]);
 
-    const inbox = await getInbox("u1");
+    const { inbox } = await getInbox("u1");
     expect(inbox[0]?.otherUser.id).toBe("u2");
 
     // Reset and test from the other user's perspective
@@ -109,7 +109,7 @@ describe("getInbox", () => {
     ] as any);
     prismaMock.$queryRaw.mockResolvedValue([]);
 
-    const inbox2 = await getInbox("u2");
+    const { inbox: inbox2 } = await getInbox("u2");
     expect(inbox2[0]?.otherUser.id).toBe("u1");
   });
 
@@ -154,7 +154,7 @@ describe("getInbox", () => {
       { directChatId: "dc2", count: 0n },
     ]);
 
-    const inbox = await getInbox("u1");
+    const { inbox } = await getInbox("u1");
 
     expect(inbox).toHaveLength(2);
     expect(inbox[0]?.unreadCount).toBe(3);
@@ -183,7 +183,7 @@ describe("getInbox", () => {
 
     prismaMock.$queryRaw.mockResolvedValue([]);
 
-    const inbox = await getInbox("u1");
+    const { inbox } = await getInbox("u1");
 
     expect(inbox[0]?.unreadCount).toBe(0);
   });
@@ -269,9 +269,114 @@ describe("getInbox", () => {
       { directChatId: "dc1", count: 42n },
     ]);
 
-    const inbox = await getInbox("u1");
+    const { inbox } = await getInbox("u1");
 
     expect(inbox[0]?.unreadCount).toBe(42);
     expect(typeof inbox[0]?.unreadCount).toBe("number");
+  });
+
+  it("should fetch limit + 1 chats and expose nextCursor when more exist", async () => {
+    const dc1 = createDirectChat({ id: "dc-1", user1Id: "u1", user2Id: "u2" });
+    const dc2 = createDirectChat({ id: "dc-2", user1Id: "u1", user2Id: "u3" });
+    const dc3 = createDirectChat({ id: "dc-3", user1Id: "u1", user2Id: "u4" });
+    const chats = [dc1, dc2, dc3].map((dc) => ({
+      ...dc,
+      User_DirectChat_user1IdToUser: {
+        id: dc.user1Id,
+        username: "a",
+        avatar: null,
+      },
+      User_DirectChat_user2IdToUser: {
+        id: dc.user2Id,
+        username: "b",
+        avatar: null,
+      },
+      Message: [],
+    }));
+
+    prismaMock.directChat.findMany.mockResolvedValue(chats as any);
+    prismaMock.$queryRaw.mockResolvedValue([]);
+
+    const { inbox, nextCursor } = await getInbox("u1", { limit: 2 });
+
+    // The extra chat is fetched only to detect hasMore and then dropped.
+    expect(inbox).toHaveLength(2);
+    expect(nextCursor).toBe("dc-2");
+    expect(prismaMock.directChat.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 3 }),
+    );
+  });
+
+  it("should pass cursor and skip the cursor row when a cursor is given", async () => {
+    const dc = createDirectChat({ id: "dc-2", user1Id: "u1", user2Id: "u3" });
+    prismaMock.directChat.findMany.mockResolvedValue([
+      {
+        ...dc,
+        User_DirectChat_user1IdToUser: {
+          id: "u1",
+          username: "a",
+          avatar: null,
+        },
+        User_DirectChat_user2IdToUser: {
+          id: "u3",
+          username: "b",
+          avatar: null,
+        },
+        Message: [],
+      },
+    ] as any);
+    prismaMock.$queryRaw.mockResolvedValue([]);
+
+    const { nextCursor } = await getInbox("u1", { cursor: "dc-1", limit: 2 });
+
+    expect(prismaMock.directChat.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cursor: { id: "dc-1" },
+        skip: 1,
+        take: 3,
+      }),
+    );
+    expect(nextCursor).toBeNull();
+  });
+
+  it("should return null nextCursor when there are no more chats", async () => {
+    const dc1 = createDirectChat({ id: "dc-1", user1Id: "u1", user2Id: "u2" });
+    const dc2 = createDirectChat({ id: "dc-2", user1Id: "u1", user2Id: "u3" });
+    prismaMock.directChat.findMany.mockResolvedValue([
+      {
+        ...dc1,
+        User_DirectChat_user1IdToUser: {
+          id: "u1",
+          username: "a",
+          avatar: null,
+        },
+        User_DirectChat_user2IdToUser: {
+          id: "u2",
+          username: "b",
+          avatar: null,
+        },
+        Message: [],
+      },
+      {
+        ...dc2,
+        User_DirectChat_user1IdToUser: {
+          id: "u1",
+          username: "a",
+          avatar: null,
+        },
+        User_DirectChat_user2IdToUser: {
+          id: "u3",
+          username: "b",
+          avatar: null,
+        },
+        Message: [],
+      },
+    ] as any);
+    prismaMock.$queryRaw.mockResolvedValue([]);
+
+    const { inbox, nextCursor } = await getInbox("u1", { limit: 2 });
+
+    expect(inbox).toHaveLength(2);
+    expect(nextCursor).toBeNull();
   });
 });

@@ -71,3 +71,10 @@ export const messageIdParamSchema = z.object({
 export const directChatIdParamSchema = z.object({
   directChatId: z.string().min(1),
 });
+
+// Query params for the DM inbox endpoint. `z.coerce` converts the string
+// query values (Express always sends strings) to the expected types.
+export const getInboxQuerySchema = z.object({
+  cursor: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});

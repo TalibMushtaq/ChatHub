@@ -11,6 +11,7 @@ import {
   startDmSchema,
   directChatIdParamSchema,
   markReadSchema,
+  getInboxQuerySchema,
 } from "@repo/validators";
 
 const startDmLimiter = createRateLimiter({
@@ -50,8 +51,15 @@ router.get(
   "/inbox",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const inbox = await getInbox(req.user.id);
-    res.json({ ok: true, inbox });
+    // Parse optional cursor/limit query params; invalid values fall back to defaults.
+    const query = getInboxQuerySchema.safeParse(req.query);
+    const { cursor, limit } = query.success ? query.data : {};
+
+    const { inbox, nextCursor } = await getInbox(req.user.id, {
+      cursor,
+      limit,
+    });
+    res.json({ ok: true, inbox, nextCursor });
   }),
 );
 

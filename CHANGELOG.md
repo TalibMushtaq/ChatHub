@@ -1,4 +1,9 @@
-## [2026-08-09] - Add Mark as Read / Unread Count
+## [2026-08-11] - DM Inbox Cursor Pagination
+
+**What changed:** `GET /api/dm/inbox` now accepts `cursor` + `limit` query params and returns `nextCursor`. `getInbox` in `apps/server/src/services/direct-chat/getInbox.ts` now takes `{ cursor?, limit? }`, uses `take: limit + 1` with `cursor: { id }` / `skip: 1` to detect and advance pages, and returns `{ inbox, nextCursor }` instead of a bare array. Added `getInboxQuerySchema` (`cursor` string, `limit` int 1–50) to `packages/validators/src/direct-chat.ts` and exported it. `DMChatTopbar.tsx` now follows `nextCursor` through subsequent pages until it finds the open chat's `otherUser`. Added 3 unit tests for pagination in `getInbox.test.ts`.
+**Why:** The inbox returned ALL chats in one response, which grows unboundedly as users accumulate DMs. Cursor pagination bounds the payload and enables future infinite-scroll UI.
+**Impact:** Response shape for `GET /api/dm/inbox` is `{ ok, inbox, nextCursor }` (backward-compatible addition — existing clients still read `.inbox`). Default page size is 50, and the validator caps `limit` at 50. Note: `DMSidebar.tsx` is unchanged and now renders only the first page until it's updated for infinite scroll (see todo.md).
+**Follow-ups:** Update `DMSidebar.tsx` for infinite scroll; default `limit` may need lowering once the client paginates.
 
 **What changed:**
 
