@@ -7,14 +7,38 @@ import { socket } from "../../app/lib/socket";
 import { getErrorMessage } from "../../app/lib/errors";
 import { loadInitialState } from "../../app/lib/initialLoad";
 import { ChatAPI, RoomSocket } from "./api";
-import { ShellContext, type ActiveConv, type ModalEntry, type ToastItem } from "./state";
-import type { AppUser, DMInboxEntry, Invitation, Message, RoomInboxEntry, RoomMember, SearchUser, Tab, ToastType } from "./types";
+import {
+  ShellContext,
+  type ActiveConv,
+  type ModalEntry,
+  type ToastItem,
+} from "./state";
+import type {
+  AppUser,
+  DMInboxEntry,
+  Invitation,
+  Message,
+  RoomInboxEntry,
+  RoomMember,
+  SearchUser,
+  Tab,
+  ToastType,
+} from "./types";
 import AppAvatar from "./AppAvatar";
 import ListPanel from "./ListPanel";
 import ThreadPanel from "./ThreadPanel";
 import Modals from "./Modals";
 import { Toasts } from "./Toasts";
-import { ChatIcon, UsersIcon, SearchIcon, GearIcon, LogoutIcon, SunIcon, MoonIcon, UserIcon } from "./icons";
+import {
+  ChatIcon,
+  UsersIcon,
+  SearchIcon,
+  GearIcon,
+  LogoutIcon,
+  SunIcon,
+  MoonIcon,
+  UserIcon,
+} from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
 
 type AnyMsg = {
@@ -38,7 +62,9 @@ export default function AppShell() {
   const [dmList, setDmList] = useState<DMInboxEntry[]>([]);
   const [roomList, setRoomList] = useState<RoomInboxEntry[]>([]);
   const [msgs, setMsgs] = useState<Record<string, Message[]>>({});
-  const [roomMembers, setRoomMembers] = useState<Record<string, RoomMember[]>>({});
+  const [roomMembers, setRoomMembers] = useState<Record<string, RoomMember[]>>(
+    {},
+  );
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchUser[]>([]);
   const [mStack, setMStack] = useState<ModalEntry[]>([]);
@@ -56,11 +82,15 @@ export default function AppShell() {
   const msgsRef = useRef<Record<string, Message[]>>({});
   const roomMembersRef = useRef<Record<string, RoomMember[]>>({});
 
-  function setMsgsBoth(fn: (prev: Record<string, Message[]>) => Record<string, Message[]>) {
+  function setMsgsBoth(
+    fn: (prev: Record<string, Message[]>) => Record<string, Message[]>,
+  ) {
     msgsRef.current = fn(msgsRef.current);
     setMsgs(msgsRef.current);
   }
-  function setRoomMembersBoth(fn: (prev: Record<string, RoomMember[]>) => Record<string, RoomMember[]>) {
+  function setRoomMembersBoth(
+    fn: (prev: Record<string, RoomMember[]>) => Record<string, RoomMember[]>,
+  ) {
     roomMembersRef.current = fn(roomMembersRef.current);
     setRoomMembers(roomMembersRef.current);
   }
@@ -71,7 +101,10 @@ export default function AppShell() {
   const toast = (text: string, type: ToastType = "info") => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, text, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+    setTimeout(
+      () => setToasts((prev) => prev.filter((t) => t.id !== id)),
+      4000,
+    );
   };
   const openModal = (name: ModalEntry["name"], payload?: unknown) =>
     setMStack((prev) => [...prev, { name, payload }]);
@@ -87,9 +120,11 @@ export default function AppShell() {
   // than leaving the user stuck on the loading screen.
   useEffect(() => {
     let cancelled = false;
-    const live = <A extends unknown[]>(fn: (...args: A) => void) => (...args: A) => {
-      if (!cancelled) fn(...args);
-    };
+    const live =
+      <A extends unknown[]>(fn: (...args: A) => void) =>
+      (...args: A) => {
+        if (!cancelled) fn(...args);
+      };
     void loadInitialState(
       {
         getMe: () => ChatAPI.getMe(),
@@ -139,7 +174,12 @@ export default function AppShell() {
                 displayname: c.otherUser.displayname ?? null,
                 avatar: c.otherUser.avatar ?? null,
               }
-            : { id: msg.senderId ?? "", username: "unknown", displayname: null, avatar: null };
+            : {
+                id: msg.senderId ?? "",
+                username: "unknown",
+                displayname: null,
+                avatar: null,
+              };
         return {
           id: msg.id,
           content: msg.content ?? null,
@@ -158,7 +198,12 @@ export default function AppShell() {
       const sender = members.find((m) => m.user.id === msg.senderId)?.user;
       const u = mine
         ? me()
-        : (sender ?? { id: msg.senderId ?? "", username: msg.senderId?.slice(0, 8) ?? "member", displayname: null, avatar: null });
+        : (sender ?? {
+            id: msg.senderId ?? "",
+            username: msg.senderId?.slice(0, 8) ?? "member",
+            displayname: null,
+            avatar: null,
+          });
       return {
         id: msg.id,
         content: msg.content ?? null,
@@ -200,7 +245,11 @@ export default function AppShell() {
         if (!entry) return prev;
         const rest = prev.filter((e) => e.directChatId !== directChatId);
         return [
-          { ...entry, lastMessage: lastStub(msg), unreadCount: mine ? entry.unreadCount : entry.unreadCount + 1 },
+          {
+            ...entry,
+            lastMessage: lastStub(msg),
+            unreadCount: mine ? entry.unreadCount : entry.unreadCount + 1,
+          },
           ...rest,
         ];
       });
@@ -212,7 +261,11 @@ export default function AppShell() {
         if (!entry) return prev;
         const rest = prev.filter((r) => r.roomId !== roomId);
         return [
-          { ...entry, lastMessage: lastStub(msg), unreadCount: mine ? entry.unreadCount : entry.unreadCount + 1 },
+          {
+            ...entry,
+            lastMessage: lastStub(msg),
+            unreadCount: mine ? entry.unreadCount : entry.unreadCount + 1,
+          },
           ...rest,
         ];
       });
@@ -226,7 +279,10 @@ export default function AppShell() {
       const last = list[list.length - 1];
       if (!last || last.pending) return;
       // DM timelines omit senderId (only User.id), so compare via either field.
-      const mine = last.senderId != null ? last.senderId === userRef.current?.id : last.User?.id === userRef.current?.id;
+      const mine =
+        last.senderId != null
+          ? last.senderId === userRef.current?.id
+          : last.User?.id === userRef.current?.id;
       if (mine) return;
       if (a.kind === "dm") {
         ChatAPI.markDmRead(a.id, last.id).catch(() => {});
@@ -241,25 +297,37 @@ export default function AppShell() {
       const mine = msg.senderId === userRef.current?.id;
       if (a.kind === "dm" && msg.directChatId === a.id) {
         const norm = normalize(a, msg, mine);
-        setMsgsBoth((prev) => ({ ...prev, [`dm:${a.id}`]: upsert(prev[`dm:${a.id}`] ?? [], norm) }));
+        setMsgsBoth((prev) => ({
+          ...prev,
+          [`dm:${a.id}`]: upsert(prev[`dm:${a.id}`] ?? [], norm),
+        }));
         bumpDmList(a.id, norm, mine);
         if (!mine) markReadNow();
       } else if (a.kind === "room" && msg.chatRoomId === a.id) {
         const norm = normalize(a, msg, mine);
-        setMsgsBoth((prev) => ({ ...prev, [`room:${a.id}`]: upsert(prev[`room:${a.id}`] ?? [], norm) }));
+        setMsgsBoth((prev) => ({
+          ...prev,
+          [`room:${a.id}`]: upsert(prev[`room:${a.id}`] ?? [], norm),
+        }));
         bumpRoomList(a.id, norm, mine);
         if (!mine) markReadNow();
       }
     }
 
-    function onEdited(patch: { messageId: string; content: string | null; editedAt: string }) {
+    function onEdited(patch: {
+      messageId: string;
+      content: string | null;
+      editedAt: string;
+    }) {
       const a = activeRef.current;
       if (!a) return;
       const key = `${a.kind}:${a.id}`;
       setMsgsBoth((prev) => ({
         ...prev,
         [key]: (prev[key] ?? []).map((m) =>
-          m.id === patch.messageId ? { ...m, content: patch.content, editedAt: patch.editedAt } : m,
+          m.id === patch.messageId
+            ? { ...m, content: patch.content, editedAt: patch.editedAt }
+            : m,
         ),
       }));
     }
@@ -271,7 +339,14 @@ export default function AppShell() {
       setMsgsBoth((prev) => ({
         ...prev,
         [key]: (prev[key] ?? []).map((m) =>
-          m.id === patch.messageId ? { ...m, isDeleted: true, deletedAt: patch.deletedAt, content: null } : m,
+          m.id === patch.messageId
+            ? {
+                ...m,
+                isDeleted: true,
+                deletedAt: patch.deletedAt,
+                content: null,
+              }
+            : m,
         ),
       }));
     }
@@ -289,13 +364,39 @@ export default function AppShell() {
         .catch(() => {});
     });
 
-    socket.on("directChat:read", ({ directChatId, unreadCount }: { directChatId: string; unreadCount: number }) => {
-      setDmList((prev) => prev.map((e) => (e.directChatId === directChatId ? { ...e, unreadCount } : e)));
-    });
+    socket.on(
+      "directChat:read",
+      ({
+        directChatId,
+        unreadCount,
+      }: {
+        directChatId: string;
+        unreadCount: number;
+      }) => {
+        setDmList((prev) =>
+          prev.map((e) =>
+            e.directChatId === directChatId ? { ...e, unreadCount } : e,
+          ),
+        );
+      },
+    );
 
-    socket.on("chatroom:read", ({ chatRoomId, unreadCount }: { chatRoomId: string; unreadCount: number }) => {
-      setRoomList((prev) => prev.map((r) => (r.roomId === chatRoomId ? { ...r, unreadCount } : r)));
-    });
+    socket.on(
+      "chatroom:read",
+      ({
+        chatRoomId,
+        unreadCount,
+      }: {
+        chatRoomId: string;
+        unreadCount: number;
+      }) => {
+        setRoomList((prev) =>
+          prev.map((r) =>
+            r.roomId === chatRoomId ? { ...r, unreadCount } : r,
+          ),
+        );
+      },
+    );
 
     // Re-join the active conversation after a reconnect (the server drops rooms).
     socket.on("connect", () => {
@@ -335,7 +436,8 @@ export default function AppShell() {
     const key = `${c.kind}:${c.id}`;
     if (!joinedRef.current.has(key)) return;
     joinedRef.current.delete(key);
-    if (c.kind === "dm") socket.emit("directChat:leave", { directChatId: c.id });
+    if (c.kind === "dm")
+      socket.emit("directChat:leave", { directChatId: c.id });
     else socket.emit("chatroom:leave", { chatRoomId: c.id });
   }
 
@@ -346,7 +448,10 @@ export default function AppShell() {
     const list = msgsRef.current[key] ?? [];
     const last = list[list.length - 1];
     if (!last || last.pending) return;
-    const mine = last.senderId != null ? last.senderId === userRef.current?.id : last.User?.id === userRef.current?.id;
+    const mine =
+      last.senderId != null
+        ? last.senderId === userRef.current?.id
+        : last.User?.id === userRef.current?.id;
     if (mine) return;
     if (a.kind === "dm") {
       ChatAPI.markDmRead(a.id, last.id).catch(() => {});
@@ -358,7 +463,10 @@ export default function AppShell() {
   async function loadMessages(c: ActiveConv) {
     const key = `${c.kind}:${c.id}`;
     try {
-      const list = c.kind === "dm" ? await ChatAPI.getDmMessages(c.id) : await ChatAPI.getRoomMessages(c.id);
+      const list =
+        c.kind === "dm"
+          ? await ChatAPI.getDmMessages(c.id)
+          : await ChatAPI.getRoomMessages(c.id);
       setMsgsBoth((prev) => ({ ...prev, [key]: list }));
       markRead();
     } catch (err) {
@@ -375,7 +483,9 @@ export default function AppShell() {
     joinSocket(c);
     if (c.kind === "room") {
       ChatAPI.getRoomMembers(c.id)
-        .then((members) => setRoomMembersBoth((prev) => ({ ...prev, [c.id]: members })))
+        .then((members) =>
+          setRoomMembersBoth((prev) => ({ ...prev, [c.id]: members })),
+        )
         .catch(() => {});
     }
     const key = `${c.kind}:${c.id}`;
@@ -405,29 +515,58 @@ export default function AppShell() {
       if (files.length) {
         const dt = new DataTransfer();
         files.forEach((f) => dt.items.add(f));
-        const { attachmentIds, messageType } = await ChatAPI.upload(a.kind, a.id, dt.files);
+        const { attachmentIds, messageType } = await ChatAPI.upload(
+          a.kind,
+          a.id,
+          dt.files,
+        );
         if (a.kind === "dm") {
-          msg = await ChatAPI.sendDmMessage(a.id, { content: content || undefined, messageType, attachmentIds });
+          msg = await ChatAPI.sendDmMessage(a.id, {
+            content: content || undefined,
+            messageType,
+            attachmentIds,
+          });
         } else {
-          const res = await RoomSocket.send(a.id, { content: content || undefined, messageType, attachmentIds });
+          const res = await RoomSocket.send(a.id, {
+            content: content || undefined,
+            messageType,
+            attachmentIds,
+          });
           msg = res.message ?? null;
         }
       } else {
         if (a.kind === "dm") {
-          msg = await ChatAPI.sendDmMessage(a.id, { content, messageType: "TEXT" });
+          msg = await ChatAPI.sendDmMessage(a.id, {
+            content,
+            messageType: "TEXT",
+          });
         } else {
-          const res = await RoomSocket.send(a.id, { content, messageType: "TEXT" });
+          const res = await RoomSocket.send(a.id, {
+            content,
+            messageType: "TEXT",
+          });
           msg = res.message ?? null;
         }
       }
       if (msg) {
         const me = userRef.current!;
-        const norm = { ...msg, User: { id: me.id, username: me.username, displayname: me.displayname, avatar: me.avatar } };
+        const norm = {
+          ...msg,
+          User: {
+            id: me.id,
+            username: me.username,
+            displayname: me.displayname,
+            avatar: me.avatar,
+          },
+        };
         const key = `${a.kind}:${a.id}`;
         setMsgsBoth((prev) => {
           const list = prev[key] ?? [];
           const idx = list.findIndex((m) => m.id === msg.id);
-          const next = idx >= 0 ? list.map((m) => (m.id === msg.id ? norm : m)) : [...list, norm];
+          const next =
+            idx >= 0
+              ? list.map((m) => (m.id === msg.id ? norm : m))
+              : [...list, norm];
           return { ...prev, [key]: next };
         });
         const stub = {
@@ -441,13 +580,19 @@ export default function AppShell() {
           setDmList((prev) => {
             const entry = prev.find((e) => e.directChatId === a.id);
             if (!entry) return prev;
-            return [{ ...entry, lastMessage: stub }, ...prev.filter((e) => e.directChatId !== a.id)];
+            return [
+              { ...entry, lastMessage: stub },
+              ...prev.filter((e) => e.directChatId !== a.id),
+            ];
           });
         } else {
           setRoomList((prev) => {
             const entry = prev.find((r) => r.roomId === a.id);
             if (!entry) return prev;
-            return [{ ...entry, lastMessage: stub }, ...prev.filter((r) => r.roomId !== a.id)];
+            return [
+              { ...entry, lastMessage: stub },
+              ...prev.filter((r) => r.roomId !== a.id),
+            ];
           });
         }
       }
@@ -457,7 +602,10 @@ export default function AppShell() {
     }
   }
 
-  async function editMessage(messageId: string, content: string): Promise<void> {
+  async function editMessage(
+    messageId: string,
+    content: string,
+  ): Promise<void> {
     const a = activeRef.current;
     if (!a) throw new Error("No active conversation");
     if (a.kind === "dm") await ChatAPI.editDmMessage(messageId, content);
@@ -490,7 +638,10 @@ export default function AppShell() {
 
   async function refreshLists() {
     try {
-      const [dm, rooms] = await Promise.all([ChatAPI.getDmInbox(), ChatAPI.getRooms()]);
+      const [dm, rooms] = await Promise.all([
+        ChatAPI.getDmInbox(),
+        ChatAPI.getRooms(),
+      ]);
       setDmList(dm.items);
       setRoomList(rooms.items);
     } catch (err) {
@@ -524,7 +675,10 @@ export default function AppShell() {
         <div className="empty-thread" style={{ height: "100dvh" }}>
           <AppAvatar name="ChatHubby" size={96} square />
           <p>{loadError}</p>
-          <button className="btn btn-primary" onClick={() => window.location.reload()}>
+          <button
+            className="btn btn-primary"
+            onClick={() => window.location.reload()}
+          >
             Retry
           </button>
         </div>
@@ -543,8 +697,18 @@ export default function AppShell() {
     );
   }
 
-  const navItem = (t: Tab, label: string, Icon: React.ReactNode, unread: number) => (
-    <button className={`nav-item ${tab === t ? "on" : ""}`} onClick={() => setTab(t)} aria-label={label} title={label}>
+  const navItem = (
+    t: Tab,
+    label: string,
+    Icon: React.ReactNode,
+    unread: number,
+  ) => (
+    <button
+      className={`nav-item ${tab === t ? "on" : ""}`}
+      onClick={() => setTab(t)}
+      aria-label={label}
+      title={label}
+    >
       {Icon}
       {unread > 0 && <span className="nab">{unread > 9 ? "9+" : unread}</span>}
       <span>{label}</span>
@@ -584,7 +748,8 @@ export default function AppShell() {
     joinRequests: (roomId: string) => ChatAPI.getJoinRequests(roomId),
     joinLinks: () => ChatAPI.myJoinLinks(),
     createLink: (roomId: string) => ChatAPI.createJoinLink(roomId),
-    deactivateLink: (roomId: string, linkId: string) => ChatAPI.deactivateJoinLink(roomId, linkId),
+    deactivateLink: (roomId: string, linkId: string) =>
+      ChatAPI.deactivateJoinLink(roomId, linkId),
     roomInfo,
   };
 
@@ -603,14 +768,32 @@ export default function AppShell() {
               {navItem("search", "Search", <SearchIcon />, 0)}
             </div>
             <div className="me">
-              <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle theme">
+              <button
+                className="icon-btn"
+                onClick={toggleTheme}
+                aria-label="Toggle theme"
+                title="Toggle theme"
+              >
                 {theme === "dark" ? <SunIcon /> : <MoonIcon />}
               </button>
-              <button className="icon-btn" onClick={() => setFmenu((f) => !f)} aria-label="Profile menu" title="Profile">
-                <AppAvatar name={user.displayname ?? user.username} src={user.avatar} size={34} />
+              <button
+                className="icon-btn"
+                onClick={() => setFmenu((f) => !f)}
+                aria-label="Profile menu"
+                title="Profile"
+              >
+                <AppAvatar
+                  name={user.displayname ?? user.username}
+                  src={user.avatar}
+                  size={34}
+                />
               </button>
               {fmenu && (
-                <div className="fmenu" style={{ left: 68, bottom: 12 }} onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="fmenu"
+                  style={{ left: 68, bottom: 12 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <button
                     onClick={() => {
                       setFmenu(false);
@@ -655,21 +838,39 @@ export default function AppShell() {
         {/* Mobile bottom nav */}
         <nav className="bottomnav">
           <div className="bn-row">
-            <button className={`bn-item ${tab === "dm" ? "on" : ""}`} onClick={() => setTab("dm")}>
+            <button
+              className={`bn-item ${tab === "dm" ? "on" : ""}`}
+              onClick={() => setTab("dm")}
+            >
               <ChatIcon />
-              {dmUnread > 0 && <span className="nab">{dmUnread > 9 ? "9+" : dmUnread}</span>}
+              {dmUnread > 0 && (
+                <span className="nab">{dmUnread > 9 ? "9+" : dmUnread}</span>
+              )}
               Chat
             </button>
-            <button className={`bn-item ${tab === "room" ? "on" : ""}`} onClick={() => setTab("room")}>
+            <button
+              className={`bn-item ${tab === "room" ? "on" : ""}`}
+              onClick={() => setTab("room")}
+            >
               <UsersIcon />
-              {roomUnread > 0 && <span className="nab">{roomUnread > 9 ? "9+" : roomUnread}</span>}
+              {roomUnread > 0 && (
+                <span className="nab">
+                  {roomUnread > 9 ? "9+" : roomUnread}
+                </span>
+              )}
               Rooms
             </button>
-            <button className={`bn-item ${tab === "search" ? "on" : ""}`} onClick={() => setTab("search")}>
+            <button
+              className={`bn-item ${tab === "search" ? "on" : ""}`}
+              onClick={() => setTab("search")}
+            >
               <SearchIcon />
               Search
             </button>
-            <button className={`bn-item ${tab === "settings" ? "on" : ""}`} onClick={() => setTab("settings")}>
+            <button
+              className={`bn-item ${tab === "settings" ? "on" : ""}`}
+              onClick={() => setTab("settings")}
+            >
               <GearIcon />
               Settings
             </button>

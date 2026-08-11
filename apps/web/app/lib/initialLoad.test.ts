@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadInitialState, type InitialLoadApi, type InitialLoadCallbacks } from "./initialLoad";
-import type { AppUser, DMInboxEntry, RoomInboxEntry } from "../../components/app/types";
+import {
+  loadInitialState,
+  type InitialLoadApi,
+  type InitialLoadCallbacks,
+} from "./initialLoad";
+import type {
+  AppUser,
+  DMInboxEntry,
+  RoomInboxEntry,
+} from "../../components/app/types";
 
 const user: AppUser = {
   id: "u1",
@@ -48,11 +56,16 @@ const roomItems: RoomInboxEntry[] = [
   },
 ];
 
-function callbacks(): { cb: InitialLoadCallbacks; calls: Record<string, unknown[]> } {
+function callbacks(): {
+  cb: InitialLoadCallbacks;
+  calls: Record<string, unknown[]>;
+} {
   const calls: Record<string, unknown[]> = {};
-  const track = (name: string) => (...args: unknown[]) => {
-    calls[name] = args;
-  };
+  const track =
+    (name: string) =>
+    (...args: unknown[]) => {
+      calls[name] = args;
+    };
   return {
     cb: {
       onUser: track("onUser"),
@@ -93,7 +106,11 @@ describe("loadInitialState", () => {
     const { cb, calls } = callbacks();
 
     await loadInitialState(
-      api({ getMe: vi.fn().mockRejectedValue({ isAxiosError: true, response: { status: 401 } }) }),
+      api({
+        getMe: vi
+          .fn()
+          .mockRejectedValue({ isAxiosError: true, response: { status: 401 } }),
+      }),
       cb,
     );
 
@@ -126,7 +143,10 @@ describe("loadInitialState", () => {
   it("falls back to a generic message on a non-axios /auth/me error", async () => {
     const { cb, calls } = callbacks();
 
-    await loadInitialState(api({ getMe: vi.fn().mockRejectedValue("raw string") }), cb);
+    await loadInitialState(
+      api({ getMe: vi.fn().mockRejectedValue("raw string") }),
+      cb,
+    );
 
     expect(calls.onLoadError).toEqual(["Couldn't reach the server"]);
     expect(calls.onUser).toBeUndefined();

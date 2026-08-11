@@ -246,22 +246,22 @@ export function emitRoomAck<T extends AckResult>(
   payload: Record<string, unknown>,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    socket.emit(
-      event,
-      {
-        payload,
-        callback: (res: T) => {
-          if (res?.ok) resolve(res);
-          else reject(new Error(res?.error || "Request failed"));
-        },
+    socket.emit(event, {
+      payload,
+      callback: (res: T) => {
+        if (res?.ok) resolve(res);
+        else reject(new Error(res?.error || "Request failed"));
       },
-    );
+    });
   });
 }
 
 /** Promise-wrapped room operations used by the composer. */
 export const RoomSocket = {
-  send(chatRoomId: string, body: { content?: string; messageType: string; attachmentIds?: string[] }) {
+  send(
+    chatRoomId: string,
+    body: { content?: string; messageType: string; attachmentIds?: string[] },
+  ) {
     return emitRoomAck<AckResult & { message?: Message }>("chatroom:message", {
       chatRoomId,
       content: body.content,

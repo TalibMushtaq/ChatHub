@@ -11,7 +11,12 @@ interface AppAvatarProps {
   square?: boolean;
 }
 
-export default function AppAvatar({ name, src, size = 36, square }: AppAvatarProps) {
+export default function AppAvatar({
+  name,
+  src,
+  size = 36,
+  square,
+}: AppAvatarProps) {
   const display = name || "?";
   if (src) {
     return (
@@ -20,7 +25,11 @@ export default function AppAvatar({ name, src, size = 36, square }: AppAvatarPro
         src={src}
         alt={display}
         className="avatar"
-        style={{ width: size, height: size, borderRadius: square ? "10px" : "50%" }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: square ? "10px" : "50%",
+        }}
       />
     );
   }

@@ -26,7 +26,19 @@ function lastText(content: string | null, messageType: string): string {
 }
 
 export default function ListPanel() {
-  const { tab, q, setQ, search, dmList, roomList, active, listLoading, openConv, openModal, toast } = useShell();
+  const {
+    tab,
+    q,
+    setQ,
+    search,
+    dmList,
+    roomList,
+    active,
+    listLoading,
+    openConv,
+    openModal,
+    toast,
+  } = useShell();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced user search while typing in the list search box.
@@ -43,7 +55,11 @@ export default function ListPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  async function startDmWith(user: { id: string; username: string; displayname?: string | null }) {
+  async function startDmWith(user: {
+    id: string;
+    username: string;
+    displayname?: string | null;
+  }) {
     try {
       const chat = await ChatAPI.startDm(user.id);
       openConv({ kind: "dm", id: chat.id, otherUser: user });
@@ -52,7 +68,14 @@ export default function ListPanel() {
     }
   }
 
-  const title = tab === "dm" ? "Messages" : tab === "room" ? "Rooms" : tab === "search" ? "Search" : "Settings";
+  const title =
+    tab === "dm"
+      ? "Messages"
+      : tab === "room"
+        ? "Rooms"
+        : tab === "search"
+          ? "Search"
+          : "Settings";
 
   return (
     <>
@@ -90,29 +113,53 @@ export default function ListPanel() {
             ) : listLoading ? (
               <Skeletons />
             ) : dmList.length === 0 ? (
-              <Empty text="No messages yet" sub="Tap + to start a conversation." />
+              <Empty
+                text="No messages yet"
+                sub="Tap + to start a conversation."
+              />
             ) : (
               dmList.map((e) => (
                 <button
                   key={e.directChatId}
                   className={`conv ${active && active.kind === "dm" && active.id === e.directChatId ? "on" : ""}`}
-                  onClick={() => openConv({ kind: "dm", id: e.directChatId, otherUser: e.otherUser })}
+                  onClick={() =>
+                    openConv({
+                      kind: "dm",
+                      id: e.directChatId,
+                      otherUser: e.otherUser,
+                    })
+                  }
                 >
-                  <AppAvatar name={displayName(e.otherUser)} src={e.otherUser.avatar} size={44} />
+                  <AppAvatar
+                    name={displayName(e.otherUser)}
+                    src={e.otherUser.avatar}
+                    size={44}
+                  />
                   <div className="mid">
                     <div className="line1">
                       <span className="name">{displayName(e.otherUser)}</span>
-                      {e.lastMessage && <span className="time">{fmtList(e.lastMessage.createdAt)}</span>}
+                      {e.lastMessage && (
+                        <span className="time">
+                          {fmtList(e.lastMessage.createdAt)}
+                        </span>
+                      )}
                     </div>
                     <div className="line2">
                       <span className="preview">
                         {e.lastMessage?.isDeleted
                           ? "Message deleted"
                           : e.lastMessage
-                            ? lastText(e.lastMessage.content, e.lastMessage.messageType)
+                            ? lastText(
+                                e.lastMessage.content,
+                                e.lastMessage.messageType,
+                              )
                             : "Say hi 👋"}
                       </span>
-                      {e.unreadCount > 0 && <span className="unread">{e.unreadCount > 9 ? "9+" : e.unreadCount}</span>}
+                      {e.unreadCount > 0 && (
+                        <span className="unread">
+                          {e.unreadCount > 9 ? "9+" : e.unreadCount}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </button>
@@ -129,13 +176,22 @@ export default function ListPanel() {
               <Empty text="No rooms yet" sub="Tap + to create a room." />
             ) : (
               roomList
-                .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.toLowerCase()))
+                .filter(
+                  (r) =>
+                    !q.trim() || r.name.toLowerCase().includes(q.toLowerCase()),
+                )
                 .map((r) => (
                   <button
                     key={r.roomId}
                     className={`conv ${active && active.kind === "room" && active.id === r.roomId ? "on" : ""}`}
                     onClick={() =>
-                      openConv({ kind: "room", id: r.roomId, name: r.name, description: r.description, myRole: r.myRole })
+                      openConv({
+                        kind: "room",
+                        id: r.roomId,
+                        name: r.name,
+                        description: r.description,
+                        myRole: r.myRole,
+                      })
                     }
                   >
                     <AppAvatar name={r.name} size={44} square />
@@ -144,20 +200,33 @@ export default function ListPanel() {
                         <span className="name">
                           # {r.name}
                           {(r.myRole === "OWNER" || r.myRole === "ADMIN") && (
-                            <span className={`chip ${r.myRole.toLowerCase()}`}>{r.myRole.toLowerCase()}</span>
+                            <span className={`chip ${r.myRole.toLowerCase()}`}>
+                              {r.myRole.toLowerCase()}
+                            </span>
                           )}
                         </span>
-                        {r.lastMessage && <span className="time">{fmtList(r.lastMessage.createdAt)}</span>}
+                        {r.lastMessage && (
+                          <span className="time">
+                            {fmtList(r.lastMessage.createdAt)}
+                          </span>
+                        )}
                       </div>
                       <div className="line2">
                         <span className="preview">
                           {r.lastMessage?.isDeleted
                             ? "Message deleted"
                             : r.lastMessage
-                              ? lastText(r.lastMessage.content, r.lastMessage.messageType)
+                              ? lastText(
+                                  r.lastMessage.content,
+                                  r.lastMessage.messageType,
+                                )
                               : `${r.memberCount} member${r.memberCount === 1 ? "" : "s"}`}
                         </span>
-                        {r.unreadCount > 0 && <span className="unread">{r.unreadCount > 9 ? "9+" : r.unreadCount}</span>}
+                        {r.unreadCount > 0 && (
+                          <span className="unread">
+                            {r.unreadCount > 9 ? "9+" : r.unreadCount}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -167,7 +236,16 @@ export default function ListPanel() {
         )}
 
         {tab === "search" && (
-          <>{q.trim() ? <SearchResults onPick={startDmWith} /> : <Empty text="Find people" sub="Search for a username to start a new chat." />}</>
+          <>
+            {q.trim() ? (
+              <SearchResults onPick={startDmWith} />
+            ) : (
+              <Empty
+                text="Find people"
+                sub="Search for a username to start a new chat."
+              />
+            )}
+          </>
         )}
 
         {tab === "settings" && <SettingsMenu />}
@@ -176,7 +254,15 @@ export default function ListPanel() {
   );
 }
 
-function SearchResults({ onPick }: { onPick: (u: { id: string; username: string; displayname?: string | null }) => void }) {
+function SearchResults({
+  onPick,
+}: {
+  onPick: (u: {
+    id: string;
+    username: string;
+    displayname?: string | null;
+  }) => void;
+}) {
   const { results } = useShell();
   if (results.length === 0) return <Empty text="No users found" />;
   return (
@@ -202,18 +288,60 @@ function SearchResults({ onPick }: { onPick: (u: { id: string; username: string;
 function SettingsMenu() {
   const { openModal } = useShell();
   const items = [
-    { label: "My Account", sub: "Email, sign out, theme", icon: <GearIcon />, modal: "account" },
-    { label: "Profile", sub: "Your public info", icon: <UserIcon />, modal: "profile" },
-    { label: "Recovery codes", sub: "Regenerate your backup codes", icon: <RefreshIcon />, modal: "recovery" },
-    { label: "Received invitations", sub: "Pending room invites", icon: <MailIcon />, modal: "receivedInvites" },
-    { label: "Sent invitations", sub: "Invites you have sent", icon: <MailIcon />, modal: "sentInvites" },
-    { label: "My join links", sub: "Manage shared room links", icon: <LinkIcon />, modal: "myLinks" },
+    {
+      label: "My Account",
+      sub: "Email, sign out, theme",
+      icon: <GearIcon />,
+      modal: "account",
+    },
+    {
+      label: "Profile",
+      sub: "Your public info",
+      icon: <UserIcon />,
+      modal: "profile",
+    },
+    {
+      label: "Recovery codes",
+      sub: "Regenerate your backup codes",
+      icon: <RefreshIcon />,
+      modal: "recovery",
+    },
+    {
+      label: "Received invitations",
+      sub: "Pending room invites",
+      icon: <MailIcon />,
+      modal: "receivedInvites",
+    },
+    {
+      label: "Sent invitations",
+      sub: "Invites you have sent",
+      icon: <MailIcon />,
+      modal: "sentInvites",
+    },
+    {
+      label: "My join links",
+      sub: "Manage shared room links",
+      icon: <LinkIcon />,
+      modal: "myLinks",
+    },
   ] as const;
   return (
     <>
       {items.map((it) => (
-        <button key={it.label} className="conv" onClick={() => openModal(it.modal)}>
-          <span className="avatar" style={{ width: 44, height: 44, fontSize: 16, background: "var(--surface-2)" }}>
+        <button
+          key={it.label}
+          className="conv"
+          onClick={() => openModal(it.modal)}
+        >
+          <span
+            className="avatar"
+            style={{
+              width: 44,
+              height: 44,
+              fontSize: 16,
+              background: "var(--surface-2)",
+            }}
+          >
             {it.icon}
           </span>
           <div className="mid">

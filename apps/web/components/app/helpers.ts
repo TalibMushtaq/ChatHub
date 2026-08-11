@@ -15,12 +15,17 @@ export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
+  return (
+    parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)
+  ).toUpperCase();
 }
 
 /** Display name fallback chain used everywhere a user is rendered. */
 export function displayName(
-  u: { displayname?: string | null; username?: string | null } | null | undefined,
+  u:
+    | { displayname?: string | null; username?: string | null }
+    | null
+    | undefined,
 ): string {
   return u?.displayname || u?.username || "Unknown";
 }
@@ -37,7 +42,8 @@ export function fmtTime(iso: string | Date): string {
 export function fmtDay(iso: string | Date): string {
   const d = new Date(iso);
   const now = new Date();
-  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const startOf = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOf(now) - startOf(d)) / 86400000);
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
@@ -56,7 +62,10 @@ export function fmtList(iso: string | Date | null | undefined): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d`;
-  return new Date(iso).toLocaleDateString([], { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
+  });
 }
 
 /** Human-readable file size. */

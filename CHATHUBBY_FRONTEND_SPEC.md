@@ -7,6 +7,7 @@
 ## Application Overview
 
 **ChatHubby** is a real-time chat application supporting:
+
 - User authentication (email/username + password) with Argon2id hashing
 - Direct messages (DMs) between two users
 - Group chat rooms with role-based membership (OWNER, ADMIN, MEMBER)
@@ -17,6 +18,7 @@
 - Recovery code-based password reset
 
 **Tech stack:**
+
 - Backend: Express.js + Socket.IO + Prisma + PostgreSQL + Redis
 - Server port: 3100
 - Auth: Session-based (`express-session` with Redis store)
@@ -55,6 +57,7 @@
 ### Password Reset
 
 Uses **recovery codes** (not email-based):
+
 1. User receives 10 recovery codes at signup (format: `RC_XXXXXX.XXXX-XXXX-XXXX`)
 2. Codes are shown once and never retrievable again
 3. Reset: `POST /api/auth/forgot-password` with `{ username, recoveryCode, newPassword }`
@@ -66,27 +69,27 @@ Uses **recovery codes** (not email-based):
 
 ### User Roles (Chat Rooms)
 
-| Role    | Description                    |
-| ------- | ------------------------------ |
-| OWNER   | Created the room. Full control. |
-| ADMIN   | Can manage members, invitations, join links, join requests |
-| MEMBER  | Default role for joined users  |
+| Role   | Description                                                |
+| ------ | ---------------------------------------------------------- |
+| OWNER  | Created the room. Full control.                            |
+| ADMIN  | Can manage members, invitations, join links, join requests |
+| MEMBER | Default role for joined users                              |
 
 ### Permission Matrix
 
-| Action                       | Unauth | MEMBER | ADMIN | OWNER |
-| ---------------------------- | :----: | :----: | :---: | :---: |
-| View room list               |   No   |  Yes   |  Yes  |  Yes  |
-| Send room message            |   No   |  Yes   |  Yes  |  Yes  |
-| Edit own room message (5m)   |   No   |  Yes   |  Yes  |  Yes  |
-| Delete own room message (30m)|   No   |  Yes   |  Yes  |  Yes  |
-| Invite user to room          |   No   |   No   |  Yes  |  Yes  |
-| Manage join requests         |   No   |   No   |  Yes  |  Yes  |
-| Create/deactivate join links |   No   |   No   |  Yes  |  Yes  |
-| Send DM                      |   No   |  Yes   |  Yes  |  Yes  |
-| Edit own DM message (5m)     |   No   |  Yes   |  Yes  |  Yes  |
-| Delete own DM message (30m)  |   No   |  Yes   |  Yes  |  Yes  |
-| Search users                 |   No   |  Yes   |  Yes  |  Yes  |
+| Action                        | Unauth | MEMBER | ADMIN | OWNER |
+| ----------------------------- | :----: | :----: | :---: | :---: |
+| View room list                |   No   |  Yes   |  Yes  |  Yes  |
+| Send room message             |   No   |  Yes   |  Yes  |  Yes  |
+| Edit own room message (5m)    |   No   |  Yes   |  Yes  |  Yes  |
+| Delete own room message (30m) |   No   |  Yes   |  Yes  |  Yes  |
+| Invite user to room           |   No   |   No   |  Yes  |  Yes  |
+| Manage join requests          |   No   |   No   |  Yes  |  Yes  |
+| Create/deactivate join links  |   No   |   No   |  Yes  |  Yes  |
+| Send DM                       |   No   |  Yes   |  Yes  |  Yes  |
+| Edit own DM message (5m)      |   No   |  Yes   |  Yes  |  Yes  |
+| Delete own DM message (30m)   |   No   |  Yes   |  Yes  |  Yes  |
+| Search users                  |   No   |  Yes   |  Yes  |  Yes  |
 
 ### DM Access
 
@@ -125,6 +128,7 @@ All endpoints are prefixed with `/api`.
 ### Rate Limit Headers
 
 Rate-limited endpoints return these headers:
+
 - `RateLimit-Limit`: Max attempts in the window
 - `RateLimit-Remaining`: Remaining attempts
 - `RateLimit-Reset`: Seconds until window resets
@@ -132,42 +136,42 @@ Rate-limited endpoints return these headers:
 
 ### Endpoint Inventory
 
-| # | Method | Endpoint                                | Auth | Admin | Rate Limit         |
-|---| ------ | --------------------------------------- | :--: | :---: | ------------------ |
-| 1 | GET    | `/api/csrf-token`                       | No   | No    | No                 |
-| 2 | POST   | `/api/auth/signup`                      | No   | No    | 5/15m per IP:email |
-| 3 | POST   | `/api/auth/login`                       | No   | No    | 5/15m per IP:user  |
-| 4 | POST   | `/api/auth/logout`                      | No   | No    | No                 |
-| 5 | GET    | `/api/auth/me`                          | Yes  | No    | No                 |
-| 6 | POST   | `/api/auth/forgot-password`             | No   | No    | 5/15m IP, 3/15m user |
-| 7 | POST   | `/api/auth/recovery-codes`              | Yes  | No    | No                 |
-| 8 | POST   | `/api/dm/start-dm/:userId`              | Yes  | No    | 30/m per user      |
-| 9 | GET    | `/api/dm/inbox`                         | Yes  | No    | No                 |
-|10 | POST   | `/api/dm/:directChatId/mark-read`       | Yes  | No    | 120/m per user     |
-|11 | POST   | `/api/dm/:directChatId/message`         | Yes  | No    | 120/m per user     |
-|12 | GET    | `/api/dm/:directChatId/messages`        | Yes  | No    | No                 |
-|13 | PATCH  | `/api/dm/message/:messageId`            | Yes  | No    | 30/m per user      |
-|14 | DELETE | `/api/dm/message/:messageId`            | Yes  | No    | 30/m per user      |
-|15 | POST   | `/api/room/rooms`                       | Yes  | No    | No                 |
-|16 | GET    | `/api/room/rooms`                       | Yes  | No    | No                 |
-|17 | POST   | `/api/room/:chatRoomId/mark-read`       | Yes  | No    | 120/m per user     |
-|18 | POST   | `/api/room/:roomId/invitations`         | Yes  | Yes   | No                 |
-|19 | GET    | `/api/room/invitation/sent`             | Yes  | No    | No                 |
-|20 | GET    | `/api/room/invitation/received`         | Yes  | No    | No                 |
-|21 | PATCH  | `/api/room/invitations/:invitationId`   | Yes  | No    | No                 |
-|22 | POST   | `/api/room/:roomId/join-links`          | Yes  | Yes   | No                 |
-|23 | GET    | `/api/room/join/:token`                 | Yes  | No    | No                 |
-|24 | POST   | `/api/room/join/:token`                 | Yes  | No    | No                 |
-|25 | PATCH  | `/api/room/:roomId/join-links/:linkId`  | Yes  | Yes   | No                 |
-|26 | GET    | `/api/room/join-links/mine`             | Yes  | No    | No                 |
-|27 | POST   | `/api/room/:roomId/join-request`        | Yes  | No    | No                 |
-|28 | GET    | `/api/room/:roomId/join-requests`       | Yes  | Yes   | No                 |
-|29 | PATCH  | `/api/room/:roomId/join-requests/:requestId` | Yes | Yes | No            |
-|30 | POST   | `/api/attachments/presign`              | Yes  | No    | 30/m per user      |
-|31 | GET    | `/api/attachments/:attachmentId`        | Yes  | No    | No                 |
-|32 | DELETE | `/api/attachments/:attachmentId`        | Yes  | No    | No                 |
-|33 | GET    | `/api/search/users/search`              | Yes  | No    | 20/m per user      |
-|34 | GET    | `/api/search/users/:id`                 | Yes  | No    | 40/m per user      |
+| #   | Method | Endpoint                                     | Auth | Admin | Rate Limit           |
+| --- | ------ | -------------------------------------------- | :--: | :---: | -------------------- |
+| 1   | GET    | `/api/csrf-token`                            |  No  |  No   | No                   |
+| 2   | POST   | `/api/auth/signup`                           |  No  |  No   | 5/15m per IP:email   |
+| 3   | POST   | `/api/auth/login`                            |  No  |  No   | 5/15m per IP:user    |
+| 4   | POST   | `/api/auth/logout`                           |  No  |  No   | No                   |
+| 5   | GET    | `/api/auth/me`                               | Yes  |  No   | No                   |
+| 6   | POST   | `/api/auth/forgot-password`                  |  No  |  No   | 5/15m IP, 3/15m user |
+| 7   | POST   | `/api/auth/recovery-codes`                   | Yes  |  No   | No                   |
+| 8   | POST   | `/api/dm/start-dm/:userId`                   | Yes  |  No   | 30/m per user        |
+| 9   | GET    | `/api/dm/inbox`                              | Yes  |  No   | No                   |
+| 10  | POST   | `/api/dm/:directChatId/mark-read`            | Yes  |  No   | 120/m per user       |
+| 11  | POST   | `/api/dm/:directChatId/message`              | Yes  |  No   | 120/m per user       |
+| 12  | GET    | `/api/dm/:directChatId/messages`             | Yes  |  No   | No                   |
+| 13  | PATCH  | `/api/dm/message/:messageId`                 | Yes  |  No   | 30/m per user        |
+| 14  | DELETE | `/api/dm/message/:messageId`                 | Yes  |  No   | 30/m per user        |
+| 15  | POST   | `/api/room/rooms`                            | Yes  |  No   | No                   |
+| 16  | GET    | `/api/room/rooms`                            | Yes  |  No   | No                   |
+| 17  | POST   | `/api/room/:chatRoomId/mark-read`            | Yes  |  No   | 120/m per user       |
+| 18  | POST   | `/api/room/:roomId/invitations`              | Yes  |  Yes  | No                   |
+| 19  | GET    | `/api/room/invitation/sent`                  | Yes  |  No   | No                   |
+| 20  | GET    | `/api/room/invitation/received`              | Yes  |  No   | No                   |
+| 21  | PATCH  | `/api/room/invitations/:invitationId`        | Yes  |  No   | No                   |
+| 22  | POST   | `/api/room/:roomId/join-links`               | Yes  |  Yes  | No                   |
+| 23  | GET    | `/api/room/join/:token`                      | Yes  |  No   | No                   |
+| 24  | POST   | `/api/room/join/:token`                      | Yes  |  No   | No                   |
+| 25  | PATCH  | `/api/room/:roomId/join-links/:linkId`       | Yes  |  Yes  | No                   |
+| 26  | GET    | `/api/room/join-links/mine`                  | Yes  |  No   | No                   |
+| 27  | POST   | `/api/room/:roomId/join-request`             | Yes  |  No   | No                   |
+| 28  | GET    | `/api/room/:roomId/join-requests`            | Yes  |  Yes  | No                   |
+| 29  | PATCH  | `/api/room/:roomId/join-requests/:requestId` | Yes  |  Yes  | No                   |
+| 30  | POST   | `/api/attachments/presign`                   | Yes  |  No   | 30/m per user        |
+| 31  | GET    | `/api/attachments/:attachmentId`             | Yes  |  No   | No                   |
+| 32  | DELETE | `/api/attachments/:attachmentId`             | Yes  |  No   | No                   |
+| 33  | GET    | `/api/search/users/search`                   | Yes  |  No   | 20/m per user        |
+| 34  | GET    | `/api/search/users/:id`                      | Yes  |  No   | 40/m per user        |
 
 ---
 
@@ -179,6 +183,7 @@ Returns a CSRF token for state-changing requests.
 
 **Auth:** No
 **Response 200:**
+
 ```json
 { "csrfToken": "string" }
 ```
@@ -192,15 +197,18 @@ Creates a new user account and establishes a session.
 **Auth:** No (but if already logged in, returns `{ ok: true, message: "Already logged in", userId }`)
 **Rate Limit:** 5 requests per 15 minutes per IP:email
 **Request Body:**
+
 ```json
 {
-  "email": "user@example.com",        // required, valid email, trimmed
-  "username": "johndoe",              // required, 3-20 chars, alphanumeric + underscore
-  "displayname": "John Doe",          // required, 3-20 chars
-  "password": "securepass123"         // required, 8-72 chars
+  "email": "user@example.com", // required, valid email, trimmed
+  "username": "johndoe", // required, 3-20 chars, alphanumeric + underscore
+  "displayname": "John Doe", // required, 3-20 chars
+  "password": "securepass123" // required, 8-72 chars
 }
 ```
+
 **Response 201:**
+
 ```json
 {
   "ok": true,
@@ -214,7 +222,9 @@ Creates a new user account and establishes a session.
   "recoveryCodes": ["RC_XXXXXX.XXXX-XXXX-XXXX", "..."]
 }
 ```
+
 **Error Responses:**
+
 - `400` — Validation error: `{ ok: false, error: "field: message" }`
 - `409` — Duplicate: `{ ok: false, error: "Email already exists" }` or `{ ok: false, error: "Username already exists" }`
 - `429` — Rate limited
@@ -230,6 +240,7 @@ Authenticates a user by email or username + password.
 **Auth:** No (but if already logged in, returns `{ ok: true, message: "Already logged in", userId }`)
 **Rate Limit:** 5 requests per 15 minutes per IP:identifier
 **Request Body (union — provide one):**
+
 ```json
 // Option A: email
 { "email": "user@example.com", "password": "securepass123" }
@@ -237,7 +248,9 @@ Authenticates a user by email or username + password.
 // Option B: username
 { "username": "johndoe", "password": "securepass123" }
 ```
+
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -249,7 +262,9 @@ Authenticates a user by email or username + password.
   }
 }
 ```
+
 **Error Responses:**
+
 - `400` — Invalid input: `{ ok: false, error: "Invalid input" }`
 - `401` — Invalid credentials: `{ ok: false, error: "Invalid credentials" }`
 - `429` — Rate limited
@@ -264,9 +279,11 @@ Destroys the session and clears the cookie.
 
 **Auth:** No (but requires an active session to do anything meaningful)
 **Response 200:**
+
 ```json
 { "ok": true }
 ```
+
 **Side effects:** `chathubby.sid` cookie is cleared.
 
 ---
@@ -277,6 +294,7 @@ Returns the authenticated user's profile.
 
 **Auth:** Yes
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -290,7 +308,9 @@ Returns the authenticated user's profile.
   }
 }
 ```
+
 **Error Responses:**
+
 - `401` — `{ ok: false, error: "Unauthorized" }`
 
 ---
@@ -302,6 +322,7 @@ Resets password using a recovery code.
 **Auth:** No
 **Rate Limit:** 5/15m per IP, 3/15m per username
 **Request Body:**
+
 ```json
 {
   "username": "johndoe",
@@ -309,14 +330,18 @@ Resets password using a recovery code.
   "newPassword": "newsecurepass"
 }
 ```
+
 **Response 200:**
+
 ```json
 {
   "ok": true,
   "recoveryCodes": ["RC_XXXXXX.XXXX-XXXX-XXXX", "..."]
 }
 ```
+
 **Error Responses:**
+
 - `400` — `{ ok: false, error: "Invalid request" }` (always same message to prevent enumeration)
 - `429` — Rate limited
 
@@ -328,17 +353,22 @@ Regenerate recovery codes (requires current password).
 
 **Auth:** Yes
 **Request Body:**
+
 ```json
 { "currentPassword": "currentpass" }
 ```
+
 **Response 200:**
+
 ```json
 {
   "ok": true,
   "recoveryCodes": ["RC_XXXXXX.XXXX-XXXX-XXXX", "..."]
 }
 ```
+
 **Error Responses:**
+
 - `400` — Validation error
 - `403` — `{ ok: false, error: "Unable to regenerate recovery codes" }` (wrong password or no password hash)
 
@@ -353,6 +383,7 @@ Creates or retrieves an existing DM chat with another user.
 **URL Params:** `userId` — target user's ID
 **Request Body:** None
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -365,7 +396,9 @@ Creates or retrieves an existing DM chat with another user.
   "created": true | false
 }
 ```
+
 **Error Responses:**
+
 - `400` — `{ ok: false, error: "cannot DM yourself" }` (code: `SELF_DM`)
 - `404` — `{ ok: false, error: "target user not found" }` (code: `USER_NOT_FOUND`)
 
@@ -377,10 +410,12 @@ Returns the user's DM inbox (paginated).
 
 **Auth:** Yes
 **Query Params:**
+
 - `cursor` (optional) — ID of the last item for cursor-based pagination
 - `limit` (optional, 1-50, default 50) — Number of items per page
 
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -415,10 +450,13 @@ Marks a DM conversation as read up to a specific message.
 **Rate Limit:** 120/m per user
 **URL Params:** `directChatId`
 **Request Body:**
+
 ```json
 { "lastReadMessageId": "uuid" }
 ```
+
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -426,6 +464,7 @@ Marks a DM conversation as read up to a specific message.
   "unreadCount": 0
 }
 ```
+
 **Side effects:** Emits `directChat:read` socket event to `user:{userId}` room.
 
 ---
@@ -438,26 +477,29 @@ Sends a message in a DM conversation.
 **Rate Limit:** 120/m per user
 **URL Params:** `directChatId`
 **Request Body:**
+
 ```json
 {
-  "content": "Hello!",                    // optional (required for TEXT type)
-  "messageType": "TEXT",                  // required: TEXT|IMAGE|VIDEO|AUDIO|VOICE|FILE
-  "attachmentIds": ["uuid", "..."],       // optional, max 10
-  "idempotencyKey": "optional-key"       // optional, max 64 chars
+  "content": "Hello!", // optional (required for TEXT type)
+  "messageType": "TEXT", // required: TEXT|IMAGE|VIDEO|AUDIO|VOICE|FILE
+  "attachmentIds": ["uuid", "..."], // optional, max 10
+  "idempotencyKey": "optional-key" // optional, max 64 chars
 }
 ```
 
 **Attachment Rules by messageType:**
-| messageType | Content | AttachmentIds |
-|-------------|---------|---------------|
-| TEXT        | Required, non-empty | 0 attachments |
-| IMAGE       | Optional | >= 1 attachment |
-| VIDEO       | Optional | Exactly 1 attachment |
-| AUDIO       | Optional | >= 1 attachment |
-| VOICE       | Optional | Exactly 1 attachment |
-| FILE        | Optional | >= 1 attachment |
+
+| messageType | Content             | AttachmentIds        |
+| ----------- | ------------------- | -------------------- |
+| TEXT        | Required, non-empty | 0 attachments        |
+| IMAGE       | Optional            | >= 1 attachment      |
+| VIDEO       | Optional            | Exactly 1 attachment |
+| AUDIO       | Optional            | >= 1 attachment      |
+| VOICE       | Optional            | Exactly 1 attachment |
+| FILE        | Optional            | >= 1 attachment      |
 
 **Response 201:**
+
 ```json
 {
   "ok": true,
@@ -481,6 +523,7 @@ Sends a message in a DM conversation.
   }
 }
 ```
+
 **Side effects:** Emits `inbox:update` and `message:new` to `directChat:{id}` room.
 
 ---
@@ -492,11 +535,13 @@ Fetches messages in a DM conversation (paginated).
 **Auth:** Yes
 **URL Params:** `directChatId`
 **Query Params:**
+
 - `cursor` (optional) — Message ID for backward pagination
 - `limit` (optional, 1-100, default 50) — Number of messages
 - `direction` (optional) — `"before"` for backward pagination
 
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -531,6 +576,7 @@ Fetches messages in a DM conversation (paginated).
 ```
 
 **Pagination:**
+
 - **Initial load (no cursor):** Returns oldest N messages (ascending by `createdAt`)
 - **Load older messages (cursor + direction=before):** Returns messages before the cursor, ordered ascending. `nextCursor` is the first message's ID in the result.
 
@@ -544,10 +590,13 @@ Edits a DM message (within 5-minute window).
 **Rate Limit:** 30/m per user
 **URL Params:** `messageId`
 **Request Body:**
+
 ```json
 { "content": "Updated message" }
 ```
+
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -559,8 +608,10 @@ Edits a DM message (within 5-minute window).
   }
 }
 ```
+
 **Side effects:** Emits `message:edited` and `inbox:update` to `directChat:{id}` room.
 **Error Responses:**
+
 - `403` — Not owner or window expired (code: `EDIT_WINDOW_EXPIRED` or `FORBIDDEN`)
 - `404` — Message not found or already deleted (code: `MESSAGE_NOT_FOUND`)
 
@@ -574,11 +625,14 @@ Soft-deletes a DM message (within 30-minute window).
 **Rate Limit:** 30/m per user
 **URL Params:** `messageId`
 **Response 200:**
+
 ```json
 { "ok": true }
 ```
+
 **Side effects:** Emits `message:deleted` to `directChat:{id}` room.
 **Error Responses:**
+
 - `400` — Already deleted (code: `ALREADY_DELETED`)
 - `403` — Not owner or window expired (code: `DELETE_WINDOW_EXPIRED` or `FORBIDDEN`)
 - `404` — Message not found (code: `MESSAGE_NOT_FOUND`)
@@ -591,13 +645,16 @@ Creates a new chat room.
 
 **Auth:** Yes
 **Request Body:**
+
 ```json
 {
-  "name": "My Room",              // required, 1-100 chars
-  "description": "A chat room"   // optional, max 500 chars
+  "name": "My Room", // required, 1-100 chars
+  "description": "A chat room" // optional, max 500 chars
 }
 ```
+
 **Response 201:**
+
 ```json
 {
   "ok": true,
@@ -611,6 +668,7 @@ Creates a new chat room.
   }
 }
 ```
+
 **Side effects:** Creator is added as OWNER.
 
 ---
@@ -621,10 +679,12 @@ Lists rooms the authenticated user belongs to (paginated).
 
 **Auth:** Yes
 **Query Params:**
+
 - `cursor` (optional) — Room ID for cursor pagination
 - `limit` (optional, 1-50, default 20) — Number of rooms
 
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -664,10 +724,13 @@ Marks a room conversation as read up to a specific message.
 **Rate Limit:** 120/m per user
 **URL Params:** `chatRoomId`
 **Request Body:**
+
 ```json
 { "lastReadMessageId": "uuid" }
 ```
+
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -675,6 +738,7 @@ Marks a room conversation as read up to a specific message.
   "unreadCount": 0
 }
 ```
+
 **Side effects:** Emits `chatroom:read` socket event to `user:{userId}` room.
 
 ---
@@ -686,10 +750,13 @@ Sends an invitation to a user (admin/owner only).
 **Auth:** Yes + Admin (OWNER or ADMIN role)
 **URL Params:** `roomId`
 **Request Body:**
+
 ```json
 { "targetUserId": "uuid" }
 ```
+
 **Response 201:**
+
 ```json
 {
   "ok": true,
@@ -698,7 +765,9 @@ Sends an invitation to a user (admin/owner only).
   "status": "PENDING"
 }
 ```
+
 **Error Responses:**
+
 - `400` — Cannot invite yourself
 - `404` — Target user doesn't exist (P2003)
 - `409` — Already a member or invitation already sent
@@ -711,6 +780,7 @@ Lists pending invitations sent by the authenticated user.
 
 **Auth:** Yes
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -734,6 +804,7 @@ Lists pending invitations received by the authenticated user.
 
 **Auth:** Yes
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -757,14 +828,19 @@ Accepts or rejects an invitation.
 **Auth:** Yes
 **URL Params:** `invitationId`
 **Request Body:**
+
 ```json
-{ "status": "ACCEPTED" }  // or "REJECTED"
+{ "status": "ACCEPTED" } // or "REJECTED"
 ```
+
 **Response 200:**
+
 ```json
 { "ok": true, "status": "ACCEPTED" }
 ```
+
 **Error Responses:**
+
 - `409` — Invitation not found or already processed
 
 ---
@@ -776,13 +852,16 @@ Creates a shareable join link (admin/owner only).
 **Auth:** Yes + Admin (OWNER or ADMIN role)
 **URL Params:** `roomId`
 **Request Body:**
+
 ```json
 {
-  "maxUses": 10,                        // optional, positive integer
-  "expiresAt": "2026-12-31T23:59:59Z"   // optional, ISO datetime
+  "maxUses": 10, // optional, positive integer
+  "expiresAt": "2026-12-31T23:59:59Z" // optional, ISO datetime
 }
 ```
+
 **Response 201:**
+
 ```json
 {
   "ok": true,
@@ -806,6 +885,7 @@ Validates a join link token and returns room info (preview before joining).
 **Auth:** Yes
 **URL Params:** `token` — the raw join token
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -814,7 +894,9 @@ Validates a join link token and returns room info (preview before joining).
   "maxUses": 10 | null
 }
 ```
+
 **Error Responses:**
+
 - `404` — Link does not exist or is deleted
 - `410` — Link is not usable / max uses reached / link expired
 
@@ -827,10 +909,13 @@ Joins a room using a valid join link token.
 **Auth:** Yes
 **URL Params:** `token` — the raw join token
 **Response 200:**
+
 ```json
 { "ok": true }
 ```
+
 **Error Responses:**
+
 - `404` — Link not found
 - `409` — Already a member
 - `410` — Link no longer valid (expired, max uses reached, deactivated)
@@ -844,6 +929,7 @@ Deactivates a join link (admin/owner only).
 **Auth:** Yes + Admin (OWNER or ADMIN role)
 **URL Params:** `roomId`, `linkId`
 **Response 200:**
+
 ```json
 { "ok": true, "message": "Link deactivated" }
 ```
@@ -856,6 +942,7 @@ Lists all join links created by the authenticated user.
 
 **Auth:** Yes
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -883,13 +970,22 @@ Requests to join a room.
 **Auth:** Yes
 **URL Params:** `roomId`
 **Response 201:**
+
 ```json
 {
   "ok": true,
-  "joinRequest": { "id": "uuid", "roomId": "uuid", "userId": "uuid", "status": "PENDING", "createdAt": "..." }
+  "joinRequest": {
+    "id": "uuid",
+    "roomId": "uuid",
+    "userId": "uuid",
+    "status": "PENDING",
+    "createdAt": "..."
+  }
 }
 ```
+
 **Error Responses:**
+
 - `400` — Already a member / Owner or admin cannot self-invite / You already have a pending request
 - `404` — Room not found (P2003)
 
@@ -902,9 +998,11 @@ Lists join requests for a room (admin/owner only).
 **Auth:** Yes + Admin (OWNER or ADMIN role)
 **URL Params:** `roomId`
 **Query Params:**
+
 - `status` (optional) — `PENDING` | `APPROVED` | `REJECTED`
 
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -932,14 +1030,19 @@ Approves or rejects a join request (admin/owner only).
 **Auth:** Yes + Admin (OWNER or ADMIN role)
 **URL Params:** `roomId`, `requestId`
 **Request Body:**
+
 ```json
-{ "action": "APPROVED" }  // or "REJECTED"
+{ "action": "APPROVED" } // or "REJECTED"
 ```
+
 **Response 200:**
+
 ```json
 { "ok": true }
 ```
+
 **Error Responses:**
+
 - `400` — Request not found / Already reviewed
 - `409` — User is already a member
 
@@ -952,16 +1055,19 @@ Creates a pending attachment and returns a presigned S3 upload URL.
 **Auth:** Yes
 **Rate Limit:** 30/m per user
 **Request Body:**
+
 ```json
 {
-  "context": "room",          // required: "room" | "dm" | "voice"
-  "contextId": "uuid",        // required: roomId, directChatId, or roomId (for voice)
-  "filename": "photo.jpg",    // required, 1-255 chars
-  "mimeType": "image/jpeg",   // required, must be in allowed MIME types list
-  "size": 1024000             // required, positive integer, max 100MB
+  "context": "room", // required: "room" | "dm" | "voice"
+  "contextId": "uuid", // required: roomId, directChatId, or roomId (for voice)
+  "filename": "photo.jpg", // required, 1-255 chars
+  "mimeType": "image/jpeg", // required, must be in allowed MIME types list
+  "size": 1024000 // required, positive integer, max 100MB
 }
 ```
+
 **Response 201:**
+
 ```json
 {
   "ok": true,
@@ -970,11 +1076,14 @@ Creates a pending attachment and returns a presigned S3 upload URL.
   "s3Key": "attachments/room/uuid/uuid.jpg"
 }
 ```
+
 **Error Responses:**
+
 - `400` — Unsupported MIME type / file too large
 - `403` — Not authorized for this context
 
 **Frontend Upload Flow:**
+
 1. Call `POST /api/attachments/presign` with file metadata
 2. Receive `presignedUrl` and `attachmentId`
 3. Upload file directly to S3 using `PUT` with the presigned URL and correct `Content-Type`
@@ -989,6 +1098,7 @@ Gets a download URL for an attachment.
 **Auth:** Yes
 **URL Params:** `attachmentId`
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -1002,6 +1112,7 @@ Gets a download URL for an attachment.
   "thumbnailKey": "attachments/thumbnails/..." | null
 }
 ```
+
 **Note:** `downloadUrl` is a presigned GET URL, expires in 5 minutes.
 
 ---
@@ -1013,9 +1124,11 @@ Deletes an attachment (from S3 and DB).
 **Auth:** Yes
 **URL Params:** `attachmentId`
 **Response 200:**
+
 ```json
 { "ok": true, "orphanedRecord": false }
 ```
+
 **Note:** `orphanedRecord: true` means S3 was deleted but DB record deletion failed.
 
 ---
@@ -1027,11 +1140,13 @@ Searches users by username prefix.
 **Auth:** Yes
 **Rate Limit:** 20/m per user
 **Query Params:**
+
 - `query` (required, 2-100 chars) — Search prefix
 - `limit` (optional, 1-50, default 10) — Max results
 - `cursor` (optional, UUID) — Cursor for pagination
 
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -1054,6 +1169,7 @@ Looks up a user by ID.
 **Rate Limit:** 40/m per user
 **URL Params:** `id` — User UUID
 **Response 200:**
+
 ```json
 {
   "ok": true,
@@ -1065,7 +1181,9 @@ Looks up a user by ID.
   }
 }
 ```
+
 **Error Responses:**
+
 - `400` — Invalid user ID format
 - `404` — User not found
 
@@ -1083,12 +1201,14 @@ Looks up a user by ID.
 ### Auto-Joined Rooms
 
 On connection, the client automatically joins `user:{userId}`. This room is used for:
+
 - `directChat:read` — DM read receipt updates
 - `chatroom:read` — Room read receipt updates
 
 ### Manual Room Joining
 
 For real-time messaging, the client must explicitly join:
+
 - **Room chat:** Emit `chatroom:join` → joins Socket.IO room `room:{chatRoomId}`
 - **Direct chat:** Emit `directChat:join` → joins Socket.IO room `directChat:{directChatId}`
 
@@ -1096,35 +1216,35 @@ For real-time messaging, the client must explicitly join:
 
 #### Client → Server Events
 
-| Event | Payload | Purpose | Ack? |
-|-------|---------|---------|:----:|
-| `chatroom:join` | `{ chatRoomId: string }` | Join a room for real-time messages | No |
-| `chatroom:leave` | `{ chatRoomId: string }` | Leave a room | No |
-| `chatroom:message` | `{ payload: { chatRoomId, content, messageType, attachmentIds?, idempotencyKey? }, callback }` | Send a room message | Yes |
-| `chatroom:message:edit` | `{ payload: { chatRoomId, messageId, content }, callback }` | Edit a room message | Yes |
-| `chatroom:message:delete` | `{ payload: { chatRoomId, messageId }, callback }` | Delete a room message | Yes |
-| `directChat:join` | `{ directChatId: string }` | Join a DM for real-time messages | No |
-| `directChat:leave` | `{ directChatId: string }` | Leave a DM | No |
+| Event                     | Payload                                                                                        | Purpose                            | Ack? |
+| ------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------- | :--: |
+| `chatroom:join`           | `{ chatRoomId: string }`                                                                       | Join a room for real-time messages |  No  |
+| `chatroom:leave`          | `{ chatRoomId: string }`                                                                       | Leave a room                       |  No  |
+| `chatroom:message`        | `{ payload: { chatRoomId, content, messageType, attachmentIds?, idempotencyKey? }, callback }` | Send a room message                | Yes  |
+| `chatroom:message:edit`   | `{ payload: { chatRoomId, messageId, content }, callback }`                                    | Edit a room message                | Yes  |
+| `chatroom:message:delete` | `{ payload: { chatRoomId, messageId }, callback }`                                             | Delete a room message              | Yes  |
+| `directChat:join`         | `{ directChatId: string }`                                                                     | Join a DM for real-time messages   |  No  |
+| `directChat:leave`        | `{ directChatId: string }`                                                                     | Leave a DM                         |  No  |
 
 #### Server → Client Events
 
-| Event | Payload | When |
-|-------|---------|------|
-| `chatroom:joined` | `{ chatRoomId }` | Successfully joined a room |
-| `chatroom:left` | `{ chatRoomId }` | Successfully left a room |
-| `chatroom:error` | `{ code, message }` | Error in room socket operations |
-| `chatroom:message` | Message object with attachments | New message in a joined room |
-| `chatroom:message:edited` | `{ messageId, chatRoomId, content, editedAt }` | Message edited in a joined room |
-| `chatroom:message:deleted` | `{ messageId, chatRoomId, deletedAt }` | Message deleted in a joined room |
-| `directChat:joined` | `{ directChatId }` | Successfully joined a DM |
-| `directChat:left` | `{ directChatId }` | Successfully left a DM |
-| `directChat:error` | `{ code, message }` | Error in DM socket operations |
-| `message:new` | Message object with attachments | New DM message |
-| `message:edited` | `{ messageId, directChatId, content, editedAt }` | DM message edited |
-| `message:deleted` | `{ messageId, directChatId, deletedAt }` | DM message deleted |
-| `inbox:update` | `{ directChatId }` | Inbox should be refreshed |
-| `directChat:read` | `{ directChatId, unreadCount }` | DM read receipt update (to `user:{id}`) |
-| `chatroom:read` | `{ chatRoomId, unreadCount }` | Room read receipt update (to `user:{id}`) |
+| Event                      | Payload                                          | When                                      |
+| -------------------------- | ------------------------------------------------ | ----------------------------------------- |
+| `chatroom:joined`          | `{ chatRoomId }`                                 | Successfully joined a room                |
+| `chatroom:left`            | `{ chatRoomId }`                                 | Successfully left a room                  |
+| `chatroom:error`           | `{ code, message }`                              | Error in room socket operations           |
+| `chatroom:message`         | Message object with attachments                  | New message in a joined room              |
+| `chatroom:message:edited`  | `{ messageId, chatRoomId, content, editedAt }`   | Message edited in a joined room           |
+| `chatroom:message:deleted` | `{ messageId, chatRoomId, deletedAt }`           | Message deleted in a joined room          |
+| `directChat:joined`        | `{ directChatId }`                               | Successfully joined a DM                  |
+| `directChat:left`          | `{ directChatId }`                               | Successfully left a DM                    |
+| `directChat:error`         | `{ code, message }`                              | Error in DM socket operations             |
+| `message:new`              | Message object with attachments                  | New DM message                            |
+| `message:edited`           | `{ messageId, directChatId, content, editedAt }` | DM message edited                         |
+| `message:deleted`          | `{ messageId, directChatId, deletedAt }`         | DM message deleted                        |
+| `inbox:update`             | `{ directChatId }`                               | Inbox should be refreshed                 |
+| `directChat:read`          | `{ directChatId, unreadCount }`                  | DM read receipt update (to `user:{id}`)   |
+| `chatroom:read`            | `{ chatRoomId, unreadCount }`                    | Room read receipt update (to `user:{id}`) |
 
 ### Ack Callback Pattern
 
@@ -1136,7 +1256,7 @@ socket.emit("chatroom:message", {
   payload: { chatRoomId, content, messageType, attachmentIds },
   callback: (response) => {
     // response: { ok: true, message: {...} } | { ok: false, error: string, code?: string }
-  }
+  },
 });
 ```
 
@@ -1390,11 +1510,13 @@ All paginated endpoints use cursor-based pagination:
 **Pattern:** Fetch `limit + 1` items, check if there are more, return `limit` items with `nextCursor`.
 
 **Request:**
+
 ```
 GET /api/dm/inbox?cursor=<last_item_id>&limit=20
 ```
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -1408,12 +1530,12 @@ GET /api/dm/inbox?cursor=<last_item_id>&limit=20
 
 ### Paginated Endpoints
 
-| Endpoint | Default Limit | Max Limit | Cursor Field |
-|----------|:---:|:---:|---|
-| `GET /api/dm/inbox` | 50 | 50 | `directChatId` |
-| `GET /api/dm/:id/messages` | 50 | 100 | `message.id` |
-| `GET /api/room/rooms` | 20 | 50 | `roomId` |
-| `GET /api/search/users/search` | 10 | 50 | `user.id` |
+| Endpoint                       | Default Limit | Max Limit | Cursor Field   |
+| ------------------------------ | :-----------: | :-------: | -------------- |
+| `GET /api/dm/inbox`            |      50       |    50     | `directChatId` |
+| `GET /api/dm/:id/messages`     |      50       |    100    | `message.id`   |
+| `GET /api/room/rooms`          |      20       |    50     | `roomId`       |
+| `GET /api/search/users/search` |      10       |    50     | `user.id`      |
 
 ### Message Pagination Direction
 
@@ -1421,6 +1543,7 @@ GET /api/dm/inbox?cursor=<last_item_id>&limit=20
 - **Load older (cursor + direction=before):** Returns N messages before cursor (ascending)
 
 The frontend should maintain a scrollable message list:
+
 1. Load initial messages (ascending)
 2. When scrolling up, request older messages with `direction=before` and cursor=oldest_visible_message_id
 3. Prepend older messages to the list
@@ -1456,30 +1579,30 @@ The frontend should maintain a scrollable message list:
 
 ### Error Code Catalog
 
-| Code | HTTP Status | Meaning |
-|------|:---:|---|
-| `SELF_DM` | 400 | User tried to DM themselves |
-| `ALREADY_DELETED` | 400 | Message already soft-deleted |
-| `EDIT_WINDOW_EXPIRED` | 403 | Edit attempted after 5-minute window |
-| `DELETE_WINDOW_EXPIRED` | 403 | Delete attempted after 30-minute window |
-| `FORBIDDEN` | 403 | Not authorized for this operation |
-| `MESSAGE_NOT_FOUND` | 404 | Message doesn't exist or wrong context |
-| `USER_NOT_FOUND` | 404 | Target user doesn't exist |
-| `CHAT_NOT_FOUND` | 404 | Direct chat not found |
-| `ATTACHMENT_NOT_FOUND` | 404 | Attachment doesn't exist |
-| `ATTACHMENT_ACCESS_DENIED` | 403 | No access to attachment |
-| `ATTACHMENT_DELETE_DENIED` | 403 | No permission to delete attachment |
-| `ATTACHMENT_OBJECT_MISSING` | 400 | File not found in S3 storage |
-| `S3_NOT_CONFIGURED` | 503 | S3 storage not configured |
-| `S3_DELETE_FAILED` | 500 | S3 deletion failed |
-| `DIRECT_CHAT_ACCESS_DENIED` | 403 | Not a DM participant |
-| `MESSAGE_WRONG_ROOM` | 400 | Message belongs to different room |
-| `MESSAGE_WRONG_CHAT` | 400 | Message belongs to different DM |
-| `JOIN_FAILED` | — | Socket room join failed |
-| `LEAVE_FAILED` | — | Socket room leave failed |
-| `INVALID_CALLBACK` | — | Socket callback not provided |
-| `CONFLICT` | 409 | Prisma unique constraint violation |
-| `RESOURCE_NOT_FOUND` | 404 | Prisma record not found |
+| Code                        | HTTP Status | Meaning                                 |
+| --------------------------- | :---------: | --------------------------------------- |
+| `SELF_DM`                   |     400     | User tried to DM themselves             |
+| `ALREADY_DELETED`           |     400     | Message already soft-deleted            |
+| `EDIT_WINDOW_EXPIRED`       |     403     | Edit attempted after 5-minute window    |
+| `DELETE_WINDOW_EXPIRED`     |     403     | Delete attempted after 30-minute window |
+| `FORBIDDEN`                 |     403     | Not authorized for this operation       |
+| `MESSAGE_NOT_FOUND`         |     404     | Message doesn't exist or wrong context  |
+| `USER_NOT_FOUND`            |     404     | Target user doesn't exist               |
+| `CHAT_NOT_FOUND`            |     404     | Direct chat not found                   |
+| `ATTACHMENT_NOT_FOUND`      |     404     | Attachment doesn't exist                |
+| `ATTACHMENT_ACCESS_DENIED`  |     403     | No access to attachment                 |
+| `ATTACHMENT_DELETE_DENIED`  |     403     | No permission to delete attachment      |
+| `ATTACHMENT_OBJECT_MISSING` |     400     | File not found in S3 storage            |
+| `S3_NOT_CONFIGURED`         |     503     | S3 storage not configured               |
+| `S3_DELETE_FAILED`          |     500     | S3 deletion failed                      |
+| `DIRECT_CHAT_ACCESS_DENIED` |     403     | Not a DM participant                    |
+| `MESSAGE_WRONG_ROOM`        |     400     | Message belongs to different room       |
+| `MESSAGE_WRONG_CHAT`        |     400     | Message belongs to different DM         |
+| `JOIN_FAILED`               |      —      | Socket room join failed                 |
+| `LEAVE_FAILED`              |      —      | Socket room leave failed                |
+| `INVALID_CALLBACK`          |      —      | Socket callback not provided            |
+| `CONFLICT`                  |     409     | Prisma unique constraint violation      |
+| `RESOURCE_NOT_FOUND`        |     404     | Prisma record not found                 |
 
 ### Frontend Error Handling Strategy
 
@@ -1765,43 +1888,49 @@ ui:
 
 ### State Ownership
 
-| State | Source | Update Trigger |
-|-------|--------|----------------|
-| `auth.user` | REST API | Login/signup/me/logout |
-| `socket.isConnected` | Socket.IO | connect/disconnect events |
-| `dmInbox` | REST API + socket | Inbox refresh on `inbox:update` |
-| `roomList` | REST API | Periodic refresh / after room actions |
-| `messages` | REST API + socket | Load via API, append via socket events |
-| `unreadCounts` | REST API + socket | Read receipt events |
-| `uploadProgress` | Client-side | File upload progress events |
+| State                | Source            | Update Trigger                         |
+| -------------------- | ----------------- | -------------------------------------- |
+| `auth.user`          | REST API          | Login/signup/me/logout                 |
+| `socket.isConnected` | Socket.IO         | connect/disconnect events              |
+| `dmInbox`            | REST API + socket | Inbox refresh on `inbox:update`        |
+| `roomList`           | REST API          | Periodic refresh / after room actions  |
+| `messages`           | REST API + socket | Load via API, append via socket events |
+| `unreadCounts`       | REST API + socket | Read receipt events                    |
+| `uploadProgress`     | Client-side       | File upload progress events            |
 
 ---
 
 ## API Dependency Map
 
 ### Login Page
+
 - `GET /api/csrf-token`
 - `POST /api/auth/login`
 
 ### Signup Page
+
 - `GET /api/csrf-token`
 - `POST /api/auth/signup`
 
 ### Forgot Password Page
+
 - `GET /api/csrf-token`
 - `POST /api/auth/forgot-password`
 
 ### Dashboard / Home
+
 - `GET /api/auth/me`
 - `GET /api/dm/inbox`
 - `GET /api/room/rooms`
 - Socket connection
 
 ### DM Inbox
+
 - `GET /api/dm/inbox` (with pagination)
 - `POST /api/dm/start-dm/:userId` (to create new DM)
 
 ### DM Chat View
+
 - `GET /api/dm/:directChatId/messages` (with pagination)
 - `POST /api/dm/:directChatId/message` (send message)
 - `POST /api/dm/:directChatId/mark-read` (mark as read)
@@ -1814,9 +1943,11 @@ ui:
 - Socket events: `message:new`, `message:edited`, `message:deleted`, `inbox:update`, `directChat:read`
 
 ### Room List
+
 - `GET /api/room/rooms` (with pagination)
 
 ### Room Chat View
+
 - `POST /api/room/rooms` (create room)
 - Socket: `chatroom:join`, `chatroom:leave`
 - Socket events: `chatroom:message`, `chatroom:message:edited`, `chatroom:message:deleted`, `chatroom:read`
@@ -1826,10 +1957,12 @@ ui:
 - `GET /api/attachments/:attachmentId`
 
 ### User Search
+
 - `GET /api/search/users/search`
 - `GET /api/search/users/:id`
 
 ### Room Management (Admin/Owner)
+
 - `POST /api/room/:roomId/invitations`
 - `GET /api/room/invitation/sent`
 - `GET /api/room/invitation/received`
@@ -1841,10 +1974,12 @@ ui:
 - `PATCH /api/room/:roomId/join-requests/:requestId`
 
 ### Join Flow
+
 - `GET /api/room/join/:token` (preview)
 - `POST /api/room/join/:token` (join)
 
 ### Recovery Codes
+
 - `POST /api/auth/recovery-codes`
 
 ---
@@ -1853,105 +1988,120 @@ ui:
 
 ### DM Inbox
 
-| State | Behavior |
-|-------|----------|
-| Initial loading | Skeleton loader / spinner |
-| Loading next page | Infinite scroll spinner at bottom |
-| Empty | "No conversations yet" with CTA to start a DM |
-| Success | Render conversation list |
-| Error | Retry button, error message |
-| Socket disconnected | Subtle "Reconnecting..." banner |
+| State               | Behavior                                      |
+| ------------------- | --------------------------------------------- |
+| Initial loading     | Skeleton loader / spinner                     |
+| Loading next page   | Infinite scroll spinner at bottom             |
+| Empty               | "No conversations yet" with CTA to start a DM |
+| Success             | Render conversation list                      |
+| Error               | Retry button, error message                   |
+| Socket disconnected | Subtle "Reconnecting..." banner               |
 
 ### DM Chat
 
-| State | Behavior |
-|-------|----------|
-| Initial loading | Message skeleton loader |
-| Loading older | Spinner at top of message list |
-| Empty | "Send a message to start the conversation" |
-| Success | Render messages, auto-scroll to bottom |
-| Sending message | Optimistic append, show pending state |
-| Send failed | Retry button on message |
-| Edit window expired | Disable edit option |
-| Delete window expired | Disable delete option |
-| Socket disconnected | "Reconnecting..." banner, queue sends |
+| State                 | Behavior                                   |
+| --------------------- | ------------------------------------------ |
+| Initial loading       | Message skeleton loader                    |
+| Loading older         | Spinner at top of message list             |
+| Empty                 | "Send a message to start the conversation" |
+| Success               | Render messages, auto-scroll to bottom     |
+| Sending message       | Optimistic append, show pending state      |
+| Send failed           | Retry button on message                    |
+| Edit window expired   | Disable edit option                        |
+| Delete window expired | Disable delete option                      |
+| Socket disconnected   | "Reconnecting..." banner, queue sends      |
 
 ### Room List
 
-| State | Behavior |
-|-------|----------|
-| Initial loading | Room skeleton loader |
-| Empty | "No rooms yet" with CTA to create or join |
-| Success | Render room list with unread badges |
-| Error | Retry button |
+| State           | Behavior                                  |
+| --------------- | ----------------------------------------- |
+| Initial loading | Room skeleton loader                      |
+| Empty           | "No rooms yet" with CTA to create or join |
+| Success         | Render room list with unread badges       |
+| Error           | Retry button                              |
 
 ### Room Chat
 
-| State | Behavior |
-|-------|----------|
-| Initial loading | Message skeleton loader |
-| Loading older | Spinner at top |
-| Empty | "No messages yet. Say hello!" |
-| Success | Render messages |
-| Not a member | "You are not a member of this room" |
-| Socket join failed | Error banner with retry |
+| State              | Behavior                            |
+| ------------------ | ----------------------------------- |
+| Initial loading    | Message skeleton loader             |
+| Loading older      | Spinner at top                      |
+| Empty              | "No messages yet. Say hello!"       |
+| Success            | Render messages                     |
+| Not a member       | "You are not a member of this room" |
+| Socket join failed | Error banner with retry             |
 
 ### File Upload
 
-| State | Behavior |
-|-------|----------|
-| No S3 configured | Hide attachment button |
-| Upload in progress | Progress bar per file |
-| Upload failed | Retry option, error message |
-| Upload complete | File thumbnail in message composer |
+| State              | Behavior                           |
+| ------------------ | ---------------------------------- |
+| No S3 configured   | Hide attachment button             |
+| Upload in progress | Progress bar per file              |
+| Upload failed      | Retry option, error message        |
+| Upload complete    | File thumbnail in message composer |
 
 ---
 
 ## Frontend Integration Hazards
 
 ### 1. Socket Event Payload Wrapper
+
 Room message events use `{ payload, callback }` wrapper. The actual data goes in `payload`, NOT as a flat event argument. Forgetting this wrapper will silently fail.
 
 ### 2. Room Messages HTTP Endpoint Does Not Exist
+
 `GET /api/room/:chatRoomId/messages` does NOT exist in the backend. Room messages are only available via socket events after joining. The frontend must handle this — room messages can only be loaded via real-time socket events, not via REST. **This is a known gap documented in `todo.md`.**
 
 ### 3. CSRF Token Required
+
 All POST/PUT/PATCH/DELETE requests need the CSRF token in `x-csrf-token` header. Must fetch from `GET /api/csrf-token` first. Forgetting this causes 403 errors on all mutations.
 
 ### 4. Session Cookie SameSite
+
 Cookie is `sameSite: "lax"`, meaning it's sent on top-level navigations but NOT on cross-origin POST requests. Frontend must use `credentials: "include"` for fetch or `withCredentials: true` for axios.
 
 ### 5. DM User Ordering
+
 `DirectChat` stores users with `user1Id < user2Id` (UUID string comparison). When displaying "the other user", check which side the current user is on: `chat.user1Id === myId ? chat.user2Id : chat.user1Id`.
 
 ### 6. Room Messages Not Persisted as List
+
 Room messages arrive only via socket after joining. If the client refreshes, it loses message history until it rejoins the room via socket. There is no REST endpoint to fetch room message history.
 
 ### 7. Edit/Delete Windows are Server-Side
+
 The 5-minute edit and 30-minute delete windows are enforced server-side based on `message.createdAt`. The frontend should check this client-side too (disable edit/delete options after the window), but the server is the source of truth.
 
 ### 8. Message IDs are CUIDs, Not UUIDs
+
 Room message schema validates `chatRoomId` as `z.string().min(1)` (not UUID). DM message params use `z.string().min(1)`. User-related params use UUID validation. Don't assume all IDs are UUIDs.
 
 ### 9. Soft-Deleted Messages
+
 Deleted messages have `isDeleted: true` and `content: null`. They still appear in the message list. The frontend should display a "Message deleted" placeholder, not remove them from the UI.
 
 ### 10. Recovery Codes Displayed Once
+
 Recovery codes are returned in the response only at signup and password reset. They are never retrievable again. The frontend MUST display them clearly and warn the user to save them.
 
 ### 11. Login Response is Minimal
+
 Login returns `{ id, email, username, displayname }` — no `avatar` or `createdAt`. Call `GET /api/auth/me` for the full profile after login if those fields are needed.
 
 ### 12. DM Messages Initial Load is Ascending
+
 Initial load (no cursor) returns oldest messages first (ascending by `createdAt`). The frontend should render them and scroll to the bottom. For "load more", use `direction=before` with cursor.
 
 ### 13. Typing Indicators Not Implemented
+
 There are no typing indicator socket events. The frontend should not attempt to implement them unless the backend adds support.
 
 ### 14. User Presence/Online Status Not Implemented
+
 There is no online/offline status tracking. The frontend should not show presence indicators unless the backend adds support.
 
 ### 15. No Room Messages REST Endpoint
+
 The `todo.md` explicitly notes: "Frontend `RoomMessages` calls `GET /room/:chatRoomId/messages` but no server handler exists." This is a known gap. Room message history can only be received via real-time socket events after joining.
 
 ---

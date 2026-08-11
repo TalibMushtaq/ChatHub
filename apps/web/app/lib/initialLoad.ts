@@ -8,7 +8,11 @@
 
 import { isAxiosError } from "axios";
 import { getErrorMessage } from "./errors";
-import type { AppUser, DMInboxEntry, RoomInboxEntry } from "../../components/app/types";
+import type {
+  AppUser,
+  DMInboxEntry,
+  RoomInboxEntry,
+} from "../../components/app/types";
 
 export type InitialLoadApi = {
   getMe: () => Promise<AppUser>;

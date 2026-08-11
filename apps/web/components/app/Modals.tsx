@@ -47,13 +47,26 @@ export default function Modals() {
   return (
     <>
       {mStack.map((entry, i) => (
-        <ModalFrame key={`${entry.name}-${i}`} entry={entry} index={i} total={mStack.length} />
+        <ModalFrame
+          key={`${entry.name}-${i}`}
+          entry={entry}
+          index={i}
+          total={mStack.length}
+        />
       ))}
     </>
   );
 }
 
-function ModalFrame({ entry, index, total }: { entry: ModalEntry; index: number; total: number }) {
+function ModalFrame({
+  entry,
+  index,
+  total,
+}: {
+  entry: ModalEntry;
+  index: number;
+  total: number;
+}) {
   const { popModal, clearModals } = useShell();
   const body = Body(entry);
   return (
@@ -106,7 +119,12 @@ function Body(entry: ModalEntry) {
     case "recovery":
       return <RecoveryModal />;
     case "confirm": {
-      const p = entry.payload as { title: string; text: string; danger?: boolean; onYes: () => void };
+      const p = entry.payload as {
+        title: string;
+        text: string;
+        danger?: boolean;
+        onYes: () => void;
+      };
       return <ConfirmModal p={p} />;
     }
   }
@@ -119,7 +137,9 @@ function Body(entry: ModalEntry) {
 function NewDmModal() {
   const { openConv, clearModals, toast } = useShell();
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<{ id: string; username: string; displayname: string | null }[]>([]);
+  const [results, setResults] = useState<
+    { id: string; username: string; displayname: string | null }[]
+  >([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -142,7 +162,11 @@ function NewDmModal() {
     };
   }, [q]);
 
-  async function start(u: { id: string; username: string; displayname: string | null }) {
+  async function start(u: {
+    id: string;
+    username: string;
+    displayname: string | null;
+  }) {
     setBusyId(u.id);
     try {
       const chat = await ChatAPI.startDm(u.id);
@@ -161,7 +185,12 @@ function NewDmModal() {
         <label>Find someone</label>
         <div className="searchbox">
           <SearchIcon />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by username…" autoFocus />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by username…"
+            autoFocus
+          />
         </div>
       </div>
       {q.trim() &&
@@ -175,7 +204,11 @@ function NewDmModal() {
                 <div className="t1">{displayName(u)}</div>
                 <div className="t2">@{u.username}</div>
               </div>
-              <button className="btn btn-primary btn-sm" disabled={busyId === u.id} onClick={() => void start(u)}>
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={busyId === u.id}
+                onClick={() => void start(u)}
+              >
                 Chat
               </button>
             </div>
@@ -199,9 +232,18 @@ function NewRoomModal() {
     if (!name.trim()) return;
     setBusy(true);
     try {
-      const room = await ChatAPI.createRoom(name.trim(), description.trim() || undefined);
+      const room = await ChatAPI.createRoom(
+        name.trim(),
+        description.trim() || undefined,
+      );
       clearModals();
-      openConv({ kind: "room", id: room.id, name: room.name, description: description.trim() || null, myRole: "OWNER" });
+      openConv({
+        kind: "room",
+        id: room.id,
+        name: room.name,
+        description: description.trim() || null,
+        myRole: "OWNER",
+      });
       void refreshLists();
     } catch (err) {
       toast(getErrorMessage(err, "Failed to create room"), "error");
@@ -214,14 +256,27 @@ function NewRoomModal() {
     <>
       <div className="mfield">
         <label>Room name</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Friday Gaming" autoFocus />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Friday Gaming"
+          autoFocus
+        />
       </div>
       <div className="mfield">
         <label>Description (optional)</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's this room about?" />
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What's this room about?"
+        />
       </div>
       <div className="mactions">
-        <button className="btn btn-primary btn-block" onClick={() => void create()} disabled={busy || !name.trim()}>
+        <button
+          className="btn btn-primary btn-block"
+          onClick={() => void create()}
+          disabled={busy || !name.trim()}
+        >
           Create room
         </button>
       </div>
@@ -247,7 +302,10 @@ function RoomInfoModal() {
         <AppAvatar name={info.name} size={52} square />
         <div className="grow">
           <div className="t1">
-            # {info.name} <span className={`chip ${info.myRole.toLowerCase()}`}>{info.myRole.toLowerCase()}</span>
+            # {info.name}{" "}
+            <span className={`chip ${info.myRole.toLowerCase()}`}>
+              {info.myRole.toLowerCase()}
+            </span>
           </div>
           <div className="t2">{info.description || "No description"}</div>
         </div>
@@ -255,7 +313,9 @@ function RoomInfoModal() {
 
       <div className="row-item">
         <div className="grow">
-          <div className="t1">{members.length} member{members.length === 1 ? "" : "s"}</div>
+          <div className="t1">
+            {members.length} member{members.length === 1 ? "" : "s"}
+          </div>
         </div>
       </div>
 
@@ -265,23 +325,36 @@ function RoomInfoModal() {
           <div className="grow">
             <div className="t1">
               {displayName(m.user)}
-              {m.user.id === user.id && <span className="chip member">you</span>}
+              {m.user.id === user.id && (
+                <span className="chip member">you</span>
+              )}
             </div>
             <div className="t2">Joined {fmtTime(m.joinedAt)}</div>
           </div>
-          <span className={`chip ${m.role.toLowerCase()}`}>{m.role.toLowerCase()}</span>
+          <span className={`chip ${m.role.toLowerCase()}`}>
+            {m.role.toLowerCase()}
+          </span>
         </div>
       ))}
 
       {isAdmin && (
         <div className="mactions">
-          <button className="btn btn-primary btn-block" onClick={() => openModal("invite", info.roomId)}>
+          <button
+            className="btn btn-primary btn-block"
+            onClick={() => openModal("invite", info.roomId)}
+          >
             <UserIcon /> Invite people
           </button>
-          <button className="btn btn-ghost btn-block" onClick={() => openModal("joinRequests", info.roomId)}>
+          <button
+            className="btn btn-ghost btn-block"
+            onClick={() => openModal("joinRequests", info.roomId)}
+          >
             <MailIcon /> Join requests
           </button>
-          <button className="btn btn-ghost btn-block" onClick={() => openModal("joinLinks", info.roomId)}>
+          <button
+            className="btn btn-ghost btn-block"
+            onClick={() => openModal("joinLinks", info.roomId)}
+          >
             <LinkIcon /> Join links
           </button>
         </div>
@@ -298,7 +371,9 @@ function InviteModal({ roomId }: { roomId: string }) {
   const { toast, roomInfo } = useShell();
   const info = roomInfo();
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<{ id: string; username: string; displayname: string | null }[]>([]);
+  const [results, setResults] = useState<
+    { id: string; username: string; displayname: string | null }[]
+  >([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -321,11 +396,18 @@ function InviteModal({ roomId }: { roomId: string }) {
     };
   }, [q]);
 
-  async function invite(u: { id: string; username: string; displayname: string | null }) {
+  async function invite(u: {
+    id: string;
+    username: string;
+    displayname: string | null;
+  }) {
     setBusyId(u.id);
     try {
       await ChatAPI.inviteToRoom(roomId, u.id);
-      toast(`Invited ${displayName(u)} to ${info?.name ?? "the room"}`, "success");
+      toast(
+        `Invited ${displayName(u)} to ${info?.name ?? "the room"}`,
+        "success",
+      );
     } catch (err) {
       toast(getErrorMessage(err, "Couldn't send invitation"), "error");
     } finally {
@@ -339,7 +421,12 @@ function InviteModal({ roomId }: { roomId: string }) {
       <div className="mfield">
         <div className="searchbox">
           <SearchIcon />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by username…" autoFocus />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by username…"
+            autoFocus
+          />
         </div>
       </div>
       {q.trim() &&
@@ -353,7 +440,11 @@ function InviteModal({ roomId }: { roomId: string }) {
                 <div className="t1">{displayName(u)}</div>
                 <div className="t2">@{u.username}</div>
               </div>
-              <button className="btn btn-primary btn-sm" disabled={busyId === u.id} onClick={() => void invite(u)}>
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={busyId === u.id}
+                onClick={() => void invite(u)}
+              >
                 Invite
               </button>
             </div>
@@ -388,7 +479,10 @@ function JoinRequestsModal({ roomId }: { roomId: string }) {
     setBusyId(id);
     try {
       await ChatAPI.respondJoinRequest(roomId, id, action);
-      toast(action === "APPROVED" ? "Request approved" : "Request rejected", "success");
+      toast(
+        action === "APPROVED" ? "Request approved" : "Request rejected",
+        "success",
+      );
       setRequests((prev) => prev.filter((r) => r.id !== id));
     } catch (err) {
       toast(getErrorMessage(err, "Couldn't update request"), "error");
@@ -397,20 +491,33 @@ function JoinRequestsModal({ roomId }: { roomId: string }) {
     }
   }
 
-  if (requests.length === 0) return <p className="role-note">No pending requests.</p>;
+  if (requests.length === 0)
+    return <p className="role-note">No pending requests.</p>;
   return (
     <>
       {requests.map((r) => (
         <div key={r.id} className="row-item">
-          <AppAvatar name={displayName(r.user)} src={r.user?.avatar} size={38} />
+          <AppAvatar
+            name={displayName(r.user)}
+            src={r.user?.avatar}
+            size={38}
+          />
           <div className="grow">
             <div className="t1">{displayName(r.user)}</div>
             <div className="t2">@{r.user?.username}</div>
           </div>
-          <button className="btn btn-sm btn-primary" disabled={busyId === r.id} onClick={() => void decide(r.id, "APPROVED")}>
+          <button
+            className="btn btn-sm btn-primary"
+            disabled={busyId === r.id}
+            onClick={() => void decide(r.id, "APPROVED")}
+          >
             <CheckIcon /> Approve
           </button>
-          <button className="btn btn-sm btn-danger" disabled={busyId === r.id} onClick={() => void decide(r.id, "REJECTED")}>
+          <button
+            className="btn btn-sm btn-danger"
+            disabled={busyId === r.id}
+            onClick={() => void decide(r.id, "REJECTED")}
+          >
             <CloseIcon /> Reject
           </button>
         </div>
@@ -470,7 +577,11 @@ function JoinLinksModal({ roomId }: { roomId: string }) {
       <p className="role-note">
         Create a link anyone can use to join <b>#{roomId.slice(0, 8)}</b>.
       </p>
-      <button className="btn btn-primary btn-block" onClick={() => void makeLink()} disabled={busy}>
+      <button
+        className="btn btn-primary btn-block"
+        onClick={() => void makeLink()}
+        disabled={busy}
+      >
         <LinkIcon /> {busy ? "Creating…" : "Create join link"}
       </button>
 
@@ -480,7 +591,9 @@ function JoinLinksModal({ roomId }: { roomId: string }) {
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => {
-              void navigator.clipboard?.writeText(freshToken).then(() => toast("Copied to clipboard", "success"));
+              void navigator.clipboard
+                ?.writeText(freshToken)
+                .then(() => toast("Copied to clipboard", "success"));
             }}
           >
             Copy
@@ -495,18 +608,24 @@ function JoinLinksModal({ roomId }: { roomId: string }) {
             <div key={l.id} className="row-item">
               <div className="grow">
                 <div className="t1">
-                  {l.isActive ?? l.active !== false ? "Active" : "Inactive"}{" "}
-                  <span className={`chip ${(l.isActive ?? l.active !== false) ? "ok" : "dead"}`}>
+                  {(l.isActive ?? l.active !== false) ? "Active" : "Inactive"}{" "}
+                  <span
+                    className={`chip ${(l.isActive ?? l.active !== false) ? "ok" : "dead"}`}
+                  >
                     {(l.isActive ?? l.active !== false) ? "ok" : "off"}
                   </span>
                 </div>
                 <div className="t2">
-                  {l.uses ?? l.usedCount ?? 0} uses{l.maxUses ? ` / ${l.maxUses} max` : ""}
+                  {l.uses ?? l.usedCount ?? 0} uses
+                  {l.maxUses ? ` / ${l.maxUses} max` : ""}
                   {l.expiresAt ? ` · expires ${fmtList(l.expiresAt)}` : ""}
                 </div>
               </div>
               {(l.isActive ?? l.active !== false) && (
-                <button className="btn btn-danger btn-sm" onClick={() => void deactivate(l.id)}>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={() => void deactivate(l.id)}
+                >
                   <TrashIcon /> Deactivate
                 </button>
               )}
@@ -530,7 +649,9 @@ function ReceivedInvitesModal() {
   useEffect(() => {
     ChatAPI.invitationsReceived()
       .then(setInvites)
-      .catch((err) => toast(getErrorMessage(err, "Failed to load invites"), "error"));
+      .catch((err) =>
+        toast(getErrorMessage(err, "Failed to load invites"), "error"),
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -538,7 +659,10 @@ function ReceivedInvitesModal() {
     setBusyId(id);
     try {
       await ChatAPI.respondInvitation(id, status);
-      toast(status === "ACCEPTED" ? "Joined the room!" : "Invitation declined", "success");
+      toast(
+        status === "ACCEPTED" ? "Joined the room!" : "Invitation declined",
+        "success",
+      );
       setInvites((prev) => prev.filter((i) => i.id !== id));
       void refreshLists();
     } catch (err) {
@@ -548,7 +672,8 @@ function ReceivedInvitesModal() {
     }
   }
 
-  if (invites.length === 0) return <p className="role-note">No pending invitations.</p>;
+  if (invites.length === 0)
+    return <p className="role-note">No pending invitations.</p>;
   return (
     <>
       {invites.map((inv) => (
@@ -560,10 +685,18 @@ function ReceivedInvitesModal() {
               from @{inv.invitedBy?.username} · {fmtList(inv.createdAt)}
             </div>
           </div>
-          <button className="btn btn-sm btn-primary" disabled={busyId === inv.id} onClick={() => void respond(inv.id, "ACCEPTED")}>
+          <button
+            className="btn btn-sm btn-primary"
+            disabled={busyId === inv.id}
+            onClick={() => void respond(inv.id, "ACCEPTED")}
+          >
             <CheckIcon /> Accept
           </button>
-          <button className="btn btn-sm btn-danger" disabled={busyId === inv.id} onClick={() => void respond(inv.id, "REJECTED")}>
+          <button
+            className="btn btn-sm btn-danger"
+            disabled={busyId === inv.id}
+            onClick={() => void respond(inv.id, "REJECTED")}
+          >
             <CloseIcon /> Decline
           </button>
         </div>
@@ -579,11 +712,14 @@ function SentInvitesModal() {
   useEffect(() => {
     ChatAPI.invitationsSent()
       .then(setInvites)
-      .catch((err) => toast(getErrorMessage(err, "Failed to load invites"), "error"));
+      .catch((err) =>
+        toast(getErrorMessage(err, "Failed to load invites"), "error"),
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (invites.length === 0) return <p className="role-note">No pending invitations sent.</p>;
+  if (invites.length === 0)
+    return <p className="role-note">No pending invitations sent.</p>;
   return (
     <>
       {invites.map((inv) => (
@@ -591,7 +727,9 @@ function SentInvitesModal() {
           <AppAvatar name={inv.room?.name} size={38} square />
           <div className="grow">
             <div className="t1">#{inv.room?.name}</div>
-            <div className="t2">to @{inv.invitedUser?.username} · {fmtList(inv.createdAt)}</div>
+            <div className="t2">
+              to @{inv.invitedUser?.username} · {fmtList(inv.createdAt)}
+            </div>
           </div>
           <span className="chip pending">pending</span>
         </div>
@@ -620,7 +758,10 @@ function MyLinksModal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (links.length === 0) return <p className="role-note">You haven&apos;t created any join links yet.</p>;
+  if (links.length === 0)
+    return (
+      <p className="role-note">You haven&apos;t created any join links yet.</p>
+    );
   return (
     <>
       {links.map((l) => {
@@ -630,10 +771,14 @@ function MyLinksModal() {
             <AppAvatar name={l.room?.name} size={38} square />
             <div className="grow">
               <div className="t1">
-                #{l.room?.name} <span className={`chip ${active ? "ok" : "dead"}`}>{active ? "ok" : "off"}</span>
+                #{l.room?.name}{" "}
+                <span className={`chip ${active ? "ok" : "dead"}`}>
+                  {active ? "ok" : "off"}
+                </span>
               </div>
               <div className="t2">
-                {l.uses ?? l.usedCount ?? 0} uses{l.maxUses ? ` / ${l.maxUses} max` : ""}
+                {l.uses ?? l.usedCount ?? 0} uses
+                {l.maxUses ? ` / ${l.maxUses} max` : ""}
                 {l.expiresAt ? ` · expires ${fmtList(l.expiresAt)}` : ""}
               </div>
             </div>
@@ -644,7 +789,12 @@ function MyLinksModal() {
                   ChatAPI.deactivateJoinLink(l.room!.id, l.id)
                     .then(() => toast("Link deactivated", "success"))
                     .then(load)
-                    .catch((err) => toast(getErrorMessage(err, "Couldn't deactivate"), "error"))
+                    .catch((err) =>
+                      toast(
+                        getErrorMessage(err, "Couldn't deactivate"),
+                        "error",
+                      ),
+                    )
                 }
               >
                 <TrashIcon /> Off
@@ -665,7 +815,11 @@ function ProfileModal() {
   const { user } = useShell();
   return (
     <div className="row-item" style={{ padding: "4px 0 14px" }}>
-      <AppAvatar name={user.displayname ?? user.username} src={user.avatar} size={56} />
+      <AppAvatar
+        name={user.displayname ?? user.username}
+        src={user.avatar}
+        size={56}
+      />
       <div className="grow">
         <div className="t1">{displayName(user)}</div>
         <div className="t2">@{user.username}</div>
@@ -681,7 +835,11 @@ function AccountModal() {
   return (
     <>
       <div className="row-item">
-        <AppAvatar name={user.displayname ?? user.username} src={user.avatar} size={40} />
+        <AppAvatar
+          name={user.displayname ?? user.username}
+          src={user.avatar}
+          size={40}
+        />
         <div className="grow">
           <div className="t1">{displayName(user)}</div>
           <div className="t2">{user.email}</div>
@@ -695,11 +853,16 @@ function AccountModal() {
             toast(theme === "dark" ? "Light mode" : "Dark mode", "info");
           }}
         >
-          {theme === "dark" ? <SunIcon /> : <MoonIcon />} Switch to {theme === "dark" ? "light" : "dark"} mode
+          {theme === "dark" ? <SunIcon /> : <MoonIcon />} Switch to{" "}
+          {theme === "dark" ? "light" : "dark"} mode
         </button>
         <button
           className="btn btn-danger btn-block"
-          onClick={() => void ChatAPI.logout().finally(() => (window.location.href = "/auth"))}
+          onClick={() =>
+            void ChatAPI.logout().finally(
+              () => (window.location.href = "/auth"),
+            )
+          }
         >
           <LogoutIcon /> Sign out
         </button>
@@ -733,7 +896,10 @@ function RecoveryModal() {
       <>
         <div className="warn">
           <RefreshIcon />
-          <span>These codes are shown only once. Save them somewhere safe — they replace all previous codes.</span>
+          <span>
+            These codes are shown only once. Save them somewhere safe — they
+            replace all previous codes.
+          </span>
         </div>
         <div className="codes">
           {codes.map((c) => (
@@ -748,13 +914,25 @@ function RecoveryModal() {
 
   return (
     <>
-      <p className="role-note">Regenerating codes invalidates all previous backup codes. Enter your password to continue.</p>
+      <p className="role-note">
+        Regenerating codes invalidates all previous backup codes. Enter your
+        password to continue.
+      </p>
       <div className="mfield">
         <label>Current password</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+        />
       </div>
       <div className="mactions">
-        <button className="btn btn-primary btn-block" onClick={() => void generate()} disabled={busy || !password}>
+        <button
+          className="btn btn-primary btn-block"
+          onClick={() => void generate()}
+          disabled={busy || !password}
+        >
           <RefreshIcon /> Generate codes
         </button>
       </div>
@@ -766,7 +944,11 @@ function RecoveryModal() {
 // Confirm
 // ---------------------------------------------------------------------------
 
-function ConfirmModal({ p }: { p: { title: string; text: string; danger?: boolean; onYes: () => void } }) {
+function ConfirmModal({
+  p,
+}: {
+  p: { title: string; text: string; danger?: boolean; onYes: () => void };
+}) {
   const { clearModals } = useShell();
   const [busy, setBusy] = useState(false);
   return (
