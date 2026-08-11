@@ -6,10 +6,13 @@ import {
   createRoomSchema,
   chatRoomIdParamSchema,
   markReadSchema,
+  getMessagesSchema,
 } from "@repo/validators";
 import { assertRoomAccess } from "../../middleware/socketAccess";
 import { asyncHandler } from "../../middleware/async-handler";
 import { markRoomRead } from "../../services/room/markRead";
+import { getMessages } from "../../services/room/getMessages";
+import { getMembers } from "../../services/room/getMembers";
 import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import joinRoomInvite from "./joinroominvite";
 import joinRoomRequest from "./joinroomreq";
@@ -199,6 +202,60 @@ router.get(
       return next(err);
     }
   },
+);
+
+// GET /:chatRoomId/messages
+// Returns the room's message timeline with cursor pagination (same contract as
+// the direct-chat GET /:directChatId/messages so the web client can reuse its
+// timeline hook). Access is gated by room membership.
+router.get(
+  "/:chatRoomId/messages",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = chatRoomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "chatRoomId missing" });
+      return;
+    }
+    const chatRoomId = params.data.chatRoomId;
+
+    await assertRoomAccess(userId, chatRoomId);
+
+    const query = getMessagesSchema.safeParse(req.query);
+    const { cursor, limit, direction } = query.success ? query.data : {};
+
+    const { messages } = await getMessages(chatRoomId, {
+      cursor,
+      limit,
+      direction,
+    });
+    res.json({ ok: true, messages });
+  }),
+);
+
+// GET /:chatRoomId/members
+// Lists the room's members (user info + role) for the room info panel.
+// Access is gated by room membership.
+router.get(
+  "/:chatRoomId/members",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = chatRoomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "chatRoomId missing" });
+      return;
+    }
+    const chatRoomId = params.data.chatRoomId;
+
+    await assertRoomAccess(userId, chatRoomId);
+
+    const members = await getMembers(chatRoomId);
+    res.json({ ok: true, members });
+  }),
 );
 
 const markReadLimiter = createRateLimiter({

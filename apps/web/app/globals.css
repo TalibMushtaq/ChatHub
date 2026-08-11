@@ -17,7 +17,8 @@
 }
 
 /* Light theme overrides */
-:root.light {
+:root.light,
+:root[data-theme="light"] {
   --color-bg: #ffffff;
   --color-surface: #f3f4f6;
   --color-text: #111827;

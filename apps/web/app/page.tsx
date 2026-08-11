@@ -1,27 +1,29 @@
-import { Navbar } from "../components/landing/Navbar";
-import { Hero } from "../components/landing/Hero";
-import { PreviewWindow } from "../components/landing/PreviewWindow";
-import { StatsSection } from "../components/landing/Stats";
-import { FeaturesSection } from "../components/landing/Features";
-import { CTASection } from "../components/landing/CTA";
-import { Footer } from "../components/landing/Footer";
+import "./landing.css";
+import { MascotDefs } from "../components/landing/Mascot";
+import { LandingNavbar } from "../components/landing/LandingNavbar";
+import { HeroSection } from "../components/landing/HeroSection";
+import { PositioningSection } from "../components/landing/PositioningSection";
+import { FeaturesSection } from "../components/landing/FeaturesSection";
+import { PersonalitySection } from "../components/landing/PersonalitySection";
+import { CTABand } from "../components/landing/CTABand";
+import { LandingFooter } from "../components/landing/LandingFooter";
 
 export default function HomePage() {
   return (
-    <main className="bg-bg text-text">
-      <Navbar />
-
-      <Hero />
-
-      <PreviewWindow />
-
-      <StatsSection />
-
-      <FeaturesSection />
-
-      <CTASection />
-
-      <Footer />
-    </main>
+    <div className="landing">
+      <MascotDefs />
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <LandingNavbar />
+      <main id="main">
+        <HeroSection />
+        <PositioningSection />
+        <FeaturesSection />
+        <PersonalitySection />
+        <CTABand />
+      </main>
+      <LandingFooter />
+    </div>
   );
 }

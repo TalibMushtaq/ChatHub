@@ -8,6 +8,8 @@ import { attachmentSummarySelect } from "./attachment";
 
 export const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 export const DELETE_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+export const DEFAULT_PAGE_SIZE = 50;
+export const MAX_PAGE_SIZE = 100;
 
 // ---------------------------------------------------------------------------
 // Reusable Prisma select objects
@@ -24,5 +26,30 @@ export const messageWithAttachmentsSelect = {
   chatRoomId: true,
   messageType: true,
   createdAt: true,
+  attachments: { select: attachmentSummarySelect },
+} as const;
+
+/**
+ * Room message timeline select — mirrors the direct-chat messageWithUserSelect
+ * (timeline shape) while staying scoped to chatRoomId. Includes the sender and
+ * attachment info the web timeline renders (name, avatar, edited/deleted state).
+ */
+export const roomMessageWithUserSelect = {
+  id: true,
+  content: true,
+  senderId: true,
+  chatRoomId: true,
+  messageType: true,
+  createdAt: true,
+  isDeleted: true,
+  editedAt: true,
+  User: {
+    select: {
+      id: true,
+      username: true,
+      displayname: true,
+      avatar: true,
+    },
+  },
   attachments: { select: attachmentSummarySelect },
 } as const;

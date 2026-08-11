@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 
+// Unified theme hook: drives the `data-theme` attribute on <html> (used by the
+// landing page design system) while keeping the legacy `.light` class so the
+// Tailwind `--color-*` light overrides keep applying app-wide.
+function apply(theme: "dark" | "light") {
+  document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.classList.toggle("light", theme === "light");
+}
+
 export function useTheme() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -7,7 +15,7 @@ export function useTheme() {
     const saved = localStorage.getItem("theme") as "dark" | "light" | null;
     if (saved) {
       setTheme(saved);
-      document.documentElement.classList.toggle("light", saved === "light");
+      apply(saved);
     }
   }, []);
 
@@ -15,7 +23,7 @@ export function useTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
     localStorage.setItem("theme", next);
-    document.documentElement.classList.toggle("light", next === "light");
+    apply(next);
   };
 
   return { theme, toggle };

@@ -4,16 +4,6 @@
 
 ### High Priority
 
-- [ ] **Add "mark as read" / unread count** ✅
-  - [x] Add `DirectChatReadReceipt` model to Prisma schema (userId, directChatId, lastReadMessageId, lastReadMessageCreatedAt)
-  - [x] Add `ChatRoomReadReceipt` model to Prisma schema (userId, chatRoomId, lastReadMessageId, lastReadMessageCreatedAt)
-  - [x] Run `prisma migrate dev` (migration SQL created at `db/migrations/20260809000000_add_read_receipts/`)
-  - [x] Create `POST /api/dm/:directChatId/mark-read` endpoint
-  - [x] Create `POST /api/room/:chatRoomId/mark-read` endpoint
-  - [x] Update `GET /api/dm/inbox` to include `unreadCount` per chat
-  - [x] Update `GET /api/room/rooms` to include `unreadCount` per room
-  - [x] Emit socket event when mark-read happens (`directChat:read`, `chatroom:read` to `user:{userId}`)
-  - [x] Unit tests: 35 tests across 4 files, all passing
 
 ### Medium Priority
 
@@ -58,3 +48,13 @@
 - [x] File send support for **Room Chat** (socket handler already supports `messageType: FILE`)
 - [x] File send support for **DMs** (sendMessageSchema accepts messageType + attachmentIds, DMInput has file picker with presigned upload flow)
 - [x] Add Delete, Update to the room chat (chatroom:message:edit/delete socket events, 5min/30min windows, frontend wired via callbacks)
+- [x] **Add "mark as read" / unread count** ✅
+  - [x] Add `DirectChatReadReceipt` model to Prisma schema (userId, directChatId, lastReadMessageId, lastReadMessageCreatedAt)
+  - [x] Add `ChatRoomReadReceipt` model to Prisma schema (userId, chatRoomId, lastReadMessageId, lastReadMessageCreatedAt)
+  - [x] Run `prisma migrate dev` (migration SQL created at `db/migrations/20260809000000_add_read_receipts/`)
+  - [x] Create `POST /api/dm/:directChatId/mark-read` endpoint
+  - [x] Create `POST /api/room/:chatRoomId/mark-read` endpoint
+  - [x] Update `GET /api/dm/inbox` to include `unreadCount` per chat
+  - [x] Update `GET /api/room/rooms` to include `unreadCount` per room
+  - [x] Emit socket event when mark-read happens (`directChat:read`, `chatroom:read` to `user:{userId}`)
+  - [x] Unit tests: 35 tests across 4 files, all passing

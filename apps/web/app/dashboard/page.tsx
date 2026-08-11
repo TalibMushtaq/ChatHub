@@ -1,50 +1,9 @@
-// app/dashboard/page.tsx
+"use client";
 
-export const dynamic = "force-dynamic";
+// The messenger shell — the entire /dashboard surface after login.
+import AppShell from "../../components/app/AppShell";
+import "../app.css";
 
-import { redirect } from "next/navigation";
-import axios from "axios";
-import ActivityChart from "./components/ActivityChart";
-import ServersCard from "./components/ServersCard";
-import ActivityCard from "./components/ActivityCard";
-import ActionsCard from "./components/ActionCard";
-import MembersCard from "./components/MembersCard";
-import DashboardTopbar from "./components/DashboardTopbar";
-import { serverApi } from "../lib/serverApi";
-
-export default async function DashboardPage() {
-  let user;
-  try {
-    const api = await serverApi();
-    const { data } = await api.get("/auth/me");
-    if (!data.ok) {
-      redirect("/auth");
-    }
-    user = data.user;
-  } catch (err) {
-    if (axios.isAxiosError(err) && err.response?.status === 401) {
-      redirect("/auth");
-    }
-    throw err;
-  }
-  return (
-    <>
-      <DashboardTopbar user={user} />
-      <div className="overflow-y-auto h-full p-6">
-        <div className="grid grid-cols-3 gap-4">
-          <div className="col-span-3 mb-2">
-            <h2 className="text-2xl font-extrabold tracking-tight">
-              Good evening, {user.displayName ?? user.username} 👋
-            </h2>
-          </div>
-
-          <ActivityChart />
-          <ServersCard />
-          <ActivityCard />
-          <ActionsCard />
-          <MembersCard />
-        </div>
-      </div>
-    </>
-  );
+export default function DashboardPage() {
+  return <AppShell />;
 }
