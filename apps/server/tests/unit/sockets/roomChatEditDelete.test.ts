@@ -60,14 +60,14 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:edit"]({
-        payload: {
+      await handlers["chatroom:message:edit"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
           content: "updated content",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: true }),
@@ -87,14 +87,14 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:edit"]({
-        payload: {
+      await handlers["chatroom:message:edit"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
           content: "hacked",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "FORBIDDEN" }),
@@ -113,14 +113,14 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:edit"]({
-        payload: {
+      await handlers["chatroom:message:edit"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
           content: "too late",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "EDIT_WINDOW_EXPIRED" }),
@@ -139,14 +139,14 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:edit"]({
-        payload: {
+      await handlers["chatroom:message:edit"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
           content: "nope",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "MESSAGE_NOT_FOUND" }),
@@ -171,14 +171,14 @@ describe("registerRoomChat - edit and delete", () => {
             }) as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:edit"]({
-        payload: {
+      await handlers["chatroom:message:edit"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
           content: "cross-room edit",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "MESSAGE_NOT_FOUND" }),
@@ -204,14 +204,14 @@ describe("registerRoomChat - edit and delete", () => {
         chatRoomId: "room-1",
       } as any);
 
-      await handlers["chatroom:message:edit"]({
-        payload: {
+      await handlers["chatroom:message:edit"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
           content: "updated",
         },
-        callback: vi.fn(),
-      });
+        vi.fn(),
+      );
 
       expect(prismaMock.message.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -224,14 +224,14 @@ describe("registerRoomChat - edit and delete", () => {
       const { handlers } = createSocketWithHandlers("u1");
 
       const callback = vi.fn();
-      await handlers["chatroom:message:edit"]({
-        payload: {
+      await handlers["chatroom:message:edit"](
+        {
           chatRoomId: "room-1",
           // missing messageId
           content: "test",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false }),
@@ -258,13 +258,13 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:delete"]({
-        payload: {
+      await handlers["chatroom:message:delete"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: true }),
@@ -284,13 +284,13 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:delete"]({
-        payload: {
+      await handlers["chatroom:message:delete"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "FORBIDDEN" }),
@@ -309,13 +309,13 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:delete"]({
-        payload: {
+      await handlers["chatroom:message:delete"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "DELETE_WINDOW_EXPIRED" }),
@@ -334,13 +334,13 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:delete"]({
-        payload: {
+      await handlers["chatroom:message:delete"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "ALREADY_DELETED" }),
@@ -362,13 +362,13 @@ describe("registerRoomChat - edit and delete", () => {
             }) as any);
 
       const callback = vi.fn();
-      await handlers["chatroom:message:delete"]({
-        payload: {
+      await handlers["chatroom:message:delete"](
+        {
           chatRoomId: "room-1",
           messageId: "msg-1",
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false, code: "MESSAGE_NOT_FOUND" }),
@@ -393,10 +393,10 @@ describe("registerRoomChat - edit and delete", () => {
         deletedAt: new Date(),
       } as any);
 
-      await handlers["chatroom:message:delete"]({
-        payload: { chatRoomId: "room-1", messageId: "msg-1" },
-        callback: vi.fn(),
-      });
+      await handlers["chatroom:message:delete"](
+        { chatRoomId: "room-1", messageId: "msg-1" },
+        vi.fn(),
+      );
 
       expect(prismaMock.message.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -409,13 +409,13 @@ describe("registerRoomChat - edit and delete", () => {
       const { handlers } = createSocketWithHandlers("u1");
 
       const callback = vi.fn();
-      await handlers["chatroom:message:delete"]({
-        payload: {
+      await handlers["chatroom:message:delete"](
+        {
           chatRoomId: "room-1",
           // missing messageId
         },
         callback,
-      });
+      );
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({ ok: false }),

@@ -67,15 +67,15 @@ describe("registerRoomChat with attachments", () => {
     } as any);
 
     const callback = vi.fn();
-    await handlers["chatroom:message"]({
-      payload: {
+    await handlers["chatroom:message"](
+      {
         chatRoomId: "room-1",
         content: "Hello room!",
         messageType: "TEXT",
         idempotencyKey: "test-key-123",
       },
       callback,
-    });
+    );
 
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
     expect(callback).toHaveBeenCalledWith(
@@ -87,14 +87,14 @@ describe("registerRoomChat with attachments", () => {
     const { handlers } = createSocketWithHandlers("u1");
 
     const callback = vi.fn();
-    await handlers["chatroom:message"]({
-      payload: {
+    await handlers["chatroom:message"](
+      {
         chatRoomId: "room-1",
         content: "System update",
         messageType: "SYSTEM",
       },
       callback,
-    });
+    );
 
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({ ok: false }),
