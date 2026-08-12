@@ -24,6 +24,29 @@ import {
   TrashIcon,
 } from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
+import {
+  btn,
+  btnPrimary,
+  btnGhost,
+  btnDanger,
+  btnSm,
+  btnBlock,
+  iconBtn,
+  searchBox,
+  searchInput,
+  fieldLabel,
+  fieldInput,
+  rowItem,
+  rowGrow,
+  rowT1,
+  rowT2,
+  chipOk,
+  chipDead,
+  chipPending,
+  chipMember,
+  chipOwner,
+  chipAdmin,
+} from "./styles";
 
 const TITLES: Record<ModalEntry["name"], string> = {
   newDm: "New message",
@@ -70,23 +93,41 @@ function ModalFrame({
   const { popModal, clearModals } = useShell();
   const body = Body(entry);
   return (
-    <div className="modal-root on" style={{ zIndex: 80 + index }}>
-      <div className="modal-back" onClick={clearModals} />
-      <div className="modal">
-        <div className="modal-head">
+    <div
+      className="modal-root fixed inset-0 z-[80] flex items-end justify-center"
+      style={{ zIndex: 80 + index }}
+    >
+      <div
+        className="modal-back absolute inset-0 bg-[oklch(0_0_0/0.42)] animate-[fade_.2s_cubic-bezier(.2,.8,.2,1)]"
+        onClick={clearModals}
+      />
+      <div className="modal relative flex max-h-[88dvh] w-[min(480px,100%)] flex-col overflow-hidden rounded-t-[24px] bg-surface shadow-lg animate-[rise_.24s_cubic-bezier(.2,.8,.2,1)]">
+        <div className="modal-head flex items-center gap-2.5 border-b border-border px-[18px] py-[15px]">
           {total > 1 ? (
-            <button className="icon-btn" onClick={popModal} aria-label="Back">
+            <button
+              className={`${iconBtn} h-[34px] w-[34px]`}
+              onClick={popModal}
+              aria-label="Back"
+            >
               <BackIcon />
             </button>
           ) : (
             <span />
           )}
-          <h2>{TITLES[entry.name]}</h2>
-          <button className="icon-btn" onClick={clearModals} aria-label="Close">
+          <h2 className="min-w-0 flex-1 truncate font-display text-[18px] leading-[1.15] tracking-tight">
+            {TITLES[entry.name]}
+          </h2>
+          <button
+            className={`${iconBtn} h-[34px] w-[34px]`}
+            onClick={clearModals}
+            aria-label="Close"
+          >
             <CloseIcon />
           </button>
         </div>
-        <div className="modal-body">{body}</div>
+        <div className="modal-body overflow-y-auto p-[16px_18px_22px]">
+          {body}
+        </div>
       </div>
     </div>
   );
@@ -181,11 +222,12 @@ function NewDmModal() {
 
   return (
     <>
-      <div className="mfield">
-        <label>Find someone</label>
-        <div className="searchbox">
-          <SearchIcon />
+      <div className="mfield mb-3.5">
+        <label className={fieldLabel}>Find someone</label>
+        <div className={searchBox}>
+          <SearchIcon className="h-[17px] w-[17px] flex-none text-muted" />
           <input
+            className={searchInput}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search by username…"
@@ -195,17 +237,19 @@ function NewDmModal() {
       </div>
       {q.trim() &&
         (results.length === 0 ? (
-          <p className="role-note">No users found.</p>
+          <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+            No users found.
+          </p>
         ) : (
           results.map((u) => (
-            <div key={u.id} className="row-item">
+            <div key={u.id} className={rowItem}>
               <AppAvatar name={u.displayname ?? u.username} size={38} />
-              <div className="grow">
-                <div className="t1">{displayName(u)}</div>
-                <div className="t2">@{u.username}</div>
+              <div className={rowGrow}>
+                <div className={rowT1}>{displayName(u)}</div>
+                <div className={rowT2}>@{u.username}</div>
               </div>
               <button
-                className="btn btn-primary btn-sm"
+                className={`${btnPrimary} ${btnSm}`}
                 disabled={busyId === u.id}
                 onClick={() => void start(u)}
               >
@@ -254,26 +298,28 @@ function NewRoomModal() {
 
   return (
     <>
-      <div className="mfield">
-        <label>Room name</label>
+      <div className="mfield mb-3.5">
+        <label className={fieldLabel}>Room name</label>
         <input
+          className={fieldInput}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Friday Gaming"
           autoFocus
         />
       </div>
-      <div className="mfield">
-        <label>Description (optional)</label>
+      <div className="mfield mb-3.5">
+        <label className={fieldLabel}>Description (optional)</label>
         <textarea
+          className={`${fieldInput} min-h-[70px] resize-y`}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="What's this room about?"
         />
       </div>
-      <div className="mactions">
+      <div className="mactions mt-4 grid gap-2.5">
         <button
-          className="btn btn-primary btn-block"
+          className={`${btnPrimary} ${btnBlock}`}
           onClick={() => void create()}
           disabled={busy || !name.trim()}
         >
@@ -294,68 +340,81 @@ function RoomInfoModal() {
   const members = info ? (roomMembers[info.roomId] ?? []) : [];
   const isAdmin = info?.myRole === "OWNER" || info?.myRole === "ADMIN";
 
-  if (!info) return <p className="role-note">Room not found.</p>;
+  if (!info)
+    return (
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        Room not found.
+      </p>
+    );
 
   return (
     <>
-      <div className="row-item" style={{ padding: "2px 4px 14px" }}>
+      <div className={`${rowItem}`} style={{ padding: "2px 4px 14px" }}>
         <AppAvatar name={info.name} size={52} square />
-        <div className="grow">
-          <div className="t1">
+        <div className={rowGrow}>
+          <div className={rowT1}>
             # {info.name}{" "}
-            <span className={`chip ${info.myRole.toLowerCase()}`}>
+            <span className={info.myRole === "OWNER" ? chipOwner : chipAdmin}>
               {info.myRole.toLowerCase()}
             </span>
           </div>
-          <div className="t2">{info.description || "No description"}</div>
+          <div className={rowT2}>{info.description || "No description"}</div>
         </div>
       </div>
 
-      <div className="row-item">
-        <div className="grow">
-          <div className="t1">
+      <div className={rowItem}>
+        <div className={rowGrow}>
+          <div className={rowT1}>
             {members.length} member{members.length === 1 ? "" : "s"}
           </div>
         </div>
       </div>
 
       {members.map((m) => (
-        <div key={m.memberId} className="row-item">
+        <div key={m.memberId} className={rowItem}>
           <AppAvatar name={displayName(m.user)} src={m.user.avatar} size={38} />
-          <div className="grow">
-            <div className="t1">
+          <div className={rowGrow}>
+            <div className={rowT1}>
               {displayName(m.user)}
               {m.user.id === user.id && (
-                <span className="chip member">you</span>
+                <span className={`${chipMember} ml-2`}>you</span>
               )}
             </div>
-            <div className="t2">Joined {fmtTime(m.joinedAt)}</div>
+            <div className={rowT2}>Joined {fmtTime(m.joinedAt)}</div>
           </div>
-          <span className={`chip ${m.role.toLowerCase()}`}>
+          <span
+            className={
+              m.role === "OWNER"
+                ? chipOwner
+                : m.role === "ADMIN"
+                  ? chipAdmin
+                  : chipMember
+            }
+          >
             {m.role.toLowerCase()}
           </span>
         </div>
       ))}
 
       {isAdmin && (
-        <div className="mactions">
+        <div className="mactions mt-4 grid gap-2.5">
           <button
-            className="btn btn-primary btn-block"
+            className={`${btnPrimary} ${btnBlock}`}
             onClick={() => openModal("invite", info.roomId)}
           >
-            <UserIcon /> Invite people
+            <UserIcon className="h-[17px] w-[17px]" /> Invite people
           </button>
           <button
-            className="btn btn-ghost btn-block"
+            className={`${btnGhost} ${btnBlock}`}
             onClick={() => openModal("joinRequests", info.roomId)}
           >
-            <MailIcon /> Join requests
+            <MailIcon className="h-[17px] w-[17px]" /> Join requests
           </button>
           <button
-            className="btn btn-ghost btn-block"
+            className={`${btnGhost} ${btnBlock}`}
             onClick={() => openModal("joinLinks", info.roomId)}
           >
-            <LinkIcon /> Join links
+            <LinkIcon className="h-[17px] w-[17px]" /> Join links
           </button>
         </div>
       )}
@@ -417,11 +476,14 @@ function InviteModal({ roomId }: { roomId: string }) {
 
   return (
     <>
-      <p className="role-note">Inviting to #{info?.name ?? "room"}</p>
-      <div className="mfield">
-        <div className="searchbox">
-          <SearchIcon />
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        Inviting to #{info?.name ?? "room"}
+      </p>
+      <div className="mfield mb-3.5">
+        <div className={searchBox}>
+          <SearchIcon className="h-[17px] w-[17px] flex-none text-muted" />
           <input
+            className={searchInput}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search by username…"
@@ -431,17 +493,19 @@ function InviteModal({ roomId }: { roomId: string }) {
       </div>
       {q.trim() &&
         (results.length === 0 ? (
-          <p className="role-note">No users found.</p>
+          <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+            No users found.
+          </p>
         ) : (
           results.map((u) => (
-            <div key={u.id} className="row-item">
+            <div key={u.id} className={rowItem}>
               <AppAvatar name={u.displayname ?? u.username} size={38} />
-              <div className="grow">
-                <div className="t1">{displayName(u)}</div>
-                <div className="t2">@{u.username}</div>
+              <div className={rowGrow}>
+                <div className={rowT1}>{displayName(u)}</div>
+                <div className={rowT2}>@{u.username}</div>
               </div>
               <button
-                className="btn btn-primary btn-sm"
+                className={`${btnPrimary} ${btnSm}`}
                 disabled={busyId === u.id}
                 onClick={() => void invite(u)}
               >
@@ -492,33 +556,37 @@ function JoinRequestsModal({ roomId }: { roomId: string }) {
   }
 
   if (requests.length === 0)
-    return <p className="role-note">No pending requests.</p>;
+    return (
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        No pending requests.
+      </p>
+    );
   return (
     <>
       {requests.map((r) => (
-        <div key={r.id} className="row-item">
+        <div key={r.id} className={rowItem}>
           <AppAvatar
             name={displayName(r.user)}
             src={r.user?.avatar}
             size={38}
           />
-          <div className="grow">
-            <div className="t1">{displayName(r.user)}</div>
-            <div className="t2">@{r.user?.username}</div>
+          <div className={rowGrow}>
+            <div className={rowT1}>{displayName(r.user)}</div>
+            <div className={rowT2}>@{r.user?.username}</div>
           </div>
           <button
-            className="btn btn-sm btn-primary"
+            className={`${btn} ${btnSm} ${btnPrimary}`}
             disabled={busyId === r.id}
             onClick={() => void decide(r.id, "APPROVED")}
           >
-            <CheckIcon /> Approve
+            <CheckIcon className="h-[17px] w-[17px]" /> Approve
           </button>
           <button
-            className="btn btn-sm btn-danger"
+            className={`${btnDanger} ${btnSm}`}
             disabled={busyId === r.id}
             onClick={() => void decide(r.id, "REJECTED")}
           >
-            <CloseIcon /> Reject
+            <CloseIcon className="h-[17px] w-[17px]" /> Reject
           </button>
         </div>
       ))}
@@ -574,22 +642,25 @@ function JoinLinksModal({ roomId }: { roomId: string }) {
 
   return (
     <>
-      <p className="role-note">
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
         Create a link anyone can use to join <b>#{roomId.slice(0, 8)}</b>.
       </p>
       <button
-        className="btn btn-primary btn-block"
+        className={`${btnPrimary} ${btnBlock}`}
         onClick={() => void makeLink()}
         disabled={busy}
       >
-        <LinkIcon /> {busy ? "Creating…" : "Create join link"}
+        <LinkIcon className="h-[17px] w-[17px]" />{" "}
+        {busy ? "Creating…" : "Create join link"}
       </button>
 
       {freshToken && (
-        <div className="mlink">
-          <span className="token">{freshToken}</span>
+        <div className="mlink my-2.5 flex items-center gap-2.5 rounded-xl border border-border bg-bg p-[10px_12px]">
+          <span className="token min-w-0 flex-1 truncate font-mono text-[13px] font-bold text-accent-solid select-all">
+            {freshToken}
+          </span>
           <button
-            className="btn btn-ghost btn-sm"
+            className={`${btnGhost} ${btnSm}`}
             onClick={() => {
               void navigator.clipboard
                 ?.writeText(freshToken)
@@ -603,19 +674,23 @@ function JoinLinksModal({ roomId }: { roomId: string }) {
 
       {links.length > 0 && (
         <>
-          <p className="linkrow-pill">Active links for this room</p>
+          <p className="linkrow-pill mt-2 text-[12.5px] font-semibold text-muted">
+            Active links for this room
+          </p>
           {links.map((l) => (
-            <div key={l.id} className="row-item">
-              <div className="grow">
-                <div className="t1">
+            <div key={l.id} className={rowItem}>
+              <div className={rowGrow}>
+                <div className={rowT1}>
                   {(l.isActive ?? l.active !== false) ? "Active" : "Inactive"}{" "}
                   <span
-                    className={`chip ${(l.isActive ?? l.active !== false) ? "ok" : "dead"}`}
+                    className={
+                      (l.isActive ?? l.active !== false) ? chipOk : chipDead
+                    }
                   >
                     {(l.isActive ?? l.active !== false) ? "ok" : "off"}
                   </span>
                 </div>
-                <div className="t2">
+                <div className={rowT2}>
                   {l.uses ?? l.usedCount ?? 0} uses
                   {l.maxUses ? ` / ${l.maxUses} max` : ""}
                   {l.expiresAt ? ` · expires ${fmtList(l.expiresAt)}` : ""}
@@ -623,10 +698,10 @@ function JoinLinksModal({ roomId }: { roomId: string }) {
               </div>
               {(l.isActive ?? l.active !== false) && (
                 <button
-                  className="btn btn-danger btn-sm"
+                  className={`${btnDanger} ${btnSm}`}
                   onClick={() => void deactivate(l.id)}
                 >
-                  <TrashIcon /> Deactivate
+                  <TrashIcon className="h-[17px] w-[17px]" /> Deactivate
                 </button>
               )}
             </div>
@@ -673,31 +748,35 @@ function ReceivedInvitesModal() {
   }
 
   if (invites.length === 0)
-    return <p className="role-note">No pending invitations.</p>;
+    return (
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        No pending invitations.
+      </p>
+    );
   return (
     <>
       {invites.map((inv) => (
-        <div key={inv.id} className="row-item">
+        <div key={inv.id} className={rowItem}>
           <AppAvatar name={inv.room?.name} size={38} square />
-          <div className="grow">
-            <div className="t1">#{inv.room?.name}</div>
-            <div className="t2">
+          <div className={rowGrow}>
+            <div className={rowT1}>#{inv.room?.name}</div>
+            <div className={rowT2}>
               from @{inv.invitedBy?.username} · {fmtList(inv.createdAt)}
             </div>
           </div>
           <button
-            className="btn btn-sm btn-primary"
+            className={`${btn} ${btnSm} ${btnPrimary}`}
             disabled={busyId === inv.id}
             onClick={() => void respond(inv.id, "ACCEPTED")}
           >
-            <CheckIcon /> Accept
+            <CheckIcon className="h-[17px] w-[17px]" /> Accept
           </button>
           <button
-            className="btn btn-sm btn-danger"
+            className={`${btnDanger} ${btnSm}`}
             disabled={busyId === inv.id}
             onClick={() => void respond(inv.id, "REJECTED")}
           >
-            <CloseIcon /> Decline
+            <CloseIcon className="h-[17px] w-[17px]" /> Decline
           </button>
         </div>
       ))}
@@ -719,19 +798,23 @@ function SentInvitesModal() {
   }, []);
 
   if (invites.length === 0)
-    return <p className="role-note">No pending invitations sent.</p>;
+    return (
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        No pending invitations sent.
+      </p>
+    );
   return (
     <>
       {invites.map((inv) => (
-        <div key={inv.id} className="row-item">
+        <div key={inv.id} className={rowItem}>
           <AppAvatar name={inv.room?.name} size={38} square />
-          <div className="grow">
-            <div className="t1">#{inv.room?.name}</div>
-            <div className="t2">
+          <div className={rowGrow}>
+            <div className={rowT1}>#{inv.room?.name}</div>
+            <div className={rowT2}>
               to @{inv.invitedUser?.username} · {fmtList(inv.createdAt)}
             </div>
           </div>
-          <span className="chip pending">pending</span>
+          <span className={chipPending}>pending</span>
         </div>
       ))}
     </>
@@ -760,23 +843,25 @@ function MyLinksModal() {
 
   if (links.length === 0)
     return (
-      <p className="role-note">You haven&apos;t created any join links yet.</p>
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        You haven&apos;t created any join links yet.
+      </p>
     );
   return (
     <>
       {links.map((l) => {
         const active = l.isActive ?? l.active !== false;
         return (
-          <div key={l.id} className="row-item">
+          <div key={l.id} className={rowItem}>
             <AppAvatar name={l.room?.name} size={38} square />
-            <div className="grow">
-              <div className="t1">
+            <div className={rowGrow}>
+              <div className={rowT1}>
                 #{l.room?.name}{" "}
-                <span className={`chip ${active ? "ok" : "dead"}`}>
+                <span className={active ? chipOk : chipDead}>
                   {active ? "ok" : "off"}
                 </span>
               </div>
-              <div className="t2">
+              <div className={rowT2}>
                 {l.uses ?? l.usedCount ?? 0} uses
                 {l.maxUses ? ` / ${l.maxUses} max` : ""}
                 {l.expiresAt ? ` · expires ${fmtList(l.expiresAt)}` : ""}
@@ -784,7 +869,7 @@ function MyLinksModal() {
             </div>
             {active && l.room && (
               <button
-                className="btn btn-danger btn-sm"
+                className={`${btnDanger} ${btnSm}`}
                 onClick={() =>
                   ChatAPI.deactivateJoinLink(l.room!.id, l.id)
                     .then(() => toast("Link deactivated", "success"))
@@ -797,7 +882,7 @@ function MyLinksModal() {
                     )
                 }
               >
-                <TrashIcon /> Off
+                <TrashIcon className="h-[17px] w-[17px]" /> Off
               </button>
             )}
           </div>
@@ -814,16 +899,16 @@ function MyLinksModal() {
 function ProfileModal() {
   const { user } = useShell();
   return (
-    <div className="row-item" style={{ padding: "4px 0 14px" }}>
+    <div className={rowItem} style={{ padding: "4px 0 14px" }}>
       <AppAvatar
         name={user.displayname ?? user.username}
         src={user.avatar}
         size={56}
       />
-      <div className="grow">
-        <div className="t1">{displayName(user)}</div>
-        <div className="t2">@{user.username}</div>
-        <div className="t2">{user.email}</div>
+      <div className={rowGrow}>
+        <div className={rowT1}>{displayName(user)}</div>
+        <div className={rowT2}>@{user.username}</div>
+        <div className={rowT2}>{user.email}</div>
       </div>
     </div>
   );
@@ -834,20 +919,20 @@ function AccountModal() {
   const { theme, toggle } = useTheme();
   return (
     <>
-      <div className="row-item">
+      <div className={rowItem}>
         <AppAvatar
           name={user.displayname ?? user.username}
           src={user.avatar}
           size={40}
         />
-        <div className="grow">
-          <div className="t1">{displayName(user)}</div>
-          <div className="t2">{user.email}</div>
+        <div className={rowGrow}>
+          <div className={rowT1}>{displayName(user)}</div>
+          <div className={rowT2}>{user.email}</div>
         </div>
       </div>
-      <div className="mactions">
+      <div className="mactions mt-4 grid gap-2.5">
         <button
-          className="btn btn-ghost btn-block"
+          className={`${btnGhost} ${btnBlock}`}
           onClick={() => {
             toggle();
             toast(theme === "dark" ? "Light mode" : "Dark mode", "info");
@@ -857,7 +942,7 @@ function AccountModal() {
           {theme === "dark" ? "light" : "dark"} mode
         </button>
         <button
-          className="btn btn-danger btn-block"
+          className={`${btnDanger} ${btnBlock}`}
           onClick={() =>
             void ChatAPI.logout().finally(
               () => (window.location.href = "/auth"),
@@ -894,16 +979,19 @@ function RecoveryModal() {
   if (codes.length > 0) {
     return (
       <>
-        <div className="warn">
-          <RefreshIcon />
+        <div className="warn my-[14px] flex gap-2.5 rounded-[10px] border border-[color-mix(in_oklab,oklch(0.76_0.13_75)_35%,transparent)] bg-warn-wash px-[13px] py-[11px] text-[13.5px] font-semibold">
+          <RefreshIcon className="mt-px h-[18px] w-[18px] flex-none text-[oklch(0.7_0.12_75)]" />
           <span>
             These codes are shown only once. Save them somewhere safe — they
             replace all previous codes.
           </span>
         </div>
-        <div className="codes">
+        <div className="codes my-4 grid grid-cols-2 gap-2">
           {codes.map((c) => (
-            <div key={c} className="code">
+            <div
+              key={c}
+              className="code truncate rounded-[9px] bg-accent-soft px-2.5 py-[9px] font-mono text-[11.5px] font-bold text-accent-solid select-all"
+            >
               {c}
             </div>
           ))}
@@ -914,26 +1002,27 @@ function RecoveryModal() {
 
   return (
     <>
-      <p className="role-note">
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
         Regenerating codes invalidates all previous backup codes. Enter your
         password to continue.
       </p>
-      <div className="mfield">
-        <label>Current password</label>
+      <div className="mfield mb-3.5">
+        <label className={fieldLabel}>Current password</label>
         <input
+          className={fieldInput}
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
         />
       </div>
-      <div className="mactions">
+      <div className="mactions mt-4 grid gap-2.5">
         <button
-          className="btn btn-primary btn-block"
+          className={`${btnPrimary} ${btnBlock}`}
           onClick={() => void generate()}
           disabled={busy || !password}
         >
-          <RefreshIcon /> Generate codes
+          <RefreshIcon className="h-[17px] w-[17px]" /> Generate codes
         </button>
       </div>
     </>
@@ -953,13 +1042,15 @@ function ConfirmModal({
   const [busy, setBusy] = useState(false);
   return (
     <>
-      <p className="role-note">{p.text}</p>
-      <div className="mactions">
-        <button className="btn btn-ghost btn-block" onClick={clearModals}>
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        {p.text}
+      </p>
+      <div className="mactions mt-4 grid gap-2.5">
+        <button className={`${btnGhost} ${btnBlock}`} onClick={clearModals}>
           Cancel
         </button>
         <button
-          className={`btn btn-block ${p.danger ? "btn-danger" : "btn-primary"}`}
+          className={`${btnBlock} ${p.danger ? btnDanger : btnPrimary}`}
           disabled={busy}
           onClick={() => {
             setBusy(true);

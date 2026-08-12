@@ -1,379 +1,749 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "../lib/api";
+import { postCsrf } from "../lib/csrf";
 import { getErrorMessage } from "../lib/errors";
 import { userZod } from "@repo/validators";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { Mascot } from "../../components/landing/Mascot";
+
+type Screen = "login" | "signup" | "recovery" | "forgot" | "join";
+
+// Demo credentials are configured via env so the account can be created and
+// wired up later without touching code. The panel is hidden until both vars
+// are set. (NEXT_PUBLIC_ values are inlined at build time.)
+const DEMO_USERNAME = process.env.NEXT_PUBLIC_DEMO_USERNAME ?? "";
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
+const hasDemo = Boolean(DEMO_USERNAME && DEMO_PASSWORD);
+
+interface JoinPreview {
+  name: string;
+  description: string | null;
+  maxUses: number | null;
+  expiresAt: string | null;
+  roomId: string;
+}
+
+function EyeIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-[18px] w-[18px]"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+// Inline Tailwind stand-ins for the old auth.css utilities so the card can
+// render without the scoped stylesheet.
+const input =
+  "w-full rounded-xl border-[1.5px] border-border bg-bg px-3.5 py-3 text-[15px] transition-[border-color,box-shadow] duration-150 ease-app focus:border-accent-solid focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_45%,transparent)] focus:outline-none";
+const label = "mb-[7px] block text-[13.5px] font-bold tracking-[0.02em]";
+const btn =
+  "inline-flex w-full min-h-[50px] cursor-pointer items-center justify-center gap-[9px] rounded-full px-5 py-3 text-[15.5px] font-extrabold tracking-[0.02em] transition-[background-color,transform,border-color] duration-150 ease-app";
+const btnPrimary = `${btn} bg-accent-btn text-accent-on hover:bg-accent-hover disabled:opacity-55 disabled:cursor-default`;
+const btnGhost = `${btn} mt-2.5 border-[1.5px] border-border-strong bg-transparent text-fg hover:border-accent-solid hover:text-accent-solid`;
+const linkrow =
+  "mt-[18px] flex flex-wrap items-center justify-center gap-x-[18px] gap-y-1.5 text-sm font-semibold";
+const linkrowBtn =
+  "inline-flex min-h-10 cursor-pointer items-center text-muted hover:text-accent-solid";
+
+function PwField({
+  id,
+  name,
+  autoComplete,
+  placeholder,
+  value,
+  onChange,
+}: {
+  id: string;
+  name: string;
+  autoComplete: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        name={name}
+        type={show ? "text" : "password"}
+        autoComplete={autoComplete}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+        className={`${input} pr-[46px]`}
+      />
+      <button
+        type="button"
+        className="toggle absolute top-1/2 right-1.5 flex h-[38px] w-[38px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-[10px] text-muted transition-colors duration-150 ease-app hover:text-fg"
+        aria-label={show ? "Hide password" : "Show password"}
+        onClick={() => setShow(!show)}
+      >
+        <EyeIcon />
+      </button>
+    </div>
+  );
+}
+
+function Err({ msg }: { msg: string }) {
+  if (!msg) return null;
+  return (
+    <div
+      className="mb-4 rounded-[10px] border border-[color-mix(in_oklab,var(--color-danger)_30%,transparent)] bg-danger-soft px-[13px] py-2.5 text-[13.5px] font-semibold text-danger"
+      role="alert"
+    >
+      {msg}
+    </div>
+  );
+}
 
 export default function AuthCard() {
   const searchParams = useSearchParams();
-  const mode = searchParams.get("mode");
-  const [tab, setTab] = useState<"login" | "signup">("login");
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
-  const [displayname, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const router = useRouter();
+  const mode = searchParams.get("mode");
+  const joinParam = searchParams.get("join");
+
+  const [screen, setScreen] = useState<Screen>("login");
+
+  const [loginId, setLoginId] = useState("");
+  const [loginPw, setLoginPw] = useState("");
+  const [loginErr, setLoginErr] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+
+  const [suEmail, setSuEmail] = useState("");
+  const [suUser, setSuUser] = useState("");
+  const [suName, setSuName] = useState("");
+  const [suPw, setSuPw] = useState("");
+  const [suErr, setSuErr] = useState("");
+  const [suBusy, setSuBusy] = useState(false);
+
+  const [codes, setCodes] = useState<string[]>([]);
+  const [recTitle, setRecTitle] = useState("");
+  const [recSub, setRecSub] = useState<ReactNode>("");
+
+  const [fpUser, setFpUser] = useState("");
+  const [fpCode, setFpCode] = useState("");
+  const [fpPw, setFpPw] = useState("");
+  const [fpErr, setFpErr] = useState("");
+  const [fpBusy, setFpBusy] = useState(false);
+
+  const [joinToken, setJoinToken] = useState("");
+  const [joinErr, setJoinErr] = useState("");
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinPreview, setJoinPreview] = useState<JoinPreview | null>(null);
 
   useEffect(() => {
-    if (mode === "signup") setTab("signup");
-    if (mode === "login") setTab("login");
+    if (mode === "signup") setScreen("signup");
+    else if (mode === "login") setScreen("login");
   }, [mode]);
 
+  // `?join=TOKEN` support: prefill the token and auto-run the preview like
+  // the standalone auth mock does.
   useEffect(() => {
-    if (errors) {
-      toast.error(errors);
+    if (joinParam) {
+      setJoinToken(joinParam);
+      setScreen("join");
+      void doJoinPreview(joinParam);
     }
-  }, [errors]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [joinParam]);
 
-  //------------password Strength ---------
-  const getStrength = (password: string) => {
-    let score = 0;
-
-    if (password.length >= 8) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[0-9]/.test(password)) score++;
-    if (/[^A-Za-z0-9]/.test(password)) score++;
-
-    return score; // 0 - 4
-  };
-  const strength = getStrength(password);
-
-  //---------------HandelLogin--------
-  const HandelLogin = async () => {
+  async function doLogin(id = loginId, pw = loginPw) {
+    const identifier = id.trim();
+    if (!identifier) {
+      setLoginErr("Enter your email or username.");
+      return;
+    }
+    if (!pw) {
+      setLoginErr("Enter your password.");
+      return;
+    }
+    const isEmail = identifier.includes("@");
+    const payload = isEmail
+      ? { email: identifier, password: pw }
+      : { username: identifier, password: pw };
+    const parsed = userZod.login.safeParse(payload);
+    if (!parsed.success) {
+      setLoginErr(parsed.error.issues[0]?.message ?? "Invalid credentials");
+      return;
+    }
+    setLoginErr("");
+    setLoginBusy(true);
     try {
-      setLoading(true);
-      setErrors("");
-
-      const parsed = userZod.login.safeParse({
-        email,
-        password,
-      });
-
-      if (!parsed.success) {
-        const error: Record<string, string> = {};
-        parsed.error.issues.forEach((issue) => {
-          const field = issue.path[0] as string;
-          error[field] = issue.message;
-        });
-        setFieldErrors(error);
-        return;
-      }
-      await api.post("/auth/login", parsed.data);
+      await postCsrf("/auth/login", parsed.data);
       router.push("/dashboard");
       router.refresh();
-    } catch (err: unknown) {
-      setErrors(getErrorMessage(err, "Login failed"));
+    } catch (err) {
+      setLoginErr(getErrorMessage(err, "Login failed"));
     } finally {
-      setLoading(false);
+      setLoginBusy(false);
     }
-  };
+  }
 
-  //---------------HandelSignup----------------
-  const handelSignup = async () => {
+  async function doSignup() {
+    const payload = {
+      email: suEmail.trim(),
+      username: suUser.trim(),
+      displayname: suName.trim(),
+      password: suPw,
+    };
+    const parsed = userZod.signup.safeParse(payload);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const field = issue?.path?.join(".") ?? "form";
+      setSuErr(`${field}: ${issue?.message ?? "Invalid input"}`);
+      return;
+    }
+    setSuErr("");
+    setSuBusy(true);
     try {
-      setLoading(true);
-      setErrors("");
+      const data = await postCsrf<{ ok: boolean; recoveryCodes: string[] }>(
+        "/auth/signup",
+        parsed.data,
+      );
+      setCodes(data.recoveryCodes ?? []);
+      setRecTitle("Save your recovery codes");
+      setRecSub(
+        <>
+          These are the only way to reset your password. They will <b>never</b>{" "}
+          be shown again.
+        </>,
+      );
+      setScreen("recovery");
+    } catch (err) {
+      setSuErr(getErrorMessage(err, "Signup failed"));
+    } finally {
+      setSuBusy(false);
+    }
+  }
 
-      const parsed = userZod.signup.safeParse({
-        username,
-        displayname,
-        email,
-        password,
+  async function doForgot() {
+    const payload = {
+      username: fpUser.trim(),
+      recoveryCode: fpCode.trim(),
+      newPassword: fpPw,
+    };
+    if (!payload.username || !payload.recoveryCode) {
+      setFpErr("Username and recovery code are required.");
+      return;
+    }
+    if (payload.newPassword.length < 8) {
+      setFpErr("New password must be at least 8 characters.");
+      return;
+    }
+    setFpErr("");
+    setFpBusy(true);
+    try {
+      const data = await postCsrf<{ ok: boolean; recoveryCodes: string[] }>(
+        "/auth/forgot-password",
+        payload,
+      );
+      setCodes(data.recoveryCodes ?? []);
+      setRecTitle("New recovery codes");
+      setRecSub(
+        <>
+          Your password was reset. Here are your new recovery codes — save them
+          and <b>never</b> share them.
+        </>,
+      );
+      setScreen("recovery");
+    } catch (err) {
+      setFpErr(getErrorMessage(err, "Reset failed"));
+    } finally {
+      setFpBusy(false);
+    }
+  }
+
+  async function doJoinPreview(token = joinToken) {
+    const t = token.trim();
+    setJoinErr("");
+    if (!t) {
+      setJoinErr("Paste a join link token.");
+      return;
+    }
+    setJoinBusy(true);
+    try {
+      const { data } = await api.get(`/room/join/${encodeURIComponent(t)}`);
+      setJoinPreview({
+        name: data.room?.name ?? "",
+        description: data.room?.description ?? null,
+        maxUses: data.maxUses ?? null,
+        expiresAt: data.expiresAt ?? null,
+        roomId: data.room?.id ?? "",
       });
-
-      if (!parsed.success) {
-        const error: Record<string, string> = {};
-        parsed.error.issues.forEach((issue) => {
-          const field = issue.path[0] as string;
-          error[field] = issue.message;
-        });
-        setFieldErrors(error);
-        return;
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response
+        ?.status;
+      setJoinPreview(null);
+      if (status === 401) {
+        setJoinErr("You need to log in first to join a room.");
+      } else {
+        setJoinErr(getErrorMessage(err, "Couldn't preview that room"));
       }
-      await api.post("/auth/signup", parsed.data);
+    } finally {
+      setJoinBusy(false);
+    }
+  }
+
+  async function doJoin() {
+    if (!joinPreview) return;
+    setJoinBusy(true);
+    try {
+      await postCsrf(`/room/join/${encodeURIComponent(joinToken.trim())}`, {});
       router.push("/dashboard");
       router.refresh();
-    } catch (err: unknown) {
-      setErrors(getErrorMessage(err, "Signup failed"));
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      setJoinBusy(false);
+      setJoinErr(getErrorMessage(err, "Couldn't join that room"));
     }
-  };
+  }
+
+  const meta = [
+    ...(joinPreview && joinPreview.maxUses != null
+      ? [`Up to ${joinPreview.maxUses} uses`]
+      : []),
+    ...(joinPreview && joinPreview.expiresAt
+      ? [`Expires ${new Date(joinPreview.expiresAt).toLocaleDateString()}`]
+      : []),
+  ];
+  const metaText = meta.length ? meta : ["No expiry"];
 
   return (
     <>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight">
-          {tab === "login" ? "Welcome back" : "Create account"}
-        </h1>
-        <p className="text-sm text-gray-400 mt-1">
-          {tab === "login"
-            ? "Sign in to your ChatHubby account"
-            : "Join and start chatting instantly"}
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex bg-surface border border-white/10 rounded-lg p-1 mb-7">
-        <button
-          onClick={() => setTab("login")}
-          className={`flex-1 py-2 text-sm rounded-md transition ${
-            tab === "login" ? "bg-surface-2 text-white shadow" : "text-gray-400"
-          }`}
-        >
-          Log in
-        </button>
-        <button
-          onClick={() => setTab("signup")}
-          disabled={loading}
-          className={`flex-1 py-2 text-sm rounded-md transition ${
-            tab === "signup"
-              ? "bg-surface-2 text-white shadow"
-              : "text-gray-400"
-          }`}
-        >
-          Sign up
-        </button>
-      </div>
-
-      {/* OAuth */}
-      <div className="space-y-3 mb-6">
-        <button className="w-full flex items-center justify-center gap-3 py-3 bg-surface border border-white/10 rounded-lg text-sm hover:bg-surface-2 transition">
-          <span className="text-sm">G</span>
-          {tab === "login" ? "Continue with Google" : "Sign up with Google"}
-        </button>
-
-        <button className="w-full flex items-center justify-center gap-3 py-3 bg-surface border border-white/10 rounded-lg text-sm hover:bg-surface-2 transition">
-          <span className="text-sm">⬛</span>
-          {tab === "login" ? "Continue with GitHub" : "Sign up with GitHub"}
-        </button>
-      </div>
-
-      {/* Divider */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex-1 h-px bg-white/10" />
-        <span className="text-xs text-gray-500">or continue with email</span>
-        <div className="flex-1 h-px bg-white/10" />
-      </div>
-
-      {/* Login Form */}
-      {tab === "login" && (
-        <>
-          <div className="space-y-5">
-            <div>
-              <label className="block text-xs mb-2 font-medium">
-                Email address
-              </label>
-              <input
-                type="email"
-                placeholder="you@example.com"
-                className="w-full bg-surface border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              {fieldErrors.email && (
-                <p className="text-red-400 text-xs mt-1">{fieldErrors.email}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs mb-2 font-medium">Password</label>
-              <input
-                type="password"
-                placeholder="Enter your password"
-                className="w-full bg-surface border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              {fieldErrors.password && (
-                <p className="text-red-400 text-xs mt-1">
-                  {fieldErrors.password}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mt-4 mb-6 text-xs text-gray-400">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" className="accent-purple-500" />
-              Remember me
-            </label>
-            <a href="#" className="text-purple-400 hover:opacity-80">
-              Forgot password?
-            </a>
-          </div>
-
-          <button
-            className="w-full py-3 bg-purple-600 hover:bg-purple-500 transition rounded-lg text-sm font-semibold shadow-lg shadow-purple-600/20"
-            onClick={(e) => {
-              e.preventDefault();
-              HandelLogin();
-            }}
-            disabled={loading}
-          >
-            Login
-          </button>
-
-          <div className="text-center text-xs text-gray-400 mt-5">
-            Don&apos;t have an account?{" "}
-            <button
-              onClick={() => setTab("signup")}
-              className="text-purple-400 hover:opacity-80"
-            >
-              Sign up free
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* Signup Form */}
-      {tab === "signup" && (
-        <>
-          {/* <div className="flex gap-3 mb-5">
-            <div className="flex-1">
-              <label className="block text-xs mb-2 font-medium">
-                First name
-              </label>
-              <input
-                type="text"
-                placeholder="Alex"
-                className="w-full bg-surface border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs mb-2 font-medium">
-                Last name
-              </label>
-              <input
-                type="text"
-                placeholder="Morgan"
-                className="w-full bg-surface border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-              />
-            </div>
-          </div> */}
-
-          <div className="space-y-5">
-            <div>
-              <label className="block text-xs mb-2 font-medium">Username</label>
-              <input
-                type="username"
-                placeholder="darTalib"
-                className="w-full bg-surface border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                onChange={(e) => setUsername(e.target.value)}
-              />
-              <span className="text-xs text-gray-500">
-                ChatHubby.app/@alexmorgan
-              </span>
-              {fieldErrors.username && (
-                <p className="text-red-400 text-xs mt-1">
-                  {fieldErrors.username}
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs mb-2 font-medium">
-                Email address
-              </label>
-              <input
-                type="email"
-                placeholder="you@example.com"
-                className="w-full bg-surface border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              {fieldErrors.email && (
-                <p className="text-red-400 text-xs mt-1">{fieldErrors.email}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs mb-2 font-medium">
-                Display Name
-              </label>
-              <input
-                type="displayname"
-                placeholder="talib"
-                className="w-full bg-surface border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                onChange={(e) => setDisplayName(e.target.value)}
-              />
-              {fieldErrors.displayname && (
-                <p className="text-red-400 text-xs mt-1">
-                  {fieldErrors.displayname}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs mb-2 font-medium">Password</label>
-              <input
-                type="password"
-                placeholder="Create a strong password"
-                className="w-full bg-surface border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                }}
-              />
-              {fieldErrors.password && (
-                <p className="text-red-400 text-xs mt-1">
-                  {fieldErrors.password}
-                </p>
-              )}
-              <span className="text-xs text-gray-500">
-                Use 8+ chars, a number, and a symbol
-              </span>
-              <div className="flex gap-1 mt-3">
-                {[0, 1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 h-1 rounded transition-all ${
-                      strength > i
-                        ? strength <= 2
-                          ? "bg-red-500"
-                          : strength === 3
-                            ? "bg-yellow-500"
-                            : "bg-green-500"
-                        : "bg-white/10"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <p className="text-xs text-gray-400 mt-4 leading-relaxed">
-            By creating an account you agree to our{" "}
-            <a href="#" className="text-purple-400">
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a href="#" className="text-purple-400">
-              Privacy Policy
-            </a>
-            .
+      {/* Login */}
+      <div
+        className={`${screen === "login" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
+        data-od-id="screen-login"
+      >
+        <div className="mb-[26px] flex flex-col items-center text-center">
+          <Mascot expr="smile" className="mb-3 h-[72px] w-[72px]" />
+          <h1 className="font-display text-[26px] leading-[1.15] tracking-tight">
+            Welcome back
+          </h1>
+          <p className="text-[14.5px] text-muted">
+            Log in to get back to your chats.
           </p>
-
-          <button
-            className="w-full mt-6 py-3 bg-purple-600 hover:bg-purple-500 transition rounded-lg text-sm font-semibold shadow-lg shadow-purple-600/20"
-            onClick={handelSignup}
-          >
-            Create account
+        </div>
+        <Err msg={loginErr} />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void doLogin();
+          }}
+          noValidate
+        >
+          <div className="mb-4">
+            <label htmlFor="loginId" className={label}>
+              Email or username
+            </label>
+            <input
+              id="loginId"
+              name="identifier"
+              type="text"
+              autoComplete="username"
+              placeholder="you@example.com"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+              required
+              className={input}
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="loginPw" className={label}>
+              Password
+            </label>
+            <PwField
+              id="loginPw"
+              name="password"
+              autoComplete="current-password"
+              placeholder="••••••••"
+              value={loginPw}
+              onChange={setLoginPw}
+            />
+          </div>
+          <button className={btnPrimary} type="submit" disabled={loginBusy}>
+            {loginBusy ? "Please wait…" : "Log in"}
           </button>
-
-          <div className="text-center text-xs text-gray-400 mt-5">
-            Already have an account?{" "}
+        </form>
+        <div className={linkrow}>
+          <button
+            type="button"
+            className={linkrowBtn}
+            onClick={() => setScreen("signup")}
+          >
+            Create an account
+          </button>
+          <button
+            type="button"
+            className={linkrowBtn}
+            onClick={() => setScreen("forgot")}
+          >
+            Forgot password?
+          </button>
+        </div>
+        <div className="my-[18px] flex items-center gap-3 text-[12.5px] font-bold uppercase tracking-[0.06em] text-muted">
+          <span className="h-px flex-1 bg-border" />
+          New here?
+          <span className="h-px flex-1 bg-border" />
+        </div>
+        <button
+          className={btnGhost}
+          type="button"
+          onClick={() => setScreen("join")}
+        >
+          I have a room join link
+        </button>
+        {hasDemo && (
+          <div className="mt-[18px] rounded-[14px] border border-border bg-surface-2 p-3.5 text-[13px]">
+            <p className="mb-2.5 text-muted">
+              Want to look around first? Use the demo account:
+            </p>
+            <p className="mb-0.5 font-bold text-fg">
+              {DEMO_USERNAME} / {DEMO_PASSWORD}
+            </p>
             <button
-              onClick={() => setTab("login")}
-              className="text-purple-400 hover:opacity-80"
+              className={btnGhost}
+              type="button"
+              disabled={loginBusy}
+              onClick={() => void doLogin(DEMO_USERNAME, DEMO_PASSWORD)}
+              style={{ marginTop: 8 }}
             >
-              Log in
+              Sign in with demo
             </button>
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      {/* Signup */}
+      <div
+        className={`${screen === "signup" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
+        data-od-id="screen-signup"
+      >
+        <div className="mb-[26px] flex flex-col items-center text-center">
+          <Mascot expr="typing" className="mb-3 h-[72px] w-[72px]" />
+          <h1 className="font-display text-[26px] leading-[1.15] tracking-tight">
+            Create your account
+          </h1>
+          <p className="text-[14.5px] text-muted">
+            A private place for real conversations.
+          </p>
+        </div>
+        <Err msg={suErr} />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void doSignup();
+          }}
+          noValidate
+        >
+          <div className="mb-4">
+            <label htmlFor="suEmail" className={label}>
+              Email
+            </label>
+            <input
+              id="suEmail"
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={suEmail}
+              onChange={(e) => setSuEmail(e.target.value)}
+              required
+              className={input}
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="suUser" className={label}>
+              Username
+            </label>
+            <input
+              id="suUser"
+              name="username"
+              type="text"
+              autoComplete="username"
+              placeholder="johndoe"
+              value={suUser}
+              onChange={(e) => setSuUser(e.target.value)}
+              required
+              className={input}
+            />
+            <p className="mt-[5px] text-[12.5px] text-muted">
+              3–20 characters — letters, numbers, underscore.
+            </p>
+          </div>
+          <div className="mb-4">
+            <label htmlFor="suName" className={label}>
+              Display name
+            </label>
+            <input
+              id="suName"
+              name="displayname"
+              type="text"
+              autoComplete="nickname"
+              placeholder="John Doe"
+              value={suName}
+              onChange={(e) => setSuName(e.target.value)}
+              required
+              className={input}
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="suPw" className={label}>
+              Password
+            </label>
+            <PwField
+              id="suPw"
+              name="password"
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              value={suPw}
+              onChange={setSuPw}
+            />
+          </div>
+          <button className={btnPrimary} type="submit" disabled={suBusy}>
+            {suBusy ? "Please wait…" : "Create account"}
+          </button>
+        </form>
+        <div className={linkrow}>
+          <button
+            type="button"
+            className={linkrowBtn}
+            onClick={() => setScreen("login")}
+          >
+            Already have an account? Log in
+          </button>
+        </div>
+      </div>
+
+      {/* Recovery codes */}
+      <div
+        className={`${screen === "recovery" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
+        data-od-id="screen-recovery"
+      >
+        <div className="mb-[26px] flex flex-col items-center text-center">
+          <Mascot expr="celebrate" className="mb-3 h-[72px] w-[72px]" />
+          <h1 className="font-display text-[26px] leading-[1.15] tracking-tight">
+            {recTitle}
+          </h1>
+          <p className="text-[14.5px] text-muted">{recSub}</p>
+        </div>
+        {codes.length > 0 && (
+          <div
+            className="my-[18px] grid grid-cols-2 gap-2"
+            aria-label="Recovery codes"
+          >
+            {codes.map((c) => (
+              <span
+                className="truncate rounded-[9px] bg-accent-soft px-2.5 py-[9px] font-mono text-xs font-bold tracking-[0.01em] text-accent-solid select-all"
+                key={c}
+              >
+                {c}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="my-[18px] flex gap-2.5 rounded-[10px] border border-[color-mix(in_oklab,oklch(0.76_0.13_75)_35%,transparent)] bg-warn-soft px-[13px] py-[11px] text-[13.5px] font-semibold text-fg">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className="mt-px h-[18px] w-[18px] flex-none text-[oklch(0.7_0.12_75)]"
+          >
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+            <path d="M12 9v4M12 17h.01" />
+          </svg>
+          Store them somewhere safe — a password manager or paper. You&apos;ll
+          need one if you ever lose access.
+        </div>
+        <button
+          className={btnPrimary}
+          type="button"
+          onClick={() => router.push("/dashboard")}
+        >
+          I&apos;ve saved my codes
+        </button>
+      </div>
+
+      {/* Forgot password */}
+      <div
+        className={`${screen === "forgot" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
+        data-od-id="screen-forgot"
+      >
+        <div className="mb-[26px] flex flex-col items-center text-center">
+          <Mascot expr="typing" className="mb-3 h-[72px] w-[72px]" />
+          <h1 className="font-display text-[26px] leading-[1.15] tracking-tight">
+            Reset your password
+          </h1>
+          <p className="text-[14.5px] text-muted">
+            Enter one of your recovery codes to set a new password.
+          </p>
+        </div>
+        <Err msg={fpErr} />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void doForgot();
+          }}
+          noValidate
+        >
+          <div className="mb-4">
+            <label htmlFor="fpUser" className={label}>
+              Username
+            </label>
+            <input
+              id="fpUser"
+              name="username"
+              type="text"
+              autoComplete="username"
+              value={fpUser}
+              onChange={(e) => setFpUser(e.target.value)}
+              required
+              className={input}
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="fpCode" className={label}>
+              Recovery code
+            </label>
+            <input
+              id="fpCode"
+              name="recoveryCode"
+              type="text"
+              autoComplete="off"
+              placeholder="RC_XXXXXX.XXXX-XXXX-XXXX"
+              value={fpCode}
+              onChange={(e) => setFpCode(e.target.value)}
+              required
+              className={input}
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="fpPw" className={label}>
+              New password
+            </label>
+            <PwField
+              id="fpPw"
+              name="newPassword"
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              value={fpPw}
+              onChange={setFpPw}
+            />
+          </div>
+          <button className={btnPrimary} type="submit" disabled={fpBusy}>
+            {fpBusy ? "Please wait…" : "Reset password"}
+          </button>
+        </form>
+        <div className={linkrow}>
+          <button
+            type="button"
+            className={linkrowBtn}
+            onClick={() => setScreen("login")}
+          >
+            Back to log in
+          </button>
+        </div>
+      </div>
+
+      {/* Join a room */}
+      <div
+        className={`${screen === "join" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
+        data-od-id="screen-join"
+      >
+        <div className="mb-[26px] flex flex-col items-center text-center">
+          <Mascot expr="smile" className="mb-3 h-[72px] w-[72px]" />
+          <h1 className="font-display text-[26px] leading-[1.15] tracking-tight">
+            Join a room
+          </h1>
+          <p className="text-[14.5px] text-muted">
+            Paste a join link token to preview and join.
+          </p>
+        </div>
+        <Err msg={joinErr} />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void doJoinPreview();
+          }}
+          noValidate
+        >
+          <div className="mb-4">
+            <label htmlFor="joinToken" className={label}>
+              Join link token
+            </label>
+            <input
+              id="joinToken"
+              name="token"
+              type="text"
+              autoComplete="off"
+              placeholder="e.g. BK-G7T2-9PL4"
+              value={joinToken}
+              onChange={(e) => setJoinToken(e.target.value)}
+              required
+              className={input}
+            />
+          </div>
+          <button className={btnPrimary} type="submit" disabled={joinBusy}>
+            {joinBusy ? "Please wait…" : "Preview room"}
+          </button>
+        </form>
+        {joinPreview && (
+          <div className="mt-[22px] rounded-[14px] border border-border bg-surface-2 p-[18px]">
+            <div className="mb-1 font-display text-[19px] font-bold leading-[1.15] tracking-tight">
+              {joinPreview.name}
+            </div>
+            <div className="mb-3 text-sm text-muted">
+              {joinPreview.description || "No description yet."}
+            </div>
+            <div className="flex flex-wrap gap-2 text-[12.5px] font-bold text-muted">
+              {metaText.map((m) => (
+                <span
+                  className="rounded-full border border-border bg-surface px-2.5 py-1"
+                  key={m}
+                >
+                  {m}
+                </span>
+              ))}
+            </div>
+            <button
+              className={btnPrimary}
+              type="button"
+              style={{ marginTop: 14 }}
+              disabled={joinBusy}
+              onClick={() => void doJoin()}
+            >
+              {joinBusy ? "Please wait…" : "Join this room"}
+            </button>
+          </div>
+        )}
+        <div className={linkrow}>
+          <button
+            type="button"
+            className={linkrowBtn}
+            onClick={() => setScreen("login")}
+          >
+            Back to log in
+          </button>
+        </div>
+      </div>
     </>
   );
 }

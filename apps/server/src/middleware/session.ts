@@ -32,7 +32,8 @@ const sessionSecrets = secrets as [string, ...string[]];
 
 // tiny-csrf requires a 32-byte secret (AES-256-CBC). Derive one from the
 // session secret by taking the first 32 characters (padded if necessary).
-const csrfSecret = (SESSION_SECRET + "0".repeat(32)).slice(0, 32);
+// Exported so index.ts can pass it to cookieParser for signed-cookie support.
+export const csrfSecret = (SESSION_SECRET + "0".repeat(32)).slice(0, 32);
 
 // ---------------------------------------------------------------------------
 // Cookie & session defaults
@@ -75,11 +76,10 @@ export const sessionMiddleware = session({
 // CSRF protection (via tiny-csrf — recognized by CodeQL's
 // js/missing-token-validation rule).
 //
-// tiny-csrf reads the token from the x-csrftoken header (or _csrf body
-// field) and validates it against an encrypted CSRF cookie it sets on the
-// response.  The frontend must fetch GET /api/csrf-token to receive the
-// cookie, then include the token in the x-csrftoken header on all
-// state-changing requests.
+// tiny-csrf v1.1.6 validates the `_csrf` field from the request body against
+// an encrypted, signed cookie it sets on the response. The frontend must
+// fetch GET /api/csrf-token to receive the cookie + token, then echo the
+// token back as `_csrf` on every state-changing request.
 // ---------------------------------------------------------------------------
 
 export const csrfProtection = csurf(

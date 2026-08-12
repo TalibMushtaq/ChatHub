@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { api } from "../../app/lib/api";
 import { Mascot } from "./Mascot";
 import { MenuIcon, MoonIcon, SunIcon } from "./icons";
+
+type AuthState = "loading" | "in" | "out";
 
 function useThemeState() {
   // Initialized to "light" so SSR markup is deterministic (no hydration
@@ -33,6 +36,26 @@ function useThemeState() {
 export function LandingNavbar() {
   const { theme, toggle } = useThemeState();
   const [open, setOpen] = useState(false);
+  // Best-effort session probe: lets the navbar surface Open app vs.
+  // Log in / Sign up instead of silently dropping signed-in visitors
+  // straight into /dashboard when they click a landing CTA.
+  const [auth, setAuth] = useState<AuthState>("loading");
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await api.get("/auth/me");
+        if (active) setAuth("in");
+      } catch {
+        // 401 or unreachable API — treat as signed out; links still work.
+        if (active) setAuth("out");
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const navLinks = [
     { href: "#positioning", label: "Why ChatHubby" },
@@ -68,9 +91,23 @@ export function LandingNavbar() {
           >
             {theme === "light" ? <MoonIcon /> : <SunIcon />}
           </button>
-          <Link className="btn btn-ghost" href="/auth">
-            Get the app
-          </Link>
+          {auth === "in" ? (
+            <Link className="btn btn-primary" href="/dashboard">
+              Open app
+            </Link>
+          ) : (
+            <>
+              <Link className="btn btn-ghost" href="/auth?mode=login">
+                Log in
+              </Link>
+              <Link className="btn btn-primary" href="/auth?mode=signup">
+                Sign up
+              </Link>
+              <Link className="btn btn-ghost" href="/auth">
+                Get the app
+              </Link>
+            </>
+          )}
           <button
             className="icon-btn menu-btn"
             onClick={() => setOpen(!open)}
@@ -89,9 +126,23 @@ export function LandingNavbar() {
               {l.label}
             </a>
           ))}
-          <Link href="/auth" onClick={() => setOpen(false)}>
-            Get the app
-          </Link>
+          {auth === "in" ? (
+            <Link href="/dashboard" onClick={() => setOpen(false)}>
+              Open app
+            </Link>
+          ) : (
+            <>
+              <Link href="/auth?mode=login" onClick={() => setOpen(false)}>
+                Log in
+              </Link>
+              <Link href="/auth?mode=signup" onClick={() => setOpen(false)}>
+                Sign up
+              </Link>
+              <Link href="/auth" onClick={() => setOpen(false)}>
+                Get the app
+              </Link>
+            </>
+          )}
         </div>
       )}
     </header>

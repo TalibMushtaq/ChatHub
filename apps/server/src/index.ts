@@ -12,6 +12,7 @@ import {
   sessionMiddleware,
   csrfProtection,
   getCsrfToken,
+  csrfSecret,
 } from "./middleware/session";
 import authRoutes from "./routes/auth";
 import dmRoutes from "./routes/direct-chat";
@@ -52,16 +53,21 @@ io.use((socket, next) => {
   });
 });
 
-// cookie-parser after express-session (session parses its own cookies)
-app.use(cookieParser());
+// cookie-parser after express-session (session parses its own cookies).
+// The CSRF secret doubles as the signing secret so tiny-csrf's `signed: true`
+// cookie (and Express res.cookie signed writes) resolve instead of throwing.
+app.use(cookieParser(csrfSecret));
 
-// CSRF token endpoint — runs before csrfProtection so it's excluded
+// csrfProtection must run BEFORE the token route: tiny-csrf defines
+// req.csrfToken() when it sees the excluded URL, and the route needs it.
+app.use(csrfProtection);
+
+// CSRF token endpoint — excluded from token checks, but requires the
+// middleware above to have set req.csrfToken.
 app.get("/api/csrf-token", (req, res) => {
   const token = getCsrfToken(req, res);
   res.json({ csrfToken: token });
 });
-
-app.use(csrfProtection);
 
 app.use((req, _res, next) => {
   req.io = io;

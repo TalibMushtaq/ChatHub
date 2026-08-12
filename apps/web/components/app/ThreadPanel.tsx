@@ -17,6 +17,7 @@ import {
   TrashIcon,
   iconForMime,
 } from "./icons";
+import { iconBtn } from "./styles";
 
 const EDIT_WINDOW_MS = 5 * 60 * 1000;
 const DELETE_WINDOW_MS = 30 * 60 * 1000;
@@ -73,9 +74,11 @@ export default function ThreadPanel() {
 
   if (!active) {
     return (
-      <div className="empty-thread">
-        <AppAvatar name="ChatHubby" size={96} square />
-        <b>ChatHubby</b>
+      <div className="flex flex-1 flex-col items-center justify-center p-[30px] text-center text-[14.5px] text-muted">
+        <div className="mb-4">
+          <AppAvatar name="ChatHubby" size={96} square />
+        </div>
+        <b className="mb-1 block text-[17px] text-fg">ChatHubby</b>
         <p>Select a conversation to start chatting.</p>
       </div>
     );
@@ -164,8 +167,12 @@ export default function ThreadPanel() {
 
   return (
     <>
-      <div className="thread-head">
-        <button className="icon-btn back" onClick={closeConv} aria-label="Back">
+      <div className="thread-head flex items-center gap-3 border-b border-border bg-surface px-[14px] py-[11px]">
+        <button
+          className={`${iconBtn} back h-10 w-10 hidden max-[760px]:inline-flex`}
+          onClick={closeConv}
+          aria-label="Back"
+        >
           <BackIcon />
         </button>
         <AppAvatar
@@ -174,16 +181,16 @@ export default function ThreadPanel() {
           size={40}
           square={active.kind === "room"}
         />
-        <div className="titles">
-          <div className="name">
+        <div className="titles min-w-0 flex-1">
+          <div className="name truncate text-[15px] font-extrabold">
             {active.kind === "room" && "# "}
             {other}
           </div>
-          <div className="sub">{sub}</div>
+          <div className="sub text-[12.5px] text-muted">{sub}</div>
         </div>
         {active.kind === "room" && (
           <button
-            className="icon-btn"
+            className={`${iconBtn} h-10 w-10`}
             onClick={() => openModal("roomInfo")}
             aria-label="Room info"
           >
@@ -192,15 +199,22 @@ export default function ThreadPanel() {
         )}
       </div>
 
-      <div className="msgs">
-        <div className="msgs-inner">
+      <div className="msgs flex flex-1 flex-col overflow-y-auto">
+        <div className="msgs-inner mx-auto w-full max-w-[860px] px-4 pt-4 pb-2">
           {rows.length === 0 && (
-            <div className="empty-thread-msg">No messages yet — say hi!</div>
+            <div className="empty-thread-msg flex flex-1 items-center justify-center p-5 text-sm text-muted">
+              No messages yet — say hi!
+            </div>
           )}
           {rows.map((row, i) =>
             row.kind === "day" ? (
-              <div key={`day-${i}`} className="divider">
+              <div
+                key={`day-${i}`}
+                className="divider my-[18px] flex items-center gap-3 text-[11.5px] font-bold uppercase tracking-[0.06em] text-muted"
+              >
+                <span className="h-px flex-1 bg-border" />
                 {row.day}
+                <span className="h-px flex-1 bg-border" />
               </div>
             ) : (
               <MessageRow
@@ -223,8 +237,9 @@ export default function ThreadPanel() {
       </div>
 
       {editing ? (
-        <div className="edit-box">
+        <div className="edit-box mt-1 mb-1 max-w-[min(74%,560px)] rounded-2xl border border-accent-solid bg-surface-2 p-2.5">
           <textarea
+            className="min-h-11 max-h-[180px] w-full resize-none border-0 bg-transparent text-[14.5px] leading-[1.45] focus:outline-none"
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
             onKeyDown={(e) => {
@@ -237,12 +252,15 @@ export default function ThreadPanel() {
             placeholder="Edit message…"
             autoFocus
           />
-          <div className="edit-actions">
-            <button className="cancel" onClick={() => setEditing(null)}>
+          <div className="edit-actions mt-2 flex justify-end gap-2">
+            <button
+              className="cursor-pointer rounded-full px-3.5 py-[7px] text-[13px] font-extrabold text-muted transition-colors duration-150 ease-app hover:bg-surface-2"
+              onClick={() => setEditing(null)}
+            >
               Cancel
             </button>
             <button
-              className="save"
+              className="cursor-pointer rounded-full bg-accent-btn px-3.5 py-[7px] text-[13px] font-extrabold text-accent-on transition-colors duration-150 ease-app hover:bg-accent-hover disabled:opacity-55"
               onClick={() => void submitEdit()}
               disabled={!editText.trim()}
             >
@@ -251,33 +269,41 @@ export default function ThreadPanel() {
           </div>
         </div>
       ) : (
-        <div className="composer">
+        <div className="composer border-t border-border bg-surface p-[10px_14px_calc(10px+env(safe-area-inset-bottom))]">
           {files.length > 0 && (
-            <div className="upchips">
+            <div className="upchips mb-2 flex flex-wrap gap-2">
               {files.map((f, i) => (
-                <div key={i} className="upchip">
+                <div
+                  key={i}
+                  className="upchip relative flex max-w-full items-center gap-[9px] overflow-hidden rounded-xl border border-border bg-bg p-[7px_10px]"
+                >
                   {iconForMime(f.type)}
                   <div>
-                    <div className="nm">{f.name}</div>
-                    <div className="sz">{fmtBytes(f.size)}</div>
+                    <div className="nm max-w-[160px] truncate text-[12.5px] font-extrabold">
+                      {f.name}
+                    </div>
+                    <div className="sz text-[11px] font-semibold text-muted">
+                      {fmtBytes(f.size)}
+                    </div>
                   </div>
                   <button
-                    className="x"
+                    className="x flex h-[22px] w-[22px] flex-none cursor-pointer items-center justify-center rounded-md text-muted transition-colors duration-150 ease-app hover:bg-surface-2 hover:text-danger"
                     onClick={() =>
                       setFiles((prev) => prev.filter((_, j) => j !== i))
                     }
                     aria-label="Remove"
                   >
-                    <CloseIcon />
+                    <CloseIcon className="h-4 w-4" />
                   </button>
                 </div>
               ))}
             </div>
           )}
-          <div className="composer-row">
+          <div className="composer-row flex items-end gap-2.5">
             <textarea
               ref={textareaRef}
               rows={1}
+              className="max-h-[150px] min-w-0 flex-1 resize-none rounded-[20px] border-[1.5px] border-border bg-bg px-[15px] py-[11px] text-[15px] leading-[1.4] transition-[border-color,box-shadow] duration-150 ease-app focus:border-accent-solid focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_45%,transparent)] focus:outline-none"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={(e) => {
@@ -289,14 +315,14 @@ export default function ThreadPanel() {
               placeholder={`Message ${active.kind === "room" ? `#${active.name ?? "room"}` : other}…`}
             />
             <button
-              className="c-btn"
+              className="c-btn flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color] duration-150 ease-app hover:bg-accent-soft hover:text-accent-solid"
               onClick={() => fileInputRef.current?.click()}
               aria-label="Attach files"
             >
               <ClipIcon />
             </button>
             <button
-              className="c-btn send"
+              className="c-btn send flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full bg-accent-btn text-accent-on transition-colors duration-150 ease-app hover:bg-accent-hover hover:text-accent-on disabled:cursor-default disabled:opacity-45"
               onClick={() => void handleSend()}
               disabled={!canSend}
               aria-label="Send"
@@ -304,7 +330,7 @@ export default function ThreadPanel() {
               {uploading ? (
                 <span style={{ fontSize: 12 }}>…</span>
               ) : (
-                <SendIcon />
+                <SendIcon className="h-5 w-5" />
               )}
             </button>
             <input
@@ -348,31 +374,49 @@ function MessageRow({
 
   return (
     <div
-      className={`msg-row ${isOwn ? "me" : ""}`}
+      className={`msg-row group my-0.5 flex items-end gap-[9px] animate-[pop_.16s_cubic-bezier(.2,.8,.2,1)] ${isOwn ? "justify-end" : ""}`}
       style={{ position: "relative" }}
     >
       {!isOwn && (
-        <AppAvatar
-          name={displayName(m.User)}
-          src={m.User?.avatar}
-          size={30}
-          square={isRoom}
-        />
+        <div className="mb-0.5 flex-none">
+          <AppAvatar
+            name={displayName(m.User)}
+            src={m.User?.avatar}
+            size={30}
+            square={isRoom}
+          />
+        </div>
       )}
-      <div className="col">
-        <div className="meta">
+      <div
+        className={`col flex min-w-0 max-w-[min(74%,560px)] flex-col ${isOwn ? "items-end" : ""}`}
+      >
+        <div
+          className={`meta mx-[5px] mb-[3px] flex items-baseline gap-[7px] text-[11px] font-bold text-muted ${isOwn ? "justify-end" : ""}`}
+        >
           {isRoom && !isOwn && firstOfSender && m.User && (
-            <span className="who">{displayName(m.User)}</span>
+            <span className="who font-extrabold text-fg">
+              {displayName(m.User)}
+            </span>
           )}
-          {isOwn && <span className="who">You</span>}
+          {isOwn && <span className="who font-extrabold text-fg">You</span>}
           {!m.isDeleted && <span>{fmtTime(m.createdAt)}</span>}
-          {m.editedAt && !m.isDeleted && <span className="edited">edited</span>}
+          {m.editedAt && !m.isDeleted && (
+            <span className="edited opacity-85">edited</span>
+          )}
         </div>
 
         {m.isDeleted ? (
-          <div className="bubble deleted">This message was deleted</div>
+          <div className="bubble rounded-br-[6px] rounded-bl-[18px] rounded-[18px] border border-border bg-surface-2 px-[13px] py-[9px] text-[14.5px] leading-[1.45] italic opacity-70 text-muted break-words overflow-wrap-anywhere">
+            This message was deleted
+          </div>
         ) : (
-          <div className="bubble">
+          <div
+            className={`bubble rounded-[18px] px-[13px] py-[9px] text-[14.5px] leading-[1.45] break-words overflow-wrap-anywhere ${
+              isOwn
+                ? "rounded-br-[6px] rounded-bl-[18px] border-transparent bg-accent-btn text-accent-on"
+                : "rounded-bl-[6px] rounded-br-[18px] border border-border bg-surface-2"
+            }`}
+          >
             {m.content && <span>{m.content}</span>}
             {m.attachments && m.attachments.length > 0 && (
               <div
@@ -384,7 +428,7 @@ function MessageRow({
                 }}
               >
                 {m.attachments.map((att) => (
-                  <AttachmentCard key={att.id} att={att} />
+                  <AttachmentCard key={att.id} att={att} isOwn={isOwn} />
                 ))}
               </div>
             )}
@@ -395,15 +439,17 @@ function MessageRow({
       {isOwn && !m.isDeleted && (withinEdit || withinDelete) && (
         <>
           <button
-            className="menu-btn"
+            className={`menu-btn flex-none self-center rounded-full text-muted transition-opacity duration-150 ease-app cursor-pointer ${
+              isOwn ? "opacity-100" : "opacity-0"
+            } group-hover:opacity-100`}
             onClick={() => setMenu((v) => !v)}
             aria-label="Message actions"
           >
-            <MoreIcon />
+            <MoreIcon className="h-5 w-5" />
           </button>
           {menu && (
             <div
-              className="fmenu"
+              className="fmenu fixed z-[90] min-w-[190px] rounded-[14px] border border-border bg-surface p-1.5 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
               style={{
                 position: "absolute",
                 left: 12,
@@ -414,23 +460,24 @@ function MessageRow({
             >
               {withinEdit && (
                 <button
+                  className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
                   onClick={() => {
                     setMenu(false);
                     onEdit();
                   }}
                 >
-                  <EditIcon /> Edit
+                  <EditIcon className="h-4 w-4 flex-none" /> Edit
                 </button>
               )}
               {withinDelete && (
                 <button
-                  className="danger"
+                  className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
                   onClick={() => {
                     setMenu(false);
                     onDelete();
                   }}
                 >
-                  <TrashIcon /> Delete
+                  <TrashIcon className="h-4 w-4 flex-none" /> Delete
                 </button>
               )}
             </div>
@@ -441,7 +488,7 @@ function MessageRow({
   );
 }
 
-function AttachmentCard({ att }: { att: Attachment }) {
+function AttachmentCard({ att, isOwn }: { att: Attachment; isOwn: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   const [err, setErr] = useState(false);
 
@@ -459,15 +506,27 @@ function AttachmentCard({ att }: { att: Attachment }) {
     };
   }, [att.id]);
 
+  // Attachment card chrome differs for the sender's own bubble (they sit on
+  // the accent background, so the card needs a light translucent fill).
+  const cardCls = isOwn
+    ? "border-transparent bg-[color-mix(in_oklab,oklch(0.997_0_0)_12%,transparent)]"
+    : "border-border bg-fg-wash-2";
+
   if (err) {
-    return <div className="at">Attachment unavailable</div>;
+    return (
+      <div
+        className={`at mt-2 flex min-w-[220px] max-w-[300px] items-center gap-2.5 rounded-xl border px-2.5 py-2 ${cardCls}`}
+      >
+        Attachment unavailable
+      </div>
+    );
   }
 
   if (att.mimeType.startsWith("image/")) {
     return (
       <div
-        className="at"
-        style={{ padding: 0, overflow: "hidden", display: "block" }}
+        className={`at mt-2 flex min-w-[220px] max-w-[300px] items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 ${cardCls}`}
+        style={{ padding: 0, display: "block" }}
       >
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -485,8 +544,8 @@ function AttachmentCard({ att }: { att: Attachment }) {
   if (att.mimeType.startsWith("video/")) {
     return (
       <div
-        className="at"
-        style={{ padding: 0, overflow: "hidden", display: "block" }}
+        className={`at mt-2 flex min-w-[220px] max-w-[300px] items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 ${cardCls}`}
+        style={{ padding: 0, display: "block" }}
       >
         {url ? (
           <video
@@ -502,7 +561,9 @@ function AttachmentCard({ att }: { att: Attachment }) {
   }
   if (att.mimeType.startsWith("audio/")) {
     return (
-      <div className="at">
+      <div
+        className={`at mt-2 flex min-w-[220px] max-w-[300px] items-center gap-2.5 rounded-xl border px-2.5 py-2 ${cardCls}`}
+      >
         {url ? (
           <audio src={url} controls style={{ width: "100%" }} />
         ) : (
@@ -514,16 +575,20 @@ function AttachmentCard({ att }: { att: Attachment }) {
 
   return (
     <a
-      className="at"
+      className={`at mt-2 flex min-w-[220px] max-w-[300px] items-center gap-2.5 rounded-xl border px-2.5 py-2 ${cardCls}`}
       href={url ?? "#"}
       target="_blank"
       rel="noreferrer"
       style={{ textDecoration: "none", color: "inherit" }}
     >
-      <span className="at-thumb">{iconForMime(att.mimeType)}</span>
-      <span className="at-meta">
-        <span className="at-name">{att.filename}</span>
-        <span className="at-size">
+      <span className="at-thumb flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[9px] bg-[linear-gradient(135deg,var(--color-lime),var(--color-accent))] text-[oklch(0.24_0.03_150)]">
+        {iconForMime(att.mimeType)}
+      </span>
+      <span className="at-meta min-w-0">
+        <span className="at-name block truncate text-[12.5px] font-extrabold">
+          {att.filename}
+        </span>
+        <span className="at-size block text-[11px] font-semibold opacity-80">
           {fmtBytes(att.size)} · {typeLabel(att.mimeType)}
         </span>
       </span>

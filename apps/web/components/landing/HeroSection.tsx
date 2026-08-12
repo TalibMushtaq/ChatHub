@@ -132,19 +132,21 @@ export function HeroSection() {
           <div className="hero-ctas">
             <Link
               className="btn btn-primary"
-              href="/auth"
+              href="/auth?mode=signup"
               data-od-id="hero-cta-primary"
             >
               Start a conversation
               <ArrowRightIcon className="btn-icon" width={18} height={18} />
+            </Link>
+            <Link className="btn btn-ghost" href="/auth?mode=login">
+              Log in
             </Link>
             <Link className="btn btn-ghost" href="#features">
               See how it works
             </Link>
           </div>
           <p className="hero-note">
-            Free to start · <b>Live prototype</b> — sign in with <b>avery</b> /{" "}
-            <b>password123</b>
+            Free to start · Create your account in under a minute
           </p>
         </div>
 

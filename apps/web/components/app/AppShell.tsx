@@ -40,6 +40,7 @@ import {
   UserIcon,
 } from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
+import { btnPrimary, iconBtn } from "./styles";
 
 type AnyMsg = {
   id: string;
@@ -671,12 +672,12 @@ export default function AppShell() {
 
   if (loadError) {
     return (
-      <div className="app">
-        <div className="empty-thread" style={{ height: "100dvh" }}>
+      <div className="app h-full overflow-hidden bg-bg font-body text-fg antialiased">
+        <div className="flex h-dvh flex-col items-center justify-center p-[30px] text-center text-[14.5px] text-muted">
           <AppAvatar name="ChatHubby" size={96} square />
-          <p>{loadError}</p>
+          <p className="mt-4">{loadError}</p>
           <button
-            className="btn btn-primary"
+            className={`${btnPrimary} mt-4`}
             onClick={() => window.location.reload()}
           >
             Retry
@@ -688,10 +689,10 @@ export default function AppShell() {
 
   if (!user) {
     return (
-      <div className="app">
-        <div className="empty-thread" style={{ height: "100dvh" }}>
+      <div className="app h-full overflow-hidden bg-bg font-body text-fg antialiased">
+        <div className="flex h-dvh flex-col items-center justify-center p-[30px] text-center text-[14.5px] text-muted">
           <AppAvatar name="ChatHubby" size={96} square />
-          <p>Loading your conversations…</p>
+          <p className="mt-4">Loading your conversations…</p>
         </div>
       </div>
     );
@@ -704,13 +705,17 @@ export default function AppShell() {
     unread: number,
   ) => (
     <button
-      className={`nav-item ${tab === t ? "on" : ""}`}
+      className={`nav-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[14px] py-[9px] text-[10px] font-extrabold tracking-[0.02em] text-muted transition-colors duration-150 ease-app hover:bg-surface-2 hover:text-fg ${tab === t ? "bg-accent-soft text-accent-solid" : ""}`}
       onClick={() => setTab(t)}
       aria-label={label}
       title={label}
     >
       {Icon}
-      {unread > 0 && <span className="nab">{unread > 9 ? "9+" : unread}</span>}
+      {unread > 0 && (
+        <span className="nab absolute right-[calc(50%-20px)] top-[3px] inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
       <span>{label}</span>
     </button>
   );
@@ -755,21 +760,38 @@ export default function AppShell() {
 
   return (
     <ShellContext.Provider value={ctx}>
-      <div className={`app ${active ? "thread-open" : ""}`}>
-        <div className="shell">
+      <div
+        className={`app group h-full overflow-hidden bg-bg font-body text-fg antialiased ${active ? "data-thread-open" : ""}`}
+      >
+        <div className="shell grid h-dvh grid-cols-[76px_330px_1fr] max-[760px]:grid-cols-1">
           {/* Rail */}
-          <aside className="rail">
-            <div className="logo">
+          <aside className="rail flex flex-col items-center border-r border-border bg-surface px-0 py-4 pb-3 max-[760px]:hidden">
+            <div className="logo flex items-center justify-center">
               <AppAvatar name="ChatHubby" size={38} square />
             </div>
-            <div className="nav">
-              {navItem("dm", "Chat", <ChatIcon />, dmUnread)}
-              {navItem("room", "Rooms", <UsersIcon />, roomUnread)}
-              {navItem("search", "Search", <SearchIcon />, 0)}
+            <div className="nav flex w-full flex-1 flex-col gap-2 px-2.5 py-[22px]">
+              {navItem(
+                "dm",
+                "Chat",
+                <ChatIcon className="h-[21px] w-[21px]" />,
+                dmUnread,
+              )}
+              {navItem(
+                "room",
+                "Rooms",
+                <UsersIcon className="h-[21px] w-[21px]" />,
+                roomUnread,
+              )}
+              {navItem(
+                "search",
+                "Search",
+                <SearchIcon className="h-[21px] w-[21px]" />,
+                0,
+              )}
             </div>
-            <div className="me">
+            <div className="me flex flex-col items-center gap-1.5">
               <button
-                className="icon-btn"
+                className={`${iconBtn} h-[34px] w-[34px] hover:bg-surface-2 hover:text-danger`}
                 onClick={toggleTheme}
                 aria-label="Toggle theme"
                 title="Toggle theme"
@@ -777,7 +799,7 @@ export default function AppShell() {
                 {theme === "dark" ? <SunIcon /> : <MoonIcon />}
               </button>
               <button
-                className="icon-btn"
+                className={`${iconBtn} h-[34px] w-[34px]`}
                 onClick={() => setFmenu((f) => !f)}
                 aria-label="Profile menu"
                 title="Profile"
@@ -790,34 +812,36 @@ export default function AppShell() {
               </button>
               {fmenu && (
                 <div
-                  className="fmenu"
+                  className="fmenu fixed z-[90] min-w-[190px] rounded-[14px] border border-border bg-surface p-1.5 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
                   style={{ left: 68, bottom: 12 }}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
+                    className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
                     onClick={() => {
                       setFmenu(false);
                       openModal("profile");
                     }}
                   >
-                    <UserIcon /> Profile
+                    <UserIcon className="h-4 w-4 flex-none" /> Profile
                   </button>
                   <button
+                    className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
                     onClick={() => {
                       setFmenu(false);
                       openModal("account");
                     }}
                   >
-                    <GearIcon /> Account
+                    <GearIcon className="h-4 w-4 flex-none" /> Account
                   </button>
                   <button
-                    className="danger"
+                    className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
                     onClick={() => {
                       setFmenu(false);
                       void logout();
                     }}
                   >
-                    <LogoutIcon /> Sign out
+                    <LogoutIcon className="h-4 w-4 flex-none" /> Sign out
                   </button>
                 </div>
               )}
@@ -825,53 +849,57 @@ export default function AppShell() {
           </aside>
 
           {/* List column */}
-          <section className="list">
+          <section className="list flex min-w-0 flex-col border-r border-border bg-surface max-[760px]:pb-[70px]">
             <ListPanel />
           </section>
 
-          {/* Thread column */}
-          <aside className="thread">
+          {/* Thread column: slides in as a full-screen sheet on mobile. */}
+          <aside
+            className={`thread flex min-w-0 flex-col bg-bg max-[760px]:fixed max-[760px]:inset-0 max-[760px]:z-30 max-[760px]:translate-x-full max-[760px]:transition-transform max-[760px]:duration-[260ms] max-[760px]:ease-app ${active ? "group-data-[thread-open]:max-[760px]:translate-x-0" : ""}`}
+          >
             <ThreadPanel />
           </aside>
         </div>
 
         {/* Mobile bottom nav */}
-        <nav className="bottomnav">
-          <div className="bn-row">
+        <nav className="bottomnav fixed inset-x-0 bottom-0 z-20 hidden border-t border-border bg-surface px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 max-[760px]:block">
+          <div className="bn-row grid grid-cols-4 gap-1.5">
             <button
-              className={`bn-item ${tab === "dm" ? "on" : ""}`}
+              className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "dm" ? "bg-accent-soft text-accent-solid" : ""}`}
               onClick={() => setTab("dm")}
             >
-              <ChatIcon />
+              <ChatIcon className="h-[21px] w-[21px]" />
               {dmUnread > 0 && (
-                <span className="nab">{dmUnread > 9 ? "9+" : dmUnread}</span>
+                <span className="nab absolute right-[calc(50%-18px)] top-0 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
+                  {dmUnread > 9 ? "9+" : dmUnread}
+                </span>
               )}
               Chat
             </button>
             <button
-              className={`bn-item ${tab === "room" ? "on" : ""}`}
+              className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "room" ? "bg-accent-soft text-accent-solid" : ""}`}
               onClick={() => setTab("room")}
             >
-              <UsersIcon />
+              <UsersIcon className="h-[21px] w-[21px]" />
               {roomUnread > 0 && (
-                <span className="nab">
+                <span className="nab absolute right-[calc(50%-18px)] top-0 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
                   {roomUnread > 9 ? "9+" : roomUnread}
                 </span>
               )}
               Rooms
             </button>
             <button
-              className={`bn-item ${tab === "search" ? "on" : ""}`}
+              className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "search" ? "bg-accent-soft text-accent-solid" : ""}`}
               onClick={() => setTab("search")}
             >
-              <SearchIcon />
+              <SearchIcon className="h-[21px] w-[21px]" />
               Search
             </button>
             <button
-              className={`bn-item ${tab === "settings" ? "on" : ""}`}
+              className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "settings" ? "bg-accent-soft text-accent-solid" : ""}`}
               onClick={() => setTab("settings")}
             >
-              <GearIcon />
+              <GearIcon className="h-[21px] w-[21px]" />
               Settings
             </button>
           </div>

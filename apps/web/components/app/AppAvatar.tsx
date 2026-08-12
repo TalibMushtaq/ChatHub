@@ -9,6 +9,7 @@ interface AppAvatarProps {
   src?: string | null;
   size?: number;
   square?: boolean;
+  className?: string;
 }
 
 export default function AppAvatar({
@@ -16,6 +17,7 @@ export default function AppAvatar({
   src,
   size = 36,
   square,
+  className = "",
 }: AppAvatarProps) {
   const display = name || "?";
   if (src) {
@@ -24,7 +26,7 @@ export default function AppAvatar({
       <img
         src={src}
         alt={display}
-        className="avatar"
+        className={`avatar ${className}`}
         style={{
           width: size,
           height: size,
@@ -35,7 +37,7 @@ export default function AppAvatar({
   }
   return (
     <div
-      className="avatar"
+      className={`avatar ${className}`}
       style={
         {
           width: size,

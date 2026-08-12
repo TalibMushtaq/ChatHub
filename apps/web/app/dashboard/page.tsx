@@ -2,7 +2,6 @@
 
 // The messenger shell — the entire /dashboard surface after login.
 import AppShell from "../../components/app/AppShell";
-import "../app.css";
 
 export default function DashboardPage() {
   return <AppShell />;
