@@ -17,9 +17,8 @@ interface AckSchema<T> {
 }
 
 /**
- * Registers a socket event that follows the `{ payload, callback }` ack
- * convention: reject a missing callback, validate the payload, then run the
- * handler with errors translated into an ack response.
+ * Registers a socket event that follows Socket.IO's native ack convention:
+ * `socket.emit(event, payload, callback)`.
  *
  * Keeps the per-event handlers down to their actual business logic.
  */
@@ -29,7 +28,7 @@ export function onAck<T>(
   schema: AckSchema<T>,
   handler: (data: T, ack: AckCallback) => Promise<void>,
 ): void {
-  socket.on(event, async ({ payload, callback }) => {
+  socket.on(event, async (payload, callback) => {
     if (typeof callback !== "function") {
       socket.emit("chatroom:error", {
         code: "INVALID_CALLBACK",
