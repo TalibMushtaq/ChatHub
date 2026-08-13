@@ -25,7 +25,6 @@ import { parseRecoveryCode } from "../../lib/recoveryCode";
 import { RecoveryCodeService } from "../../services/RecoveryCodeService";
 import { PasswordService } from "../../services/PasswordService";
 import { PASSWORD_HASH_OPTIONS } from "../../lib/password";
-import { ApiError } from "../../lib/ApiError";
 import { issueRecoveryToken } from "../../services/recoveryShow";
 
 const log = createLogger("forgotPassword");

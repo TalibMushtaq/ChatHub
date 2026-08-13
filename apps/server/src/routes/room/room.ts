@@ -1,7 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import requireAuth from "../../middleware/requireAuth";
 import { prisma } from "../../../db/prisma";
-import { AppError } from "../../lib/AppError";
 import {
   createRoomSchema,
   chatRoomIdParamSchema,

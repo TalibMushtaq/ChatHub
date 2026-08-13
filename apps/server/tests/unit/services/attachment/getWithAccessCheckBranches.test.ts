@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getAttachmentWithAccessCheck } from "../../../../src/services/attachment/getWithAccessCheck";
 import { createMockS3Service, resetMockS3Service } from "../../../mocks/s3";
 import { prismaMock, resetPrismaMock } from "../../../mocks/prisma";
-import { ApiError } from "../../../../src/lib/ApiError";
 
 describe("getAttachmentWithAccessCheck - branches", () => {
   const s3Service = createMockS3Service();

@@ -18,8 +18,8 @@ describe("env loader", () => {
   });
 
   it("should call dotenv.config with the workspace root .env", () => {
-    const configSpy = vi.spyOn(dotenv, "config").mockImplementation(() => ({}));
-    const existsSpy = vi.spyOn(fs, "existsSync").mockReturnValue(true);
+    vi.spyOn(dotenv, "config").mockImplementation(() => ({}));
+    vi.spyOn(fs, "existsSync").mockReturnValue(true);
 
     // Require the module fresh after resetting modules
     import("../../../src/lib/env");
@@ -70,14 +70,14 @@ describe("env loader", () => {
       return null;
     }
 
-    const existsSpy = vi.spyOn(fs, "existsSync").mockReturnValue(false);
+    vi.spyOn(fs, "existsSync").mockReturnValue(false);
     const root = findWorkspaceRoot("/a/b/c");
     expect(root).toBeNull();
   });
 
   it("should fall back to process.cwd when workspace root is not found", () => {
-    const existsSpy = vi.spyOn(fs, "existsSync").mockReturnValue(false);
-    const configSpy = vi.spyOn(dotenv, "config").mockImplementation(() => ({}));
+    vi.spyOn(fs, "existsSync").mockReturnValue(false);
+    vi.spyOn(dotenv, "config").mockImplementation(() => ({}));
 
     // Load the module fresh
     // We can't easily test the side effect without extracting the function,

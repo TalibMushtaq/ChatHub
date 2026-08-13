@@ -21,8 +21,10 @@ export async function testS3Connection(): Promise<boolean> {
       .send(new HeadBucketCommand({ Bucket: s3Service.getBucket() }));
     log.info("S3 connection test succeeded (startup)");
     return true;
-  } catch (err: any) {
-    log.error("S3 connection test failed (startup)", { error: err.message });
+  } catch (err: unknown) {
+    log.error("S3 connection test failed (startup)", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return false;
   }
 }

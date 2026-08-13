@@ -5,7 +5,6 @@ import { S3Service } from "../S3Service";
 import { verifyAttachmentsForMessage } from "../attachment/verifyForMessage";
 import { transitionAttachmentsToAttached } from "../attachment/transitionToAttached";
 import { checkIdempotency, storeIdempotency } from "../idempotency";
-import { ApiError } from "../../lib/ApiError";
 
 /**
  * Send a message in a direct chat with full attachment support.

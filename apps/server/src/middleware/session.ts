@@ -2,7 +2,7 @@ import session from "express-session";
 import { RedisStore } from "connect-redis";
 import { redis } from "../lib/redis";
 import csurf from "tiny-csrf";
-import type { Request, Response, NextFunction } from "express";
+import type { Request } from "express";
 
 // ---------------------------------------------------------------------------
 // Validate required env vars at startup (fail-fast).
@@ -104,6 +104,6 @@ export const csrfProtection = csurf(
  * Intended to be called from a route handler that runs *after*
  * `csrfProtection` has executed (so `req.csrfToken()` is available).
  */
-export function getCsrfToken(req: Request, res: Response): string {
+export function getCsrfToken(req: Request): string {
   return req.csrfToken();
 }

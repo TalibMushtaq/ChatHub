@@ -1,6 +1,5 @@
 import { mockDeep, mockReset, type DeepMockProxy } from "vitest-mock-extended";
 import type { PrismaClient } from "@prisma/client";
-import { vi } from "vitest";
 
 /**
  * Deeply mocked Prisma client for unit tests.

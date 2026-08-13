@@ -5,7 +5,7 @@ import dmChatsRouter from "../../../src/routes/direct-chat/chats";
 import roomRouter from "../../../src/routes/room/room";
 import { ApiError } from "../../../src/lib/ApiError";
 import { assertRoomAccess } from "../../../src/middleware/socketAccess";
-import { prismaMock, resetPrismaMock } from "../../mocks/prisma";
+import { resetPrismaMock } from "../../mocks/prisma";
 
 // Shared mock setup for both DM and room route tests
 vi.mock("../../../src/middleware/requireAuth", () => ({
@@ -50,6 +50,7 @@ function createDmTestApp() {
   app.use(express.json());
   app.use("/", dmChatsRouter);
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    void _next;
     const status = err.statusCode || err.status || 500;
     res.status(status).json({
       ok: false,
@@ -65,6 +66,7 @@ function createRoomTestApp() {
   app.use(express.json());
   app.use("/", roomRouter);
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    void _next;
     const status = err.statusCode || err.status || 500;
     res.status(status).json({
       ok: false,

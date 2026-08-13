@@ -3,6 +3,7 @@ import { registerRoomChat } from "./routes/room/roomChat";
 import { registerDirectChat } from "./sockets/direct-chat";
 import { Server } from "socket.io";
 import type { Server as HTTPServer } from "http";
+import type { Request, Response } from "express";
 import { sessionMiddleware } from "./middleware/session";
 import { getAllowedOrigins } from "./lib/cors";
 import type {
@@ -31,7 +32,21 @@ export function createIO(httpServer: HTTPServer): TypedServer {
   }) as TypedServer;
 
   io.use((socket, next) => {
-    sessionMiddleware(socket.request as any, {} as any, next as any);
+    // Express session middleware needs full Request/Response objects, but
+    // Socket.IO only hands us an IncomingMessage and no response at all — the
+    // middleware still works because the session cookie arrives on the socket
+    // handshake. The `(err?: unknown)` wrapper is assignable to Express's
+    // overloaded NextFunction, which socket.io's own next is not.
+    sessionMiddleware(
+      socket.request as unknown as Request,
+      {} as unknown as Response,
+      (err?: unknown) => {
+        if (err) {
+          return next(err as Error);
+        }
+        next();
+      },
+    );
   });
   io.use(socketAuth);
 

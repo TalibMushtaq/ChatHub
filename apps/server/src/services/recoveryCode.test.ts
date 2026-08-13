@@ -207,7 +207,6 @@ describe("RecoveryCodeService", () => {
 
     const codes = await service.generate("user-1");
     const first = codes[0];
-    const stored = prisma._codes.find((c) => c.codeId === first.codeId)!;
 
     const result = await service.verify("user-1", first.codeId, first.secret);
     assert.strictEqual(result.valid, true);

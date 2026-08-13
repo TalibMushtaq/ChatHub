@@ -10,6 +10,7 @@ function createTestApp() {
   app.use("/attachments", attachmentRoutes);
   // Error handler to prevent Express default 500 HTML responses
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    void _next;
     const status = err.statusCode || err.status || 500;
     res.status(status).json({
       ok: false,

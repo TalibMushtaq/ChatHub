@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerRoomChat } from "../../../../src/routes/room/roomChat";
-import {
-  prismaMock,
-  resetPrismaMock,
-  createMockTransaction,
-} from "../../mocks/prisma";
+import { prismaMock, resetPrismaMock } from "../../mocks/prisma";
 
 // Mock socketAccess
 vi.mock("../../../src/middleware/socketAccess", () => ({
@@ -24,7 +20,7 @@ describe("registerRoomChat with attachments", () => {
   } as any;
 
   function createSocketWithHandlers(userId: string) {
-    const handlers: Record<string, Function> = {};
+    const handlers: Record<string, (...args: unknown[]) => unknown> = {};
     const socket = {
       id: "socket-1",
       data: {
@@ -36,9 +32,13 @@ describe("registerRoomChat with attachments", () => {
       leave: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
-      on: vi.fn().mockImplementation((event: string, handler: Function) => {
-        handlers[event] = handler;
-      }),
+      on: vi
+        .fn()
+        .mockImplementation(
+          (event: string, handler: (...args: unknown[]) => unknown) => {
+            handlers[event] = handler;
+          },
+        ),
     } as any;
 
     registerRoomChat(mockIo, socket);

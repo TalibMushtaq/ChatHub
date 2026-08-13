@@ -26,9 +26,11 @@ router.get(
           .send(new HeadBucketCommand({ Bucket: s3Service.getBucket() }));
         s3Status = "ok";
         log.info("S3 connection test succeeded");
-      } catch (err: any) {
+      } catch (err: unknown) {
         s3Status = "error";
-        log.error("S3 connection test failed", { error: err.message });
+        log.error("S3 connection test failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
     res.json({ ok: true, s3: s3Status });

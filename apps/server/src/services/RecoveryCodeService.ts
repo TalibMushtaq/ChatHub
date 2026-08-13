@@ -13,18 +13,9 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { PasswordService } from "./PasswordService";
-import {
-  generateRecoveryCodes,
-  parseRecoveryCode,
-  type GeneratedCode,
-} from "../lib/recoveryCode";
+import { generateRecoveryCodes, type GeneratedCode } from "../lib/recoveryCode";
 import { audit } from "../lib/audit";
-import {
-  RECOVERY_CODE_COUNT,
-  RECOVERY_ARGON2_MEMORY_COST,
-  RECOVERY_ARGON2_TIME_COST,
-  RECOVERY_ARGON2_PARALLELISM,
-} from "../config/recoveryCodes";
+import { RECOVERY_CODE_COUNT } from "../config/recoveryCodes";
 
 export interface RecoveryCodeRow {
   id: string;
@@ -49,13 +40,6 @@ export class RecoveryCodeService {
    */
   async generate(userId: string): Promise<GeneratedCode[]> {
     const codes = generateRecoveryCodes(RECOVERY_CODE_COUNT);
-
-    const hashOptions = {
-      type: this.passwordService.hashOptions.type,
-      memoryCost: RECOVERY_ARGON2_MEMORY_COST,
-      timeCost: RECOVERY_ARGON2_TIME_COST,
-      parallelism: RECOVERY_ARGON2_PARALLELISM,
-    };
 
     const rows = await Promise.all(
       codes.map(async (code) => ({

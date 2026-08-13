@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../../../db/prisma";
+import { getPrismaErrorCode } from "../../lib/prismaError";
 import requireAuth from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
 import { AppError } from "../../lib/AppError";
@@ -79,15 +80,16 @@ router.post(
       });
 
       return res.status(201).json({ ok: true, joinRequest });
-    } catch (err: any) {
-      if (err?.code === "P2003") {
+    } catch (err: unknown) {
+      const code = getPrismaErrorCode(err);
+      if (code === "P2003") {
         return res.status(404).json({
           ok: false,
           error: "Room not found",
         });
       }
 
-      if (err?.code === "P2002") {
+      if (code === "P2002") {
         return res.status(409).json({
           ok: false,
           error: "You already have a pending request",
@@ -232,8 +234,9 @@ router.patch(
       });
 
       return res.status(200).json({ ok: true });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      const code = getPrismaErrorCode(err);
+      if (code === "P2002") {
         return res.status(409).json({
           ok: false,
           error: "User is already a member",

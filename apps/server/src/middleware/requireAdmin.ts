@@ -30,7 +30,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
       }
 
       // Attach membership to request for downstream handlers
-      (req as any).membership = membership;
+      req.membership = membership;
       next();
     })
     .catch((err) => {

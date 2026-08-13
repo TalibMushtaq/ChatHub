@@ -13,7 +13,7 @@ describe("registerRoomChat - edit and delete", () => {
   } as any;
 
   function createSocketWithHandlers(userId: string) {
-    const handlers: Record<string, Function> = {};
+    const handlers: Record<string, (...args: unknown[]) => unknown> = {};
     const socket = {
       id: "socket-1",
       data: {
@@ -25,9 +25,13 @@ describe("registerRoomChat - edit and delete", () => {
       leave: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
-      on: vi.fn().mockImplementation((event: string, handler: Function) => {
-        handlers[event] = handler;
-      }),
+      on: vi
+        .fn()
+        .mockImplementation(
+          (event: string, handler: (...args: unknown[]) => unknown) => {
+            handlers[event] = handler;
+          },
+        ),
     } as any;
 
     registerRoomChat(mockIo, socket);

@@ -112,11 +112,21 @@ export class S3Service {
         new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
       );
       return true;
-    } catch (err: any) {
-      if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
+    } catch (err: unknown) {
+      // S3 SDK errors expose a `name` and optional `$metadata` with the HTTP
+      // status; missing objects surface as "NotFound" or a 404.
+      const e = err as {
+        name?: string;
+        message?: string;
+        $metadata?: { httpStatusCode?: number };
+      };
+      if (e.name === "NotFound" || e.$metadata?.httpStatusCode === 404) {
         return false;
       }
-      log.error("S3 HeadObject failed", { key, error: err.message });
+      log.error("S3 HeadObject failed", {
+        key,
+        error: e.message ?? String(err),
+      });
       throw err;
     }
   }

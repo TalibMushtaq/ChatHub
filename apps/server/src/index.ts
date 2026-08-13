@@ -2,6 +2,7 @@ import "./lib/env";
 import express from "express";
 import { connectRedis, disconnectRedis } from "./lib/redis";
 import { prisma } from "../db/prisma";
+import type { Request, Response } from "express";
 import http from "http";
 import { createIO } from "./create.io";
 import cors from "cors";
@@ -48,12 +49,16 @@ app.use(
 
 app.use(sessionMiddleware);
 io.use((socket, next) => {
-  sessionMiddleware(socket.request as any, {} as any, (err: any) => {
-    if (err) {
-      return next(err);
-    }
-    next();
-  });
+  sessionMiddleware(
+    socket.request as unknown as Request,
+    {} as unknown as Response,
+    (err?: unknown) => {
+      if (err) {
+        return next(err as Error);
+      }
+      next();
+    },
+  );
 });
 
 // cookie-parser after express-session (session parses its own cookies).
@@ -68,7 +73,7 @@ app.use(csrfProtection);
 // CSRF token endpoint — excluded from token checks, but requires the
 // middleware above to have set req.csrfToken.
 app.get("/api/csrf-token", (req, res) => {
-  const token = getCsrfToken(req, res);
+  const token = getCsrfToken(req);
   res.json({ csrfToken: token });
 });
 

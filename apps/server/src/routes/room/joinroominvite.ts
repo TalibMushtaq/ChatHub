@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../../../db/prisma";
+import { getPrismaErrorCode } from "../../lib/prismaError";
 import requireAuth from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
 import { AppError } from "../../lib/AppError";
@@ -55,7 +56,6 @@ router.post(
         });
       }
 
-      const { targetUser } = parsed.data as any;
       const targetUserId: string = parsed.data.targetUserId;
 
       if (targetUserId === myId) {
@@ -117,15 +117,16 @@ router.post(
         createdAt: sent.createdAt,
         status: sent.status,
       });
-    } catch (err: any) {
-      if (err?.code === "P2003") {
+    } catch (err: unknown) {
+      const code = getPrismaErrorCode(err);
+      if (code === "P2003") {
         return res.status(404).json({
           ok: false,
           error: "Target user doesn't exist",
         });
       }
 
-      if (err?.code === "P2002") {
+      if (code === "P2002") {
         return res.status(409).json({
           ok: false,
           error: "Invitation already sent",
@@ -343,8 +344,9 @@ router.patch(
       // Unreachable while respondInvitationSchema only allows the two
       // statuses above; without it an unhandled status would hang the request.
       return res.status(400).json({ ok: false, error: "Invalid status" });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      const code = getPrismaErrorCode(err);
+      if (code === "P2002") {
         return res.status(409).json({
           ok: false,
           error: "User is already a member",

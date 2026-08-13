@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import requireAuth from "../../middleware/requireAuth";
 import { requireAdmin } from "../../middleware/requireAdmin";
 import { prisma } from "../../../db/prisma";
+import { getPrismaErrorCode } from "../../lib/prismaError";
 import { AppError } from "../../lib/AppError";
 import { createJoinLinkSchema } from "@repo/validators";
 import crypto from "crypto";
@@ -258,8 +259,9 @@ router.post(
       });
 
       return res.status(200).json({ ok: true });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      const code = getPrismaErrorCode(err);
+      if (code === "P2002") {
         return res.status(409).json({
           ok: false,
           error: "Already a member",

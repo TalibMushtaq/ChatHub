@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { verifyAttachmentsForMessage } from "../../../../src/services/attachment/verifyForMessage";
 import { createMockS3Service, resetMockS3Service } from "../../../mocks/s3";
-import { ApiError } from "../../../../src/lib/ApiError";
 
 describe("verifyAttachmentsForMessage", () => {
   const s3Service = createMockS3Service();

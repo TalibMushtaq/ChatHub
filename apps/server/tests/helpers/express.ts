@@ -1,4 +1,4 @@
-import { vi, type MockedFunction } from "vitest";
+import { vi } from "vitest";
 import type { Request, Response, NextFunction } from "express";
 import type { Session, SessionData } from "express-session";
 import type { AuthUser } from "../../src/types/express";

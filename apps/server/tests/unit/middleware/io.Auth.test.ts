@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import socketAuth from "../../../src/middleware/io.Auth";
 import { prismaMock, resetPrismaMock } from "../../mocks/prisma";
 import { createMockSocket } from "../../helpers/socket";
-import { createUser } from "../../factories/user";
 
 describe("socketAuth", () => {
   beforeEach(() => {

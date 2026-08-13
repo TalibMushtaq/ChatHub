@@ -9,9 +9,16 @@
     "SHADOW_DATABASE_URL",
     "REDIS_URL",
     "SESSION_SECRET",
+    "CSRF_SECRET",
+    "CORS_ORIGINS",
     "NODE_ENV",
     "WS_PORT",
-    "HTTP_PORT"
+    "HTTP_PORT",
+    "AWS_REGION",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_S3_BUCKET_NAME",
+    "AWS_S3_ENDPOINT"
   ],
   "tasks": {
     "build": {
