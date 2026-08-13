@@ -48,6 +48,8 @@ vi.mock("@prisma/client", () => ({
 vi.mock("../src/lib/redis", () => ({
   redis: {
     eval: vi.fn(),
+    set: vi.fn(),
+    getDel: vi.fn(),
     isOpen: false,
     on: vi.fn(),
     connect: vi.fn(),
@@ -87,6 +89,7 @@ vi.mock("@aws-sdk/client-s3", () => ({
   GetObjectCommand: vi.fn(),
   DeleteObjectCommand: vi.fn(),
   HeadObjectCommand: vi.fn(),
+  HeadBucketCommand: vi.fn(),
 }));
 
 vi.mock("@aws-sdk/s3-request-presigner", () => ({
