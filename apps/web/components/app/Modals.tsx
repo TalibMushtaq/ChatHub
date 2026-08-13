@@ -9,11 +9,13 @@ import { ChatAPI, getErrorMessage } from "./api";
 import { displayName, fmtList, fmtTime } from "./helpers";
 import type { Invitation, JoinLink, JoinRequest } from "./types";
 import AppAvatar from "./AppAvatar";
+import AvatarSelector from "./AvatarSelector";
 import {
   BackIcon,
   CloseIcon,
   SearchIcon,
   CheckIcon,
+  CopyIcon,
   RefreshIcon,
   SunIcon,
   MoonIcon,
@@ -270,6 +272,7 @@ function NewRoomModal() {
   const { openConv, clearModals, refreshLists, toast } = useShell();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [avatarKey, setAvatarKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function create() {
@@ -279,6 +282,7 @@ function NewRoomModal() {
       const room = await ChatAPI.createRoom(
         name.trim(),
         description.trim() || undefined,
+        avatarKey || undefined,
       );
       clearModals();
       openConv({
@@ -317,6 +321,14 @@ function NewRoomModal() {
           placeholder="What's this room about?"
         />
       </div>
+      <div className="mfield mb-3.5">
+        <label className={fieldLabel}>Room avatar (optional)</label>
+        <AvatarSelector
+          source="room"
+          selected={avatarKey}
+          onSelect={setAvatarKey}
+        />
+      </div>
       <div className="mactions mt-4 grid gap-2.5">
         <button
           className={`${btnPrimary} ${btnBlock}`}
@@ -333,6 +345,79 @@ function NewRoomModal() {
 // ---------------------------------------------------------------------------
 // Room info
 // ---------------------------------------------------------------------------
+
+// Helper sub-component for room avatar picker inside RoomInfoModal
+function RoomAvatarSection({
+  info,
+  isAdmin,
+}: {
+  info: { roomId: string; name: string; myRole: string };
+  isAdmin: boolean;
+}) {
+  const { toast } = useShell();
+  const [showPicker, setShowPicker] = useState(false);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function saveAvatar() {
+    if (!pendingKey) return;
+    setSaving(true);
+    try {
+      await ChatAPI.updateRoomAvatar(info.roomId, pendingKey);
+      toast("Room avatar updated", "success");
+      setShowPicker(false);
+      setPendingKey(null);
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to update room avatar"), "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!isAdmin) return null;
+
+  if (showPicker) {
+    return (
+      <div className="mt-3">
+        <p className="mb-2 text-[12.5px] font-semibold text-muted">
+          Choose a room avatar:
+        </p>
+        <AvatarSelector
+          source="room"
+          selected={pendingKey}
+          onSelect={setPendingKey}
+        />
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            className={`${btnGhost} ${btnSm}`}
+            onClick={() => {
+              setShowPicker(false);
+              setPendingKey(null);
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            className={`${btnPrimary} ${btnSm}`}
+            disabled={saving || !pendingKey}
+            onClick={() => void saveAvatar()}
+          >
+            {saving ? "Saving…" : "Save avatar"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className={`${btnGhost} ${btnBlock} mt-2`}
+      onClick={() => setShowPicker(true)}
+    >
+      Change room avatar
+    </button>
+  );
+}
 
 function RoomInfoModal() {
   const { roomInfo, roomMembers, user, openModal } = useShell();
@@ -395,6 +480,8 @@ function RoomInfoModal() {
           </span>
         </div>
       ))}
+
+      <RoomAvatarSection info={info} isAdmin={isAdmin} />
 
       {isAdmin && (
         <div className="mactions mt-4 grid gap-2.5">
@@ -917,6 +1004,25 @@ function ProfileModal() {
 function AccountModal() {
   const { user, toast } = useShell();
   const { theme, toggle } = useTheme();
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [pendingAvatarKey, setPendingAvatarKey] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+
+  async function saveAvatar() {
+    if (!pendingAvatarKey) return;
+    setSavingAvatar(true);
+    try {
+      await ChatAPI.updateMyAvatar(pendingAvatarKey);
+      toast("Avatar updated — reload to see changes", "success");
+      setShowAvatarPicker(false);
+      setPendingAvatarKey(null);
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to update avatar"), "error");
+    } finally {
+      setSavingAvatar(false);
+    }
+  }
+
   return (
     <>
       <div className={rowItem}>
@@ -930,6 +1036,47 @@ function AccountModal() {
           <div className={rowT2}>{user.email}</div>
         </div>
       </div>
+
+      {showAvatarPicker ? (
+        <div className="mt-3">
+          <p className="mb-2 text-[12.5px] font-semibold text-muted">
+            {user.avatar
+              ? "Selecting a default avatar will replace your current one."
+              : "Choose a default avatar:"}
+          </p>
+          <AvatarSelector
+            source="user"
+            selected={pendingAvatarKey ?? user.avatar}
+            onSelect={setPendingAvatarKey}
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              className={`${btnGhost} ${btnSm}`}
+              onClick={() => {
+                setShowAvatarPicker(false);
+                setPendingAvatarKey(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className={`${btnPrimary} ${btnSm}`}
+              disabled={savingAvatar || !pendingAvatarKey}
+              onClick={() => void saveAvatar()}
+            >
+              {savingAvatar ? "Saving…" : "Save avatar"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className={`${btnGhost} ${btnBlock} mt-3`}
+          onClick={() => setShowAvatarPicker(true)}
+        >
+          Change avatar
+        </button>
+      )}
+
       <div className="mactions mt-4 grid gap-2.5">
         <button
           className={`${btnGhost} ${btnBlock}`}
@@ -961,6 +1108,18 @@ function RecoveryModal() {
   const [password, setPassword] = useState("");
   const [codes, setCodes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 1500);
+    } catch {
+      // Clipboard may be blocked (e.g. insecure context); select-all stays
+      // available so a manual Ctrl+C still works.
+    }
+  }
 
   async function generate() {
     if (!password) return;
@@ -986,13 +1145,28 @@ function RecoveryModal() {
             replace all previous codes.
           </span>
         </div>
-        <div className="codes my-4 grid grid-cols-2 gap-2">
+        <div className="codes my-4 flex flex-col gap-2">
           {codes.map((c) => (
             <div
               key={c}
-              className="code truncate rounded-[9px] bg-accent-soft px-2.5 py-[9px] font-mono text-[11.5px] font-bold text-accent-solid select-all"
+              className="code flex items-center gap-2.5 rounded-[9px] bg-accent-soft pl-2.5 pr-1.5 py-[4px] font-mono text-[11.5px] font-bold text-accent-solid"
             >
-              {c}
+              <span className="min-w-0 flex-1 whitespace-nowrap select-all">
+                {c}
+              </span>
+              <button
+                type="button"
+                aria-label={copiedCode === c ? "Copied" : "Copy code"}
+                title={copiedCode === c ? "Copied" : "Copy code"}
+                onClick={() => void copyCode(c)}
+                className="flex-none rounded-lg p-1.5 text-muted transition-colors duration-150 hover:bg-accent-wash hover:text-accent-solid"
+              >
+                {copiedCode === c ? (
+                  <CheckIcon className="h-4 w-4 text-accent-solid" />
+                ) : (
+                  <CopyIcon className="h-4 w-4" />
+                )}
+              </button>
             </div>
           ))}
         </div>

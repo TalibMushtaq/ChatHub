@@ -43,9 +43,22 @@ export const ChatAPI = {
   },
 
   async regenerateRecoveryCodes(currentPassword: string): Promise<string[]> {
+    // The server never returns codes in a response body — it issues a
+    // one-time token that must be exchanged via POST /auth/recovery-codes/show.
+    // The shared `api` interceptor (lib/api.ts) attaches a fresh _csrf token
+    // to every non-GET request.
     const { data } = await api.post("/auth/recovery-codes", {
       currentPassword,
     });
+    const show = await api.post("/auth/recovery-codes/show", {
+      token: data.recoveryToken,
+    });
+    return show.data.recoveryCodes;
+  },
+
+  /** Exchange a one-time token for the recovery codes (single-use). */
+  async showRecoveryCodes(token: string): Promise<string[]> {
+    const { data } = await api.post("/auth/recovery-codes/show", { token });
     return data.recoveryCodes;
   },
 
@@ -66,11 +79,11 @@ export const ChatAPI = {
   async getDmMessages(
     directChatId: string,
     opts: { cursor?: string } = {},
-  ): Promise<Message[]> {
+  ): Promise<{ messages: Message[]; nextCursor: string | null }> {
     const { data } = await api.get(`/dm/${directChatId}/messages`, {
       params: opts,
     });
-    return data.messages;
+    return { messages: data.messages, nextCursor: data.nextCursor ?? null };
   },
 
   async sendDmMessage(
@@ -116,10 +129,11 @@ export const ChatAPI = {
     return { items: data.rooms, nextCursor: data.nextCursor };
   },
 
-  async createRoom(name: string, description?: string) {
+  async createRoom(name: string, description?: string, avatarKey?: string) {
     const { data } = await api.post("/room/rooms", {
       name,
       description: description || null,
+      ...(avatarKey ? { avatarKey } : {}),
     });
     return data.room as { id: string; name: string };
   },
@@ -127,11 +141,11 @@ export const ChatAPI = {
   async getRoomMessages(
     chatRoomId: string,
     opts: { cursor?: string } = {},
-  ): Promise<Message[]> {
+  ): Promise<{ messages: Message[]; nextCursor: string | null }> {
     const { data } = await api.get(`/room/${chatRoomId}/messages`, {
       params: opts,
     });
-    return data.messages;
+    return { messages: data.messages, nextCursor: data.nextCursor ?? null };
   },
 
   async getRoomMembers(chatRoomId: string): Promise<RoomMember[]> {
@@ -227,6 +241,28 @@ export const ChatAPI = {
     const { data } = await api.get(`/attachments/${attachmentId}`);
     return data.downloadUrl;
   },
+
+  // ---------------------------------------------------------------------------
+  // Default avatars
+  // ---------------------------------------------------------------------------
+
+  /** Fetch available default avatars for 'user' or 'room' from S3. */
+  async getDefaultAvatars(
+    source: "user" | "room",
+  ): Promise<{ key: string; url: string }[]> {
+    const { data } = await api.get(`/defaults/avatars?source=${source}`);
+    return data.avatars;
+  },
+
+  /** Update the authenticated user's avatar to a default or custom S3 key. */
+  async updateMyAvatar(avatarKey: string): Promise<void> {
+    await api.patch("/auth/me/avatar", { avatarKey });
+  },
+
+  /** Update a room's avatar (OWNER/ADMIN only). */
+  async updateRoomAvatar(chatRoomId: string, avatarKey: string): Promise<void> {
+    await api.patch(`/room/${chatRoomId}/avatar`, { avatarKey });
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -240,18 +276,15 @@ export interface AckResult {
   [key: string]: unknown;
 }
 
-/** Send a `{ payload, callback }` room-socket event and await the ack. */
+/** Send a room-socket event and await Socket.IO's native ack callback. */
 export function emitRoomAck<T extends AckResult>(
   event: string,
   payload: Record<string, unknown>,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    socket.emit(event, {
-      payload,
-      callback: (res: T) => {
-        if (res?.ok) resolve(res);
-        else reject(new Error(res?.error || "Request failed"));
-      },
+    socket.emit(event, payload, (res: T) => {
+      if (res?.ok) resolve(res);
+      else reject(new Error(res?.error || "Request failed"));
     });
   });
 }

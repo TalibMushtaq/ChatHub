@@ -6,17 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "../lib/api";
 import { postCsrf } from "../lib/csrf";
 import { getErrorMessage } from "../lib/errors";
+import { ChatAPI } from "../../components/app/api";
 import { userZod } from "@repo/validators";
 import { Mascot } from "../../components/landing/Mascot";
+import { CheckIcon, CopyIcon } from "../../components/app/icons";
+import AvatarSelector from "../../components/app/AvatarSelector";
 
-type Screen = "login" | "signup" | "recovery" | "forgot" | "join";
-
-// Demo credentials are configured via env so the account can be created and
-// wired up later without touching code. The panel is hidden until both vars
-// are set. (NEXT_PUBLIC_ values are inlined at build time.)
-const DEMO_USERNAME = process.env.NEXT_PUBLIC_DEMO_USERNAME ?? "";
-const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
-const hasDemo = Boolean(DEMO_USERNAME && DEMO_PASSWORD);
+type Screen =
+  "login" | "signup" | "avatarPick" | "recovery" | "forgot" | "join";
 
 interface JoinPreview {
   name: string;
@@ -130,10 +127,23 @@ export default function AuthCard() {
   const [suPw, setSuPw] = useState("");
   const [suErr, setSuErr] = useState("");
   const [suBusy, setSuBusy] = useState(false);
+  const [suAvatarKey, setSuAvatarKey] = useState<string | null>(null);
 
   const [codes, setCodes] = useState<string[]>([]);
   const [recTitle, setRecTitle] = useState("");
   const [recSub, setRecSub] = useState<ReactNode>("");
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 1500);
+    } catch {
+      // Clipboard may be blocked (e.g. insecure context); select-all stays
+      // available so a manual Ctrl+C still works.
+    }
+  }
 
   const [fpUser, setFpUser] = useState("");
   const [fpCode, setFpCode] = useState("");
@@ -211,11 +221,15 @@ export default function AuthCard() {
     setSuErr("");
     setSuBusy(true);
     try {
-      const data = await postCsrf<{ ok: boolean; recoveryCodes: string[] }>(
-        "/auth/signup",
-        parsed.data,
-      );
-      setCodes(data.recoveryCodes ?? []);
+      const data = await postCsrf<{
+        ok: boolean;
+        recoveryToken: string;
+      }>("/auth/signup", parsed.data);
+      // Codes are fetched via a one-time token so they never appear in the
+      // signup response body; the token is single-use and 10-minute TTL.
+      const recoveryCodes = await ChatAPI.showRecoveryCodes(data.recoveryToken);
+      // Store codes for display on the recovery screen after avatar pick
+      setCodes(recoveryCodes ?? []);
       setRecTitle("Save your recovery codes");
       setRecSub(
         <>
@@ -223,12 +237,25 @@ export default function AuthCard() {
           be shown again.
         </>,
       );
-      setScreen("recovery");
+      // Go to avatar picker first, then recovery
+      setScreen("avatarPick");
     } catch (err) {
       setSuErr(getErrorMessage(err, "Signup failed"));
     } finally {
       setSuBusy(false);
     }
+  }
+
+  async function doSaveAvatar() {
+    // Best-effort: save avatar key if selected, then proceed to recovery screen
+    if (suAvatarKey) {
+      try {
+        await postCsrf("/auth/me/avatar", { avatarKey: suAvatarKey });
+      } catch {
+        // Non-fatal: user can change avatar later in settings
+      }
+    }
+    setScreen("recovery");
   }
 
   async function doForgot() {
@@ -248,11 +275,12 @@ export default function AuthCard() {
     setFpErr("");
     setFpBusy(true);
     try {
-      const data = await postCsrf<{ ok: boolean; recoveryCodes: string[] }>(
+      const data = await postCsrf<{ ok: boolean; recoveryToken: string }>(
         "/auth/forgot-password",
         payload,
       );
-      setCodes(data.recoveryCodes ?? []);
+      const recoveryCodes = await ChatAPI.showRecoveryCodes(data.recoveryToken);
+      setCodes(recoveryCodes ?? []);
       setRecTitle("New recovery codes");
       setRecSub(
         <>
@@ -407,25 +435,6 @@ export default function AuthCard() {
         >
           I have a room join link
         </button>
-        {hasDemo && (
-          <div className="mt-[18px] rounded-[14px] border border-border bg-surface-2 p-3.5 text-[13px]">
-            <p className="mb-2.5 text-muted">
-              Want to look around first? Use the demo account:
-            </p>
-            <p className="mb-0.5 font-bold text-fg">
-              {DEMO_USERNAME} / {DEMO_PASSWORD}
-            </p>
-            <button
-              className={btnGhost}
-              type="button"
-              disabled={loginBusy}
-              onClick={() => void doLogin(DEMO_USERNAME, DEMO_PASSWORD)}
-              style={{ marginTop: 8 }}
-            >
-              Sign in with demo
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Signup */}
@@ -529,6 +538,47 @@ export default function AuthCard() {
         </div>
       </div>
 
+      {/* Avatar picker */}
+      <div
+        className={`${
+          screen === "avatarPick"
+            ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]"
+            : "hidden"
+        }`}
+        data-od-id="screen-avatarpick"
+      >
+        <div className="mb-[22px] flex flex-col items-center text-center">
+          <div
+            className="mb-3 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-accent-soft text-[32px]"
+            aria-hidden="true"
+          >
+            🖼️
+          </div>
+          <h1 className="font-display text-[26px] leading-[1.15] tracking-tight">
+            Pick your avatar
+          </h1>
+          <p className="text-[14.5px] text-muted">
+            Choose a default avatar — you can always change it later.
+          </p>
+        </div>
+        {screen === "avatarPick" && (
+          <AvatarSelector
+            source="user"
+            selected={suAvatarKey}
+            onSelect={setSuAvatarKey}
+          />
+        )}
+        <div className="mt-5 grid gap-2.5">
+          <button
+            className={btnPrimary}
+            type="button"
+            onClick={() => void doSaveAvatar()}
+          >
+            {suAvatarKey ? "Save avatar & continue" : "Skip for now"}
+          </button>
+        </div>
+      </div>
+
       {/* Recovery codes */}
       <div
         className={`${screen === "recovery" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
@@ -543,16 +593,31 @@ export default function AuthCard() {
         </div>
         {codes.length > 0 && (
           <div
-            className="my-[18px] grid grid-cols-2 gap-2"
+            className="my-[18px] flex flex-col gap-2"
             aria-label="Recovery codes"
           >
             {codes.map((c) => (
-              <span
-                className="truncate rounded-[9px] bg-accent-soft px-2.5 py-[9px] font-mono text-xs font-bold tracking-[0.01em] text-accent-solid select-all"
+              <div
+                className="flex items-center gap-2.5 rounded-[9px] bg-accent-soft pl-2.5 pr-1.5 py-[5px] font-mono text-xs font-bold tracking-[0.01em] text-accent-solid"
                 key={c}
               >
-                {c}
-              </span>
+                <span className="min-w-0 flex-1 whitespace-nowrap select-all">
+                  {c}
+                </span>
+                <button
+                  type="button"
+                  aria-label={copiedCode === c ? "Copied" : "Copy code"}
+                  title={copiedCode === c ? "Copied" : "Copy code"}
+                  onClick={() => void copyCode(c)}
+                  className="flex-none rounded-lg p-1.5 text-muted transition-colors duration-150 hover:bg-accent-wash hover:text-accent-solid"
+                >
+                  {copiedCode === c ? (
+                    <CheckIcon className="h-4 w-4 text-accent-solid" />
+                  ) : (
+                    <CopyIcon className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             ))}
           </div>
         )}

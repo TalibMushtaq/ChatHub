@@ -464,7 +464,7 @@ export default function AppShell() {
   async function loadMessages(c: ActiveConv) {
     const key = `${c.kind}:${c.id}`;
     try {
-      const list =
+      const { messages: list } =
         c.kind === "dm"
           ? await ChatAPI.getDmMessages(c.id)
           : await ChatAPI.getRoomMessages(c.id);
@@ -786,6 +786,12 @@ export default function AppShell() {
                 "search",
                 "Search",
                 <SearchIcon className="h-[21px] w-[21px]" />,
+                0,
+              )}
+              {navItem(
+                "settings",
+                "Settings",
+                <GearIcon className="h-[21px] w-[21px]" />,
                 0,
               )}
             </div>

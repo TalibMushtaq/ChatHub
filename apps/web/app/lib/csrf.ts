@@ -1,20 +1,15 @@
 import { api } from "./api";
 
 // tiny-csrf on the server clears the csrfToken cookie after every successful
-// state-changing request, so each mutation must fetch a fresh token first.
-// The token is echoed back as `_csrf` in the request body (the only field
-// tiny-csrf v1.1.6 validates against the signed cookie).
-
-export async function getCsrfToken(): Promise<string> {
-  const { data } = await api.get("/api/csrf-token");
-  return data.csrfToken as string;
-}
+// state-changing request. The shared `api` instance's request interceptor
+// (see lib/api.ts) already fetches a fresh token and echoes it as `_csrf` on
+// every non-GET call, so this helper is a thin typed wrapper for callers that
+// want the parsed `{ ok: true, ... }` envelope back.
 
 export async function postCsrf<T = unknown>(
   path: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  const token = await getCsrfToken();
-  const { data } = await api.post(path, { ...body, _csrf: token });
+  const { data } = await api.post(path, body);
   return data as T;
 }

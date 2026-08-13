@@ -147,10 +147,24 @@ html {
 
 /* Focus ring used to be scoped separately in app/landing/auth; these are
    intentionally the same box-shadow ring in every theme. */
-:focus-visible {
+:focus-visible:not(input):not(textarea):not(select) {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 45%, transparent);
   border-radius: 8px;
+}
+
+/* Text fields already draw their own visible focus treatment — the search
+   container's border + ring via focus-within (styles.ts searchBox, ListPanel)
+   or the field's own border + focus:shadow (fieldInput, auth input, message
+   composer). Applying the generic ring + border-radius to a focused input would
+   render a second nested green ring inside that container and square its
+   corners, so form fields are excluded from the ring above. They keep
+   outline:none here; each field also carries its own focus:outline-none. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* Webkit scrollbars (app shell). Colors adapt via the fg token. */
@@ -300,6 +314,79 @@ html {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* =====================================================================
+   AvatarSelector component
+   ===================================================================== */
+.avatar-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.avatar-selector-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 14px;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  overflow: visible;
+  transition: border-color 0.15s var(--ease-app), box-shadow 0.15s var(--ease-app), transform 0.12s var(--ease-app);
+  background: var(--color-surface-2);
+  outline: none;
+  padding: 0;
+}
+
+.avatar-selector-cell:hover {
+  border-color: var(--color-border-strong);
+  transform: scale(1.04);
+}
+
+.avatar-selector-cell:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 40%, transparent);
+}
+
+.avatar-selector-cell.selected {
+  border-color: var(--color-accent-btn);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent-btn) 30%, transparent);
+}
+
+.avatar-selector-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 11px;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.avatar-selector-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--color-muted);
+  background: var(--color-surface-3);
+}
+
+.avatar-selector-cell.skeleton {
+  animation: shimmer 1.3s infinite;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 25%,
+    var(--color-surface-3) 50%,
+    var(--color-surface-2) 75%
+  );
+  background-size: 200% 100%;
+  border-color: transparent;
+  cursor: default;
 }
 
 @source "../../../packages/ui/src/**/*.{ts,tsx}";

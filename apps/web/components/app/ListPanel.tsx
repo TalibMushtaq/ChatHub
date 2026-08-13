@@ -16,7 +16,7 @@ import {
   UserIcon,
   MoreIcon,
 } from "./icons";
-import { iconBtn } from "./styles";
+import { iconBtn, searchBox, searchInput } from "./styles";
 
 function lastText(content: string | null, messageType: string): string {
   if (messageType === "IMAGE") return "Photo";
@@ -96,10 +96,10 @@ export default function ListPanel() {
           )}
         </div>
         {tab !== "settings" && (
-          <div className="searchbox flex items-center gap-2 rounded-xl border-[1.5px] border-border bg-bg px-3 py-[9px] transition-[border-color,box-shadow] duration-150 ease-app focus-within:border-accent-solid focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_45%,transparent)]">
+          <div className={searchBox}>
             <SearchIcon className="h-[17px] w-[17px] flex-none text-muted" />
             <input
-              className="min-w-0 flex-1 border-0 bg-transparent text-[14.5px] focus:outline-none"
+              className={searchInput}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search users…"
