@@ -196,11 +196,12 @@ export default function ListPanel() {
                         id: r.roomId,
                         name: r.name,
                         description: r.description,
+                        avatar: r.avatar,
                         myRole: r.myRole,
                       })
                     }
                   >
-                    <AppAvatar name={r.name} size={44} square />
+                    <AppAvatar name={r.name} src={r.avatar} size={44} square />
                     <div className="mid min-w-0 flex-1">
                       <div className="line1 flex items-baseline justify-between gap-2">
                         <span className="name truncate text-[14.5px] font-extrabold">

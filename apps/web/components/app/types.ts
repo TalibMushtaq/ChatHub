@@ -85,6 +85,7 @@ export interface RoomInboxEntry {
   roomId: string;
   name: string;
   description: string | null;
+  avatar?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

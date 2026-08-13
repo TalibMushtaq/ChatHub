@@ -354,7 +354,7 @@ function RoomAvatarSection({
   info: { roomId: string; name: string; myRole: string };
   isAdmin: boolean;
 }) {
-  const { toast } = useShell();
+  const { toast, refreshLists } = useShell();
   const [showPicker, setShowPicker] = useState(false);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -364,6 +364,7 @@ function RoomAvatarSection({
     setSaving(true);
     try {
       await ChatAPI.updateRoomAvatar(info.roomId, pendingKey);
+      await refreshLists();
       toast("Room avatar updated", "success");
       setShowPicker(false);
       setPendingKey(null);
@@ -1002,7 +1003,7 @@ function ProfileModal() {
 }
 
 function AccountModal() {
-  const { user, toast } = useShell();
+  const { user, toast, refreshUser } = useShell();
   const { theme, toggle } = useTheme();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [pendingAvatarKey, setPendingAvatarKey] = useState<string | null>(null);
@@ -1013,7 +1014,8 @@ function AccountModal() {
     setSavingAvatar(true);
     try {
       await ChatAPI.updateMyAvatar(pendingAvatarKey);
-      toast("Avatar updated — reload to see changes", "success");
+      await refreshUser();
+      toast("Avatar updated", "success");
       setShowAvatarPicker(false);
       setPendingAvatarKey(null);
     } catch (err) {

@@ -21,6 +21,7 @@ import room from "./routes/room/room";
 import searchUser from "./routes/searchUser";
 import attachmentRoutes from "./routes/attachments";
 import defaultsRouter from "./routes/defaults";
+import avatarRoutes from "./routes/avatars";
 import healthRoute from "./routes/health";
 import { errorHandler } from "./middleware/error-handler";
 import { createLogger } from "./lib/logger";
@@ -87,6 +88,7 @@ app.use("/api/dm", dmRoutes);
 app.use("/api/room", room);
 app.use("/api/attachments", attachmentRoutes);
 app.use("/api/defaults", defaultsRouter);
+app.use("/api/avatars", avatarRoutes);
 app.use("/api/search", searchUser);
 app.use("/api/health", healthRoute);
 // Error handler must be mounted after all routes so it can catch

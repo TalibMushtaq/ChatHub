@@ -855,6 +855,16 @@ export default function AppShell() {
     }
   }
 
+  async function refreshUser() {
+    try {
+      const me = await ChatAPI.getMe();
+      userRef.current = me;
+      setUser(me);
+    } catch {
+      // best-effort: keep showing the cached user
+    }
+  }
+
   function roomInfo(): RoomInboxEntry | null {
     const a = activeRef.current;
     if (!a || a.kind !== "room") return null;
@@ -948,6 +958,7 @@ export default function AppShell() {
     openConv,
     closeConv,
     refreshLists,
+    refreshUser,
     openModal,
     popModal,
     clearModals,

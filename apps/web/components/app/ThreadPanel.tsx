@@ -250,7 +250,9 @@ export default function ThreadPanel() {
         </button>
         <AppAvatar
           name={other}
-          src={active.kind === "dm" ? active.otherUser?.avatar : undefined}
+          src={
+            active.kind === "room" ? active.avatar : active.otherUser?.avatar
+          }
           size={40}
           square={active.kind === "room"}
         />

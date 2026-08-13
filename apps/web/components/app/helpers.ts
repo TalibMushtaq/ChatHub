@@ -5,6 +5,18 @@ import type { ReadReceipt } from "./types";
 
 export type ConvKind = "dm" | "room";
 
+/**
+ * Turn a stored avatar S3 key into a browser-loadable URL served by the
+ * server's GET /api/avatars proxy. Full URLs (e.g. presigned S3 links from
+ * the defaults picker) pass through untouched.
+ */
+export function avatarUrl(key: string | null | undefined): string | null {
+  if (!key) return null;
+  if (!key.startsWith("defaults/") && !key.startsWith("avatars/")) return key;
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3100/api";
+  return `${base}/avatars?key=${encodeURIComponent(key)}`;
+}
+
 /** Deterministic hue from a string so each user/room gets a stable color. */
 export function hueOf(name: string): number {
   let n = 0;

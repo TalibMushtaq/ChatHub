@@ -101,6 +101,20 @@ export class S3Service {
   }
 
   /**
+   * Fetch an object and return the raw SDK response so callers can stream
+   * `Body` directly (used by the avatar proxy to serve images without
+   * exposing presigned URLs). Throws on missing objects / network errors.
+   */
+  async getObjectStream(key: string) {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    return this.client.send(command);
+  }
+
+  /**
    * Verify that an object exists in S3.
    *
    * Returns true if HeadObject succeeds, false if the object is missing.

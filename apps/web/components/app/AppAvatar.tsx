@@ -2,7 +2,7 @@
 
 // Hue-based avatar: a stable color is derived from the name so the same user
 // always renders the same color without any server round-trip.
-import { hueOf, initials } from "./helpers";
+import { avatarUrl, hueOf, initials } from "./helpers";
 
 interface AppAvatarProps {
   name?: string | null;
@@ -20,11 +20,12 @@ export default function AppAvatar({
   className = "",
 }: AppAvatarProps) {
   const display = name || "?";
-  if (src) {
+  const image = avatarUrl(src);
+  if (image) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={src}
+        src={image}
         alt={display}
         className={`avatar ${className}`}
         style={{

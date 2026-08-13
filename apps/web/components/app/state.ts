@@ -34,6 +34,7 @@ export interface ActiveConv {
   } | null;
   name?: string;
   description?: string | null;
+  avatar?: string | null;
   myRole?: string;
 }
 
@@ -73,6 +74,8 @@ export interface ShellCtx {
   openConv: (c: ActiveConv) => void;
   closeConv: () => void;
   refreshLists: () => Promise<void>;
+  /** Re-fetch the current user (e.g. after an avatar update). */
+  refreshUser: () => Promise<void>;
   openModal: (name: ModalName, payload?: unknown) => void;
   popModal: () => void;
   clearModals: () => void;
