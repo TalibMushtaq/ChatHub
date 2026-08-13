@@ -37,6 +37,15 @@ enum AttachmentStatus {
   PENDING
   ATTACHED
 }
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
 model ChatRoom {
   id             String                 @id @default(cuid())
   name           String
@@ -144,11 +153,13 @@ model DirectChat {
 model User {
   id                                  String           @id
   email                               String           @unique
-  displayname                         String
+  displayName                         String?
   username                            String           @unique
   passwordHash                        String?
   avatar                              String?
   bio                                 String?
+  gender                              Gender?
+  dateOfBirth                         DateTime?
   createdAt                           DateTime         @default(now())
   updatedAt                           DateTime         @updatedAt
   sessions                            Session[]

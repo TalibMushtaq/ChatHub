@@ -52,8 +52,8 @@ const signupRateLimiter = createRateLimiter({
  *    to prevent session fixation attacks. The session is explicitly saved.
  * 3. Proper error typing: `err: unknown` with type narrowing instead of `any`.
  * 4. Structured logging: Uses createLogger() instead of raw console.error.
- * 5. Input normalization: email/username are trimmed+lowercased, displayname
- *    is trimmed only (preserving case).
+ * 5. Input normalization: email/username are trimmed+lowercased, displayName
+ *    is trimmed only (preserving case) and optional.
  * 6. Removed redundant `updatedAt: new Date()` — Prisma manages this via @updatedAt.
  * 7. Hidden validation details: Returns simplified error messages, not raw Zod issues.
  * 8. Rate limiting: Enhanced to include email in the key for finer granularity.
@@ -103,10 +103,10 @@ router.post("/signup", async (req: Request, res: Response) => {
 
     // --- Normalize input ---
     // email/username: trim + lowercase (canonical form for uniqueness)
-    // displayname: trim only (preserve user's chosen casing)
+    // displayName: trim only (preserve user's chosen casing); empty becomes null
     const email = parseResult.data.email.trim().toLowerCase();
     const username = parseResult.data.username.trim().toLowerCase();
-    const displayname = parseResult.data.displayname.trim();
+    const displayName = parseResult.data.displayName?.trim() || null;
     const password = parseResult.data.password;
     const avatarKey =
       typeof req.body.avatarKey === "string" &&
@@ -124,14 +124,14 @@ router.post("/signup", async (req: Request, res: Response) => {
         id: crypto.randomUUID(),
         email,
         username,
-        displayname,
+        displayName,
         passwordHash,
         ...(avatarKey ? { avatar: avatarKey } : {}),
       },
       select: {
         id: true,
         email: true,
-        displayname: true,
+        displayName: true,
         username: true,
         createdAt: true,
       },

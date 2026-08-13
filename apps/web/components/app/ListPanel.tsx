@@ -59,7 +59,7 @@ export default function ListPanel() {
   async function startDmWith(user: {
     id: string;
     username: string;
-    displayname?: string | null;
+    displayName?: string | null;
   }) {
     try {
       const chat = await ChatAPI.startDm(user.id);
@@ -269,7 +269,7 @@ function SearchResults({
   onPick: (u: {
     id: string;
     username: string;
-    displayname?: string | null;
+    displayName?: string | null;
   }) => void;
 }) {
   const { results } = useShell();
@@ -282,7 +282,7 @@ function SearchResults({
           className="conv flex w-full cursor-pointer items-center gap-[11px] rounded-[14px] p-2.5 text-left transition-colors duration-150 ease-app hover:bg-surface-2"
           onClick={() => onPick(u)}
         >
-          <AppAvatar name={u.displayname ?? u.username} size={44} />
+          <AppAvatar name={u.displayName ?? u.username} size={44} />
           <div className="mid min-w-0 flex-1">
             <div className="line1 flex items-baseline justify-between gap-2">
               <span className="name truncate text-[14.5px] font-extrabold">

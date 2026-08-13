@@ -3,7 +3,15 @@ import type { Server as IOServer } from "socket.io";
 
 export type AuthUser = Pick<
   User,
-  "id" | "email" | "username" | "displayname" | "avatar" | "createdAt"
+  | "id"
+  | "email"
+  | "username"
+  | "displayName"
+  | "avatar"
+  | "bio"
+  | "gender"
+  | "dateOfBirth"
+  | "createdAt"
 >;
 
 // user is non-optional because requireAuth guarantees it is set before

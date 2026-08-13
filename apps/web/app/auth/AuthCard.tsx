@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "../lib/api";
@@ -13,7 +13,13 @@ import { CheckIcon, CopyIcon } from "../../components/app/icons";
 import AvatarSelector from "../../components/app/AvatarSelector";
 
 type Screen =
-  "login" | "signup" | "avatarPick" | "recovery" | "forgot" | "join";
+  | "login"
+  | "signupDetails"
+  | "signupUsername"
+  | "avatarPick"
+  | "recovery"
+  | "forgot"
+  | "join";
 
 interface JoinPreview {
   name: string;
@@ -122,12 +128,14 @@ export default function AuthCard() {
   const [loginBusy, setLoginBusy] = useState(false);
 
   const [suEmail, setSuEmail] = useState("");
-  const [suUser, setSuUser] = useState("");
-  const [suName, setSuName] = useState("");
   const [suPw, setSuPw] = useState("");
+  const [suUser, setSuUser] = useState("");
   const [suErr, setSuErr] = useState("");
   const [suBusy, setSuBusy] = useState(false);
   const [suAvatarKey, setSuAvatarKey] = useState<string | null>(null);
+  type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const usernameCheckRef = useRef(0);
 
   const [codes, setCodes] = useState<string[]>([]);
   const [recTitle, setRecTitle] = useState("");
@@ -157,7 +165,7 @@ export default function AuthCard() {
   const [joinPreview, setJoinPreview] = useState<JoinPreview | null>(null);
 
   useEffect(() => {
-    if (mode === "signup") setScreen("signup");
+    if (mode === "signup") setScreen("signupDetails");
     else if (mode === "login") setScreen("login");
   }, [mode]);
 
@@ -204,11 +212,25 @@ export default function AuthCard() {
     }
   }
 
+  function goToUsername() {
+    const emailOk = userZod.email.safeParse(suEmail.trim()).success;
+    const pwOk = userZod.password.safeParse(suPw).success;
+    if (!emailOk) {
+      setSuErr("Enter a valid email address.");
+      return;
+    }
+    if (!pwOk) {
+      setSuErr("Password must be 8–72 characters.");
+      return;
+    }
+    setSuErr("");
+    setScreen("signupUsername");
+  }
+
   async function doSignup() {
     const payload = {
       email: suEmail.trim(),
       username: suUser.trim(),
-      displayname: suName.trim(),
       password: suPw,
     };
     const parsed = userZod.signup.safeParse(payload);
@@ -216,6 +238,10 @@ export default function AuthCard() {
       const issue = parsed.error.issues[0];
       const field = issue?.path?.join(".") ?? "form";
       setSuErr(`${field}: ${issue?.message ?? "Invalid input"}`);
+      return;
+    }
+    if (usernameStatus !== "available") {
+      setSuErr("Choose an available username before continuing.");
       return;
     }
     setSuErr("");
@@ -246,11 +272,38 @@ export default function AuthCard() {
     }
   }
 
+  // Live, debounced username availability check. We ignore stale responses so
+  // an older network result cannot overwrite the latest keystroke.
+  useEffect(() => {
+    const trimmed = suUser.trim();
+    const parsed = userZod.username.safeParse(trimmed);
+    if (!parsed.success) {
+      setUsernameStatus(trimmed.length === 0 ? "idle" : "invalid");
+      return;
+    }
+
+    setUsernameStatus("checking");
+    const token = ++usernameCheckRef.current;
+
+    const timer = setTimeout(async () => {
+      try {
+        const available = await ChatAPI.checkUsername(trimmed);
+        if (token !== usernameCheckRef.current) return;
+        setUsernameStatus(available ? "available" : "taken");
+      } catch {
+        if (token !== usernameCheckRef.current) return;
+        setUsernameStatus("taken");
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [suUser]);
+
   async function doSaveAvatar() {
     // Best-effort: save avatar key if selected, then proceed to recovery screen
     if (suAvatarKey) {
       try {
-        await postCsrf("/auth/me/avatar", { avatarKey: suAvatarKey });
+        await ChatAPI.updateMyAvatar(suAvatarKey);
       } catch {
         // Non-fatal: user can change avatar later in settings
       }
@@ -411,7 +464,7 @@ export default function AuthCard() {
           <button
             type="button"
             className={linkrowBtn}
-            onClick={() => setScreen("signup")}
+            onClick={() => setScreen("signupDetails")}
           >
             Create an account
           </button>
@@ -437,10 +490,10 @@ export default function AuthCard() {
         </button>
       </div>
 
-      {/* Signup */}
+      {/* Signup: account details */}
       <div
-        className={`${screen === "signup" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
-        data-od-id="screen-signup"
+        className={`${screen === "signupDetails" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
+        data-od-id="screen-signup-details"
       >
         <div className="mb-[26px] flex flex-col items-center text-center">
           <Mascot expr="typing" className="mb-3 h-[72px] w-[72px]" />
@@ -455,7 +508,7 @@ export default function AuthCard() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void doSignup();
+            goToUsername();
           }}
           noValidate
         >
@@ -476,6 +529,56 @@ export default function AuthCard() {
             />
           </div>
           <div className="mb-4">
+            <label htmlFor="suPw" className={label}>
+              Password
+            </label>
+            <PwField
+              id="suPw"
+              name="password"
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              value={suPw}
+              onChange={setSuPw}
+            />
+          </div>
+          <button className={btnPrimary} type="submit">
+            Continue
+          </button>
+        </form>
+        <div className={linkrow}>
+          <button
+            type="button"
+            className={linkrowBtn}
+            onClick={() => setScreen("login")}
+          >
+            Already have an account? Log in
+          </button>
+        </div>
+      </div>
+
+      {/* Signup: choose username */}
+      <div
+        className={`${screen === "signupUsername" ? "animate-[auth-fade_.28s_cubic-bezier(.2,.8,.2,1)]" : "hidden"}`}
+        data-od-id="screen-signup-username"
+      >
+        <div className="mb-[26px] flex flex-col items-center text-center">
+          <Mascot expr="typing" className="mb-3 h-[72px] w-[72px]" />
+          <h1 className="font-display text-[26px] leading-[1.15] tracking-tight">
+            Choose your username
+          </h1>
+          <p className="text-[14.5px] text-muted">
+            This is how people will find you. You can&apos;t change it later.
+          </p>
+        </div>
+        <Err msg={suErr} />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void doSignup();
+          }}
+          noValidate
+        >
+          <div className="mb-4">
             <label htmlFor="suUser" className={label}>
               Username
             </label>
@@ -493,37 +596,32 @@ export default function AuthCard() {
             <p className="mt-[5px] text-[12.5px] text-muted">
               3–20 characters — letters, numbers, underscore.
             </p>
+            {usernameStatus === "checking" && (
+              <p className="mt-[5px] text-[12.5px] text-muted">
+                Checking availability…
+              </p>
+            )}
+            {usernameStatus === "available" && (
+              <p className="mt-[5px] text-[12.5px] font-semibold text-success">
+                Username available
+              </p>
+            )}
+            {usernameStatus === "taken" && (
+              <p className="mt-[5px] text-[12.5px] font-semibold text-danger">
+                Username already taken
+              </p>
+            )}
+            {usernameStatus === "invalid" && (
+              <p className="mt-[5px] text-[12.5px] font-semibold text-danger">
+                Invalid username
+              </p>
+            )}
           </div>
-          <div className="mb-4">
-            <label htmlFor="suName" className={label}>
-              Display name
-            </label>
-            <input
-              id="suName"
-              name="displayname"
-              type="text"
-              autoComplete="nickname"
-              placeholder="John Doe"
-              value={suName}
-              onChange={(e) => setSuName(e.target.value)}
-              required
-              className={input}
-            />
-          </div>
-          <div className="mb-4">
-            <label htmlFor="suPw" className={label}>
-              Password
-            </label>
-            <PwField
-              id="suPw"
-              name="password"
-              autoComplete="new-password"
-              placeholder="At least 8 characters"
-              value={suPw}
-              onChange={setSuPw}
-            />
-          </div>
-          <button className={btnPrimary} type="submit" disabled={suBusy}>
+          <button
+            className={btnPrimary}
+            type="submit"
+            disabled={suBusy || usernameStatus !== "available"}
+          >
             {suBusy ? "Please wait…" : "Create account"}
           </button>
         </form>
@@ -531,9 +629,9 @@ export default function AuthCard() {
           <button
             type="button"
             className={linkrowBtn}
-            onClick={() => setScreen("login")}
+            onClick={() => setScreen("signupDetails")}
           >
-            Already have an account? Log in
+            Back
           </button>
         </div>
       </div>

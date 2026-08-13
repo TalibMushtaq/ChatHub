@@ -1,3 +1,23 @@
+## [2026-08-14] - Fix Onboarding Avatar Save
+
+**What changed:** `apps/web/app/auth/AuthCard.tsx` now calls `ChatAPI.updateMyAvatar(suAvatarKey)` (which sends `PATCH /auth/me/avatar`) instead of `postCsrf("/auth/me/avatar", …)` (which sent `POST`). The server only exposes `PATCH /auth/me/avatar`, so the previous POST was silently failing (request caught and ignored) and the avatar selected during signup never persisted.
+
+**Why:** The onboarding avatar picker was wired to the wrong HTTP method, so newly created accounts lost the avatar they chose before reaching the dashboard.
+
+**Impact:** `apps/web` only. New signups that select an avatar now keep it. Existing accounts are unchanged.
+
+**Follow-ups:** None.
+
+## [2026-08-14] - Optional Profile Fields, Immutable Username, and Live Onboarding Availability
+
+**What changed:** Added optional `displayName`, `bio`, `gender`, and `dateOfBirth` profile fields to the `User` model (`apps/server/db/schema.prisma`), renamed the existing `displayname` column to `displayName`, and created the `Gender` enum plus a migration that preserves existing display-name data. The shared `userZod` validators in `packages/validators/src/user.ts` now validate the new fields: `bio` is capped at 160 characters, `gender` is restricted to `MALE`/`FEMALE`/`NON_BINARY`/`OTHER`/`PREFER_NOT_TO_SAY`, and `dateOfBirth` rejects future dates. `userZod.signup` no longer requires `displayName`, keeping signup minimal. `userZod.updateMe` is now `strict()` and no longer accepts `username`; the new `PATCH /auth/me` route (`apps/server/src/routes/auth/updateMe.ts`) explicitly rejects any request containing a `username` field and supports partial profile updates plus password changes. The `AuthUser` snapshot and `requireAuth` select now include the new fields. A new unauthenticated, rate-limited `GET /auth/check-username` endpoint (`apps/server/src/routes/auth/checkUsername.ts`) provides live availability feedback during onboarding. On the client, `AuthCard.tsx` was split into an "account details" step (email + password) and a "choose username" step with a 400 ms debounced availability check, clear status states, and a disabled create-account button until the username is available; stale API responses are ignored via a sequence token. The read-only `ProfileModal` in `apps/web/components/app/Modals.tsx` was converted into an editable profile form where users can change their avatar (reusing the existing `AvatarSelector`), edit display name, bio, gender, and date of birth, with partial saves allowed; the username is shown read-only. `AppUser` and `ChatAPI` (`apps/web/components/app/types.ts`, `components/app/api.ts`) were extended with the new fields and API helpers.
+
+**Why:** Signup needed to stay fast and minimal while letting users complete their profile later from Settings → Profile. Usernames also needed to be permanently fixed after signup to prevent handle-squatting and identity confusion.
+
+**Impact:** Database schema change (migration `20260814000000_add_profile_fields_and_rename_display_name` must be applied via `prisma migrate deploy`). API response shapes now use `displayName` instead of `displayname` and include `bio`, `gender`, and `dateOfBirth`. Existing clients relying on the old `displayname` field or the single-page signup form will need updates. Server tests increased from 384 to 419; web tests remain at 24.
+
+**Follow-ups:** Verify the debounced username check end-to-end in a browser with high-latency connections; consider adding client-side profile-form tests once the web Vitest environment supports DOM rendering.
+
 ## [2026-08-13] - Center Modals on Screen
 
 **What changed:** `apps/web/components/app/Modals.tsx` now positions the modal stack in the center of the viewport (`items-center justify-center`) instead of anchoring dialogs to the bottom middle (`items-end`). The modal card also uses full `rounded-[24px]` corners rather than top-only rounding, since it no longer sits flush against the bottom edge.

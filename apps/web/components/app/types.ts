@@ -2,19 +2,25 @@
 // the server actually returns (see routes/services) so the client never
 // invents fields that don't exist.
 
+export type Gender =
+  "MALE" | "FEMALE" | "NON_BINARY" | "OTHER" | "PREFER_NOT_TO_SAY";
+
 export interface AppUser {
   id: string;
   email: string;
   username: string;
-  displayname: string | null;
+  displayName: string | null;
   avatar: string | null;
+  bio: string | null;
+  gender: Gender | null;
+  dateOfBirth: string | null;
   createdAt: string;
 }
 
 export interface SearchUser {
   id: string;
   username: string;
-  displayname: string | null;
+  displayName: string | null;
 }
 
 export interface Attachment {
@@ -30,7 +36,7 @@ export interface Attachment {
 export interface MessageUser {
   id: string;
   username: string;
-  displayname: string | null;
+  displayName: string | null;
   avatar?: string | null;
 }
 
@@ -121,14 +127,14 @@ export interface Invitation {
   invitedBy?: {
     id: string;
     username: string;
-    displayname?: string | null;
+    displayName?: string | null;
     avatar?: string | null;
   };
   /** Matches the sent-invites endpoint's `invitedUser` field. */
   invitedUser?: {
     id: string;
     username: string;
-    displayname?: string | null;
+    displayName?: string | null;
     avatar?: string | null;
   };
 }
@@ -140,7 +146,7 @@ export interface JoinRequest {
   user?: {
     id: string;
     username: string;
-    displayname: string | null;
+    displayName: string | null;
     avatar?: string | null;
   };
 }

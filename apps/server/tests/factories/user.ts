@@ -5,8 +5,11 @@ type UserFactory = {
   id: string;
   email: string;
   username: string;
-  displayname: string;
+  displayName: string | null;
   avatar: string | null;
+  bio: string | null;
+  gender: string | null;
+  dateOfBirth: Date | null;
   passwordHash: string;
   createdAt: Date;
 };
@@ -28,8 +31,11 @@ export function createUser(partial: Partial<UserFactory> = {}): UserFactory {
     id,
     email: `user-${id.slice(0, 8)}@example.com`,
     username: `user_${id.slice(0, 8)}`,
-    displayname: `User ${id.slice(0, 8)}`,
+    displayName: `User ${id.slice(0, 8)}`,
     avatar: null,
+    bio: null,
+    gender: null,
+    dateOfBirth: null,
     passwordHash: `$argon2id$v=19$m=65536,t=3,p=4$${"A".repeat(22)}$${"B".repeat(43)}`,
     createdAt: new Date("2024-01-01T00:00:00Z"),
   };
@@ -48,8 +54,11 @@ export function createAuthUser(
     id: base.id,
     email: base.email,
     username: base.username,
-    displayname: base.displayname,
+    displayName: base.displayName,
     avatar: base.avatar,
+    bio: base.bio,
+    gender: base.gender,
+    dateOfBirth: base.dateOfBirth,
     createdAt: base.createdAt,
     ...partial,
   };

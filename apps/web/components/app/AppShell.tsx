@@ -185,7 +185,7 @@ export default function AppShell() {
       const me = () => ({
         id: userRef.current!.id,
         username: userRef.current!.username,
-        displayname: userRef.current!.displayname,
+        displayName: userRef.current!.displayName,
         avatar: userRef.current!.avatar,
       });
       if (c.kind === "dm") {
@@ -195,13 +195,13 @@ export default function AppShell() {
             ? {
                 id: c.otherUser.id,
                 username: c.otherUser.username ?? "unknown",
-                displayname: c.otherUser.displayname ?? null,
+                displayName: c.otherUser.displayName ?? null,
                 avatar: c.otherUser.avatar ?? null,
               }
             : {
                 id: msg.senderId ?? "",
                 username: "unknown",
-                displayname: null,
+                displayName: null,
                 avatar: null,
               };
         return {
@@ -225,7 +225,7 @@ export default function AppShell() {
         : (sender ?? {
             id: msg.senderId ?? "",
             username: msg.senderId?.slice(0, 8) ?? "member",
-            displayname: null,
+            displayName: null,
             avatar: null,
           });
       return {
@@ -688,7 +688,7 @@ export default function AppShell() {
       User: {
         id: me.id,
         username: me.username,
-        displayname: me.displayname,
+        displayName: me.displayName,
         avatar: me.avatar,
       },
       ...(a.kind === "room" ? { chatRoomId: a.id, senderId: me.id } : {}),
@@ -744,7 +744,7 @@ export default function AppShell() {
           User: {
             id: me.id,
             username: me.username,
-            displayname: me.displayname,
+            displayName: me.displayName,
             avatar: me.avatar,
           },
         };
@@ -1035,7 +1035,7 @@ export default function AppShell() {
                 title="Profile"
               >
                 <AppAvatar
-                  name={user.displayname ?? user.username}
+                  name={user.displayName ?? user.username}
                   src={user.avatar}
                   size={34}
                 />

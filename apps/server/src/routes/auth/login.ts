@@ -100,7 +100,7 @@ router.post("/login", async (req: Request, res: Response) => {
         id: true,
         email: true,
         username: true,
-        displayname: true,
+        displayName: true,
         passwordHash: true,
       },
     });
@@ -149,7 +149,7 @@ router.post("/login", async (req: Request, res: Response) => {
             id: user.id,
             email: user.email,
             username: user.username,
-            displayname: user.displayname,
+            displayName: user.displayName,
           },
         });
 

@@ -13,6 +13,7 @@ import { uploadAttachments } from "../../app/lib/attachments";
 import type {
   Attachment,
   AppUser,
+  Gender,
   Message,
   DMInboxEntry,
   RoomInboxEntry,
@@ -36,6 +37,23 @@ export const ChatAPI = {
 
   async getMe(): Promise<AppUser> {
     const { data } = await api.get("/auth/me");
+    return data.user;
+  },
+
+  async checkUsername(username: string): Promise<boolean> {
+    const { data } = await api.get("/auth/check-username", {
+      params: { username },
+    });
+    return data.available as boolean;
+  },
+
+  async updateMe(payload: {
+    displayName?: string | null;
+    bio?: string | null;
+    gender?: Gender | null;
+    dateOfBirth?: string | null;
+  }): Promise<AppUser> {
+    const { data } = await api.patch("/auth/me", payload);
     return data.user;
   },
 

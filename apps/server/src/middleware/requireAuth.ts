@@ -59,8 +59,11 @@ export default function requireAuth(
         id: true,
         email: true,
         username: true,
-        displayname: true,
+        displayName: true,
         avatar: true,
+        bio: true,
+        gender: true,
+        dateOfBirth: true,
         createdAt: true,
       },
     })

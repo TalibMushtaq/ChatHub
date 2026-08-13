@@ -21,7 +21,7 @@ describe("getMembers", () => {
         User: {
           id: "u1",
           username: "alice",
-          displayname: "Alice",
+          displayName: "Alice",
           avatar: null,
         },
       },
@@ -43,7 +43,7 @@ describe("getMembers", () => {
         user: {
           id: "u1",
           username: "alice",
-          displayname: "Alice",
+          displayName: "Alice",
           avatar: null,
         },
       },

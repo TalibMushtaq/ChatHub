@@ -19,7 +19,7 @@ export async function getMembers(chatRoomId: string) {
         select: {
           id: true,
           username: true,
-          displayname: true,
+          displayName: true,
           avatar: true,
         },
       },

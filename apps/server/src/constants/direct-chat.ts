@@ -40,7 +40,7 @@ export const messageWithUserSelect = {
     select: {
       id: true,
       username: true,
-      displayname: true,
+      displayName: true,
       avatar: true,
     },
   },

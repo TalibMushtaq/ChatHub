@@ -29,7 +29,7 @@ export interface ActiveConv {
   otherUser?: {
     id: string;
     username?: string;
-    displayname?: string | null;
+    displayName?: string | null;
     avatar?: string | null;
   } | null;
   name?: string;

@@ -3,11 +3,11 @@
 // Modal system: a stack of modals rendered over the shell. All modals talk to
 // the real backend via ChatAPI and push to the stack for sub-flows (e.g. a
 // room's info modal opening invite/join-request/link modals).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useShell, type ModalEntry } from "./state";
 import { ChatAPI, getErrorMessage } from "./api";
 import { displayName, fmtList, fmtTime } from "./helpers";
-import type { Invitation, JoinLink, JoinRequest } from "./types";
+import type { Gender, Invitation, JoinLink, JoinRequest } from "./types";
 import AppAvatar from "./AppAvatar";
 import AvatarSelector from "./AvatarSelector";
 import {
@@ -183,7 +183,7 @@ function NewDmModal() {
   const { openConv, clearModals, toast } = useShell();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<
-    { id: string; username: string; displayname: string | null }[]
+    { id: string; username: string; displayName: string | null }[]
   >([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -210,7 +210,7 @@ function NewDmModal() {
   async function start(u: {
     id: string;
     username: string;
-    displayname: string | null;
+    displayName: string | null;
   }) {
     setBusyId(u.id);
     try {
@@ -247,7 +247,7 @@ function NewDmModal() {
         ) : (
           results.map((u) => (
             <div key={u.id} className={rowItem}>
-              <AppAvatar name={u.displayname ?? u.username} size={38} />
+              <AppAvatar name={u.displayName ?? u.username} size={38} />
               <div className={rowGrow}>
                 <div className={rowT1}>{displayName(u)}</div>
                 <div className={rowT2}>@{u.username}</div>
@@ -522,7 +522,7 @@ function InviteModal({ roomId }: { roomId: string }) {
   const info = roomInfo();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<
-    { id: string; username: string; displayname: string | null }[]
+    { id: string; username: string; displayName: string | null }[]
   >([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -549,7 +549,7 @@ function InviteModal({ roomId }: { roomId: string }) {
   async function invite(u: {
     id: string;
     username: string;
-    displayname: string | null;
+    displayName: string | null;
   }) {
     setBusyId(u.id);
     try {
@@ -590,7 +590,7 @@ function InviteModal({ roomId }: { roomId: string }) {
         ) : (
           results.map((u) => (
             <div key={u.id} className={rowItem}>
-              <AppAvatar name={u.displayname ?? u.username} size={38} />
+              <AppAvatar name={u.displayName ?? u.username} size={38} />
               <div className={rowGrow}>
                 <div className={rowT1}>{displayName(u)}</div>
                 <div className={rowT2}>@{u.username}</div>
@@ -987,20 +987,193 @@ function MyLinksModal() {
 // Profile / Account / Recovery
 // ---------------------------------------------------------------------------
 
+const GENDER_OPTIONS: { value: Gender | ""; label: string }[] = [
+  { value: "", label: "Not specified" },
+  { value: "MALE", label: "Male" },
+  { value: "FEMALE", label: "Female" },
+  { value: "NON_BINARY", label: "Non-binary" },
+  { value: "OTHER", label: "Other" },
+  { value: "PREFER_NOT_TO_SAY", label: "Prefer not to say" },
+];
+
+function formatDateInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return iso.slice(0, 10);
+}
+
 function ProfileModal() {
-  const { user } = useShell();
+  const { user, toast, refreshUser } = useShell();
+
+  const [displayName, setDisplayName] = useState(user.displayName ?? "");
+  const [bio, setBio] = useState(user.bio ?? "");
+  const [gender, setGender] = useState<Gender | "">(user.gender ?? "");
+  const [dateOfBirth, setDateOfBirth] = useState(
+    formatDateInput(user.dateOfBirth),
+  );
+  const [saving, setSaving] = useState(false);
+
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [pendingAvatarKey, setPendingAvatarKey] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+
+  async function saveAvatar() {
+    if (!pendingAvatarKey) return;
+    setSavingAvatar(true);
+    try {
+      await ChatAPI.updateMyAvatar(pendingAvatarKey);
+      await refreshUser();
+      toast("Avatar updated", "success");
+      setShowAvatarPicker(false);
+      setPendingAvatarKey(null);
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to update avatar"), "error");
+    } finally {
+      setSavingAvatar(false);
+    }
+  }
+
+  async function saveProfile(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await ChatAPI.updateMe({
+        displayName: displayName.trim() || null,
+        bio: bio.trim() || null,
+        gender: gender || null,
+        dateOfBirth: dateOfBirth || null,
+      });
+      await refreshUser();
+      toast("Profile saved", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to save profile"), "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div className={rowItem} style={{ padding: "4px 0 14px" }}>
-      <AppAvatar
-        name={user.displayname ?? user.username}
-        src={user.avatar}
-        size={56}
-      />
-      <div className={rowGrow}>
-        <div className={rowT1}>{displayName(user)}</div>
-        <div className={rowT2}>@{user.username}</div>
-        <div className={rowT2}>{user.email}</div>
+    <div className="space-y-4">
+      <div className={rowItem} style={{ padding: "4px 0 14px" }}>
+        <AppAvatar
+          name={user.displayName ?? user.username}
+          src={user.avatar}
+          size={56}
+        />
+        <div className={rowGrow}>
+          <div className={rowT1}>{displayName}</div>
+          <div className={rowT2}>@{user.username}</div>
+          <div className={rowT2}>{user.email}</div>
+        </div>
       </div>
+
+      {showAvatarPicker ? (
+        <div>
+          <p className="mb-2 text-[12.5px] font-semibold text-muted">
+            Choose an avatar:
+          </p>
+          <AvatarSelector
+            source="user"
+            selected={pendingAvatarKey ?? user.avatar}
+            onSelect={setPendingAvatarKey}
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              className={`${btnGhost} ${btnSm}`}
+              onClick={() => {
+                setShowAvatarPicker(false);
+                setPendingAvatarKey(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className={`${btnPrimary} ${btnSm}`}
+              disabled={savingAvatar || !pendingAvatarKey}
+              onClick={() => void saveAvatar()}
+            >
+              {savingAvatar ? "Saving…" : "Save avatar"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className={`${btnGhost} ${btnBlock}`}
+          onClick={() => setShowAvatarPicker(true)}
+        >
+          Change avatar
+        </button>
+      )}
+
+      <form onSubmit={(e) => void saveProfile(e)} className="space-y-4">
+        <div>
+          <label htmlFor="profile-displayName" className={fieldLabel}>
+            Display name
+          </label>
+          <input
+            id="profile-displayName"
+            type="text"
+            autoComplete="nickname"
+            placeholder="Your public name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            className={fieldInput}
+            maxLength={40}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="profile-bio" className={fieldLabel}>
+            Bio
+          </label>
+          <textarea
+            id="profile-bio"
+            placeholder="A short bio"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            className={`${fieldInput} min-h-[90px] resize-none`}
+            maxLength={160}
+          />
+          <p className="mt-1 text-right text-[11px] text-muted">
+            {bio.length}/160
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="profile-gender" className={fieldLabel}>
+            Gender
+          </label>
+          <select
+            id="profile-gender"
+            value={gender}
+            onChange={(e) => setGender(e.target.value as Gender | "")}
+            className={fieldInput}
+          >
+            {GENDER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="profile-dob" className={fieldLabel}>
+            Date of birth
+          </label>
+          <input
+            id="profile-dob"
+            type="date"
+            value={dateOfBirth}
+            max={formatDateInput(new Date().toISOString())}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+            className={fieldInput}
+          />
+        </div>
+
+        <button className={btnPrimary} type="submit" disabled={saving}>
+          {saving ? "Saving…" : "Save profile"}
+        </button>
+      </form>
     </div>
   );
 }
@@ -1032,7 +1205,7 @@ function AccountModal() {
     <>
       <div className={rowItem}>
         <AppAvatar
-          name={user.displayname ?? user.username}
+          name={user.displayName ?? user.username}
           src={user.avatar}
           size={40}
         />

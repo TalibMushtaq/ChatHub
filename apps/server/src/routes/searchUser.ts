@@ -64,7 +64,7 @@ router.get(
         username: { startsWith: query, mode: "insensitive" },
         id: { not: actorId },
       },
-      select: { id: true, username: true, displayname: true },
+      select: { id: true, username: true, displayName: true },
       take: limit,
       skip: cursor ? 1 : 0,
       cursor: cursor ? { id: cursor } : undefined,
@@ -115,7 +115,7 @@ router.get(
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, username: true, displayname: true, avatar: true },
+      select: { id: true, username: true, displayName: true, avatar: true },
     });
 
     if (!user) {

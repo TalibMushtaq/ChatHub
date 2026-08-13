@@ -13,8 +13,11 @@ vi.mock("../../../../src/middleware/requireAuth", () => ({
       id: "u1",
       email: "u1@example.com",
       username: "user1",
-      displayname: "User One",
+      displayName: "User One",
       avatar: null,
+      bio: null,
+      gender: null,
+      dateOfBirth: null,
       createdAt: "2024-01-01T00:00:00.000Z",
     };
     next();
@@ -38,8 +41,11 @@ describe("GET /auth/me", () => {
         id: "u1",
         email: "u1@example.com",
         username: "user1",
-        displayname: "User One",
+        displayName: "User One",
         avatar: null,
+        bio: null,
+        gender: null,
+        dateOfBirth: null,
         createdAt: "2024-01-01T00:00:00.000Z",
       },
     });

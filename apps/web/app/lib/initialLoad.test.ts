@@ -14,15 +14,18 @@ const user: AppUser = {
   id: "u1",
   email: "ada@example.com",
   username: "ada",
-  displayname: null,
+  displayName: null,
   avatar: null,
+  bio: null,
+  gender: null,
+  dateOfBirth: null,
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
 const dmItems: DMInboxEntry[] = [
   {
     directChatId: "dm1",
-    otherUser: { id: "u2", username: "bob", displayname: null, avatar: null },
+    otherUser: { id: "u2", username: "bob", displayName: null, avatar: null },
     lastMessage: {
       id: "m1",
       content: "hi",

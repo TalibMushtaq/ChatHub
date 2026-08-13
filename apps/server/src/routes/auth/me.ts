@@ -16,7 +16,8 @@ const router = express.Router();
  *
  * Therefore no additional database query is needed here.
  *
- * AuthUser fields: id, email, username, displayname, avatar, createdAt
+ * AuthUser fields: id, email, username, displayName, avatar, bio, gender,
+ * dateOfBirth, createdAt
  */
 router.get("/me", requireAuth, (req: Request, res: Response) => {
   // requireAuth guarantees req.user is defined (returns 401 otherwise).

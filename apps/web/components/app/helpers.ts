@@ -37,11 +37,11 @@ export function initials(name: string): string {
 /** Display name fallback chain used everywhere a user is rendered. */
 export function displayName(
   u:
-    | { displayname?: string | null; username?: string | null }
+    | { displayName?: string | null; username?: string | null }
     | null
     | undefined,
 ): string {
-  return u?.displayname || u?.username || "Unknown";
+  return u?.displayName || u?.username || "Unknown";
 }
 
 /** Clock time, e.g. "09:41 PM". */

@@ -43,8 +43,11 @@ describe("requireAuth - stale session cleanup", () => {
       id: "u1",
       email: "u1@example.com",
       username: "u1",
-      displayname: "User One",
+      displayName: "User One",
       avatar: null,
+      bio: null,
+      gender: null,
+      dateOfBirth: null,
       createdAt: new Date("2024-01-01T00:00:00Z"),
     };
     prismaMock.user.findUnique.mockResolvedValue(dbUser as any);

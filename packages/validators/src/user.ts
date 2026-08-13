@@ -17,10 +17,33 @@ const passwordSchema = z
   .min(8, "Password must be at least 8 characters")
   .max(72, "Password must be at most 72 characters");
 
-const displaynameSchema = z
+// Display name is optional everywhere (signup and profile settings) and is
+// capped at 40 characters so it remains readable in headers, lists, and avatars.
+const displayNameSchema = z
   .string()
-  .min(3, "Username must be at least 3 characters")
-  .max(20, "Username must be at most 20 characters");
+  .trim()
+  .max(40, "Display name must be at most 40 characters")
+  .optional()
+  .nullable();
+
+const bioSchema = z
+  .string()
+  .max(160, "Bio must be at most 160 characters")
+  .optional()
+  .nullable();
+
+const genderSchema = z
+  .enum(["MALE", "FEMALE", "NON_BINARY", "OTHER", "PREFER_NOT_TO_SAY"])
+  .optional()
+  .nullable();
+
+// Store date of birth as a Date but accept an ISO date string from JSON.
+// The max constraint rejects future dates; no minimum age is enforced.
+const dateOfBirthSchema = z.coerce
+  .date()
+  .max(new Date(), "Date of birth cannot be in the future")
+  .optional()
+  .nullable();
 
 const avatarSchema = z.url().trim().optional().nullable();
 
@@ -74,30 +97,47 @@ export const regenerateRecoveryCodesSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
 });
 
+export const checkUsernameSchema = z.object({
+  username: usernameSchema,
+});
+
 export const userZod = {
   email: emailSchema,
   username: usernameSchema,
-  displayname: displaynameSchema,
+  displayName: displayNameSchema,
+  bio: bioSchema,
+  gender: genderSchema,
+  dateOfBirth: dateOfBirthSchema,
   password: passwordSchema,
   avatar: avatarSchema.optional(),
 
+  // Signup is intentionally minimal: email, username, password. Everything else
+  // (display name, bio, gender, date of birth) is completed later in settings.
   signup: z.object({
     email: emailSchema,
     username: usernameSchema,
-    displayname: displaynameSchema,
     password: passwordSchema,
+    displayName: displayNameSchema,
   }),
 
   login: z.union([loginWithEmail, loginWithUsername]),
 
+  // Username is intentionally absent: it is chosen during onboarding and is
+  // immutable after account creation. `strict()` ensures any extra field
+  // (including a sneaky username) fails validation before reaching the route.
   updateMe: z
     .object({
-      username: usernameSchema.optional(),
-      avatar: avatarSchema.optional(),
-      displayname: displaynameSchema.optional(),
+      displayName: displayNameSchema,
+      bio: bioSchema,
+      gender: genderSchema,
+      dateOfBirth: dateOfBirthSchema,
       currentPassword: z.string().min(1).optional(),
       newPassword: passwordSchema.optional(),
+      // The shared API client injects `_csrf` into every mutating request body,
+      // so the profile-update schema must accept it while remaining strict.
+      _csrf: z.string().optional(),
     })
+    .strict()
     .refine(
       (data) => {
         const wantsChange =

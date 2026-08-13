@@ -1,5 +1,6 @@
 export {
   userZod,
+  checkUsernameSchema,
   searchUsersQuerySchema,
   userIdParamSchema,
   forgotPasswordSchema,
