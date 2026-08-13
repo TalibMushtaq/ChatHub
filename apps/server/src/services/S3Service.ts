@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createLogger } from "../lib/logger";
@@ -51,6 +52,19 @@ export class S3Service {
     }
 
     this.client = new S3Client(clientConfig);
+  }
+
+  /**
+   * Expose the underlying S3 client so health checks can run bucket-level
+   * commands (HeadBucket) without reaching into private fields.
+   */
+  getClient(): S3Client {
+    return this.client;
+  }
+
+  /** Expose the bucket name for health checks and diagnostics. */
+  getBucket(): string {
+    return this.bucket;
   }
 
   /**
@@ -117,6 +131,34 @@ export class S3Service {
     await this.client.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     );
+  }
+
+  /**
+   * List all object keys under a given prefix.
+   *
+   * Paginates automatically and returns all keys. Use a specific prefix
+   * like "defaults/user/" to enumerate available default avatars.
+   */
+  async listObjects(prefix: string): Promise<string[]> {
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      });
+      const response = await this.client.send(command);
+      if (response.Contents) {
+        for (const obj of response.Contents) {
+          if (obj.Key) keys.push(obj.Key);
+        }
+      }
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    return keys;
   }
 }
 

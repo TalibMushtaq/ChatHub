@@ -99,12 +99,12 @@ router.get(
     const query = getMessagesSchema.safeParse(req.query);
     const { cursor, limit, direction } = query.success ? query.data : {};
 
-    const { messages } = await getMessages(directChatId, {
+    const { messages, nextCursor } = await getMessages(directChatId, {
       cursor,
       limit,
       direction,
     });
-    res.json({ ok: true, messages });
+    res.json({ ok: true, messages, nextCursor });
   }),
 );
 

@@ -27,6 +27,7 @@ import { regenerateRecoveryCodesSchema } from "@repo/validators";
 import { RecoveryCodeService } from "../../services/RecoveryCodeService";
 import { PasswordService } from "../../services/PasswordService";
 import { PASSWORD_HASH_OPTIONS } from "../../lib/password";
+import { issueRecoveryToken } from "../../services/recoveryShow";
 
 const log = createLogger("recoveryCodes");
 const router = Router();
@@ -86,9 +87,15 @@ router.post(
 
     log.info("Recovery codes regenerated", { userId });
 
+    // Fresh codes are returned as a one-time token so they never appear in
+    // the response body where a proxy or logger could capture them.
+    const recoveryToken = await issueRecoveryToken(newCodes);
+
+    res.setHeader("Cache-Control", "no-store");
+
     return res.status(200).json({
       ok: true,
-      recoveryCodes: newCodes.map((c) => c.fullCode),
+      recoveryToken,
     });
   }),
 );

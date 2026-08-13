@@ -17,6 +17,7 @@ import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import joinRoomInvite from "./joinroominvite";
 import joinRoomRequest from "./joinroomreq";
 import joinRoomlink from "./joinroomlink";
+import updateRoomAvatarRouter from "./updateRoomAvatar";
 
 const router = Router();
 
@@ -25,6 +26,7 @@ const router = Router();
 router.use(joinRoomInvite);
 router.use(joinRoomRequest);
 router.use(joinRoomlink);
+router.use(updateRoomAvatarRouter);
 
 /**
  * POST /rooms
@@ -52,12 +54,13 @@ router.post(
         });
       }
 
-      const { name, description } = parsed.data;
+      const { name, description, avatarKey } = parsed.data;
 
       const room = await prisma.chatRoom.create({
         data: {
           name,
           description: description || null,
+          ...(avatarKey ? { avatar: avatarKey } : {}),
           User: { connect: { id: userId } },
           ChatRoomMember: {
             create: {
@@ -73,6 +76,7 @@ router.post(
           createdBy: true,
           createdAt: true,
           updatedAt: true,
+          avatar: true,
         },
       });
       return res.status(201).json({ ok: true, room });
@@ -226,12 +230,12 @@ router.get(
     const query = getMessagesSchema.safeParse(req.query);
     const { cursor, limit, direction } = query.success ? query.data : {};
 
-    const { messages } = await getMessages(chatRoomId, {
+    const { messages, nextCursor } = await getMessages(chatRoomId, {
       cursor,
       limit,
       direction,
     });
-    res.json({ ok: true, messages });
+    res.json({ ok: true, messages, nextCursor });
   }),
 );
 

@@ -26,6 +26,7 @@ import { RecoveryCodeService } from "../../services/RecoveryCodeService";
 import { PasswordService } from "../../services/PasswordService";
 import { PASSWORD_HASH_OPTIONS } from "../../lib/password";
 import { ApiError } from "../../lib/ApiError";
+import { issueRecoveryToken } from "../../services/recoveryShow";
 
 const log = createLogger("forgotPassword");
 const router = Router();
@@ -126,9 +127,15 @@ router.post(
 
       log.info("Password reset via recovery code", { userId: user.id });
 
+      // New codes are returned as a one-time token so they never appear in
+      // the reset response body where a proxy or logger could capture them.
+      const recoveryToken = await issueRecoveryToken(newCodes);
+
+      res.setHeader("Cache-Control", "no-store");
+
       return res.status(200).json({
         ok: true,
-        recoveryCodes: newCodes.map((c) => c.fullCode),
+        recoveryToken,
       });
     } catch (err) {
       // Any failure from redeem() (invalid code, already used, race condition)

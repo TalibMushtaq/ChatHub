@@ -8,6 +8,7 @@ import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import { createLogger } from "../../lib/logger";
 import { RecoveryCodeService } from "../../services/RecoveryCodeService";
 import { PasswordService } from "../../services/PasswordService";
+import { issueRecoveryToken } from "../../services/recoveryShow";
 
 const router = express.Router();
 const log = createLogger("signup");
@@ -107,6 +108,11 @@ router.post("/signup", async (req: Request, res: Response) => {
     const username = parseResult.data.username.trim().toLowerCase();
     const displayname = parseResult.data.displayname.trim();
     const password = parseResult.data.password;
+    const avatarKey =
+      typeof req.body.avatarKey === "string" &&
+      /^defaults\/user\/[^/]+\.png$/.test(req.body.avatarKey)
+        ? req.body.avatarKey
+        : null;
 
     // --- Hash password (argon2id) ---
     const passwordHash = await hashPassword(password);
@@ -120,6 +126,7 @@ router.post("/signup", async (req: Request, res: Response) => {
         username,
         displayname,
         passwordHash,
+        ...(avatarKey ? { avatar: avatarKey } : {}),
       },
       select: {
         id: true,
@@ -134,9 +141,11 @@ router.post("/signup", async (req: Request, res: Response) => {
 
     // --- Generate recovery codes ---
     // Recovery codes are created at signup so the user has an immediate
-    // account-recovery mechanism. They are shown once in the response
-    // and never retrievable again via API.
+    // account-recovery mechanism. They are shown once in the client via a
+    // one-time token (POST /auth/recovery-codes/show) and never retrievable
+    // again via API.
     const recoveryCodes = await recoveryService.generate(user.id);
+    const recoveryToken = await issueRecoveryToken(recoveryCodes);
 
     // --- Regenerate session to prevent session fixation ---
     req.session.regenerate((regenErr) => {
@@ -153,10 +162,14 @@ router.post("/signup", async (req: Request, res: Response) => {
           return res.status(500).json({ ok: false, error: "Server error" });
         }
 
+        // Recovery codes must not be cached or logged; they are only fetched
+        // once via the token below.
+        res.setHeader("Cache-Control", "no-store");
+
         return res.status(201).json({
           ok: true,
           user,
-          recoveryCodes: recoveryCodes.map((c) => c.fullCode),
+          recoveryToken,
         });
       });
     });

@@ -19,8 +19,11 @@ import dmRoutes from "./routes/direct-chat";
 import room from "./routes/room/room";
 import searchUser from "./routes/searchUser";
 import attachmentRoutes from "./routes/attachments";
+import defaultsRouter from "./routes/defaults";
+import healthRoute from "./routes/health";
 import { errorHandler } from "./middleware/error-handler";
 import { createLogger } from "./lib/logger";
+import { testS3Connection } from "./lib/s3HealthCheck";
 
 const log = createLogger("server");
 
@@ -78,7 +81,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/dm", dmRoutes);
 app.use("/api/room", room);
 app.use("/api/attachments", attachmentRoutes);
+app.use("/api/defaults", defaultsRouter);
 app.use("/api/search", searchUser);
+app.use("/api/health", healthRoute);
 // Error handler must be mounted after all routes so it can catch
 // exceptions thrown by any preceding middleware or route handler.
 app.use(errorHandler);
@@ -88,6 +93,8 @@ async function main() {
   const sat2 = await prisma.$queryRaw`SELECT 1`;
   if (sat2) {
     log.info("postgres/prisma db connected");
+    // Run a lightweight S3 connectivity test at startup
+    await testS3Connection();
   }
   app.get("/", (req, res) => {
     res.send("Chathub server running");

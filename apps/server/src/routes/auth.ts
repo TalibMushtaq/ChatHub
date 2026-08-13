@@ -6,6 +6,8 @@ import logoutRouter from "./auth/logout";
 import meRouter from "./auth/me";
 import forgotPasswordRouter from "./auth/forgotPassword";
 import recoveryCodesRouter from "./auth/recoveryCodes";
+import recoveryShowRouter from "./auth/recoveryShow";
+import updateAvatarRouter from "./auth/updateAvatar";
 
 const router = express.Router();
 
@@ -15,5 +17,7 @@ router.use(logoutRouter);
 router.use(meRouter);
 router.use(forgotPasswordRouter);
 router.use(recoveryCodesRouter);
+router.use(recoveryShowRouter);
+router.use(updateAvatarRouter);
 
 export default router;

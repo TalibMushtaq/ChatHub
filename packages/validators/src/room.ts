@@ -20,6 +20,11 @@ export const createRoomSchema = z.object({
     .max(500, "Description must be at most 500 characters")
     .optional()
     .nullable(),
+  avatarKey: z
+    .string()
+    .regex(/^defaults\/room\/[^/]+\.png$/, "Invalid default room avatar")
+    .optional()
+    .nullable(),
 });
 
 // --- Invitations ---

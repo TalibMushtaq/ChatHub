@@ -30,10 +30,20 @@ if (secrets.length === 0) {
 // After validation, secrets is guaranteed non-empty.
 const sessionSecrets = secrets as [string, ...string[]];
 
-// tiny-csrf requires a 32-byte secret (AES-256-CBC). Derive one from the
-// session secret by taking the first 32 characters (padded if necessary).
-// Exported so index.ts can pass it to cookieParser for signed-cookie support.
-export const csrfSecret = (SESSION_SECRET + "0".repeat(32)).slice(0, 32);
+// tiny-csrf requires a 32-byte secret (AES-256-CBC). Unlike SESSION_SECRET
+// (which is comma-separated for rotation), the CSRF secret must be one stable
+// value, so it gets its own env var instead of the old zero-padded derivation
+// from SESSION_SECRET — padding produced a weak secret whenever SESSION_SECRET
+// was short. Exported so index.ts can pass it to cookieParser for
+// signed-cookie support.
+const CSRF_SECRET = process.env.CSRF_SECRET;
+if (!CSRF_SECRET || CSRF_SECRET.length < 32) {
+  throw new Error(
+    "CSRF_SECRET environment variable is required and must be at least 32 " +
+      "characters. Set it to a strong random string (e.g., openssl rand -hex 32).",
+  );
+}
+export const csrfSecret = CSRF_SECRET;
 
 // ---------------------------------------------------------------------------
 // Cookie & session defaults

@@ -50,10 +50,21 @@ export function registerRoomChat(io: Server, socket: Socket) {
   }
 
   // Use cached membership instead of hitting the DB on every event, until the
-  // cached check expires.
-  async function ensureRoomAccess(chatRoomId: string): Promise<void> {
+  // cached check expires. Destructive events (edit/delete) pass bypassCache so
+  // a user removed from a room loses write access immediately instead of
+  // riding out the remaining TTL.
+  async function ensureRoomAccess(
+    chatRoomId: string,
+    opts: { bypassCache?: boolean } = {},
+  ): Promise<void> {
     const expiresAt = socket.data.rooms.get(chatRoomId);
-    if (expiresAt !== undefined && expiresAt > Date.now()) return;
+    if (
+      !opts.bypassCache &&
+      expiresAt !== undefined &&
+      expiresAt > Date.now()
+    ) {
+      return;
+    }
 
     await assertRoomAccess(userId, chatRoomId);
     socket.data.rooms.set(chatRoomId, Date.now() + ROOM_ACCESS_TTL_MS);
@@ -178,7 +189,9 @@ export function registerRoomChat(io: Server, socket: Socket) {
     "chatroom:message:edit",
     chatRoomEditMessageSchema,
     async (data, ack) => {
-      await ensureRoomAccess(data.chatRoomId);
+      // Edit is destructive — bypass the membership cache so a revoked user
+      // cannot keep editing during the TTL window.
+      await ensureRoomAccess(data.chatRoomId, { bypassCache: true });
 
       const updated = await editMessage(
         userId,
@@ -204,7 +217,9 @@ export function registerRoomChat(io: Server, socket: Socket) {
     "chatroom:message:delete",
     chatRoomDeleteMessageSchema,
     async (data, ack) => {
-      await ensureRoomAccess(data.chatRoomId);
+      // Delete is destructive — bypass the membership cache so a revoked user
+      // cannot keep deleting during the TTL window.
+      await ensureRoomAccess(data.chatRoomId, { bypassCache: true });
 
       const deleted = await deleteMessage(
         userId,
