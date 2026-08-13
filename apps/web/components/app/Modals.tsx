@@ -96,14 +96,16 @@ function ModalFrame({
   const body = Body(entry);
   return (
     <div
-      className="modal-root fixed inset-0 z-[80] flex items-end justify-center"
+      className="modal-root fixed inset-0 z-[80] flex items-center justify-center"
       style={{ zIndex: 80 + index }}
     >
+      {/* Backdrop: clicking outside the modal dismisses the stack. */}
       <div
         className="modal-back absolute inset-0 bg-[oklch(0_0_0/0.42)] animate-[fade_.2s_cubic-bezier(.2,.8,.2,1)]"
         onClick={clearModals}
       />
-      <div className="modal relative flex max-h-[88dvh] w-[min(480px,100%)] flex-col overflow-hidden rounded-t-[24px] bg-surface shadow-lg animate-[rise_.24s_cubic-bezier(.2,.8,.2,1)]">
+      {/* Centered dialog card: items-center above places this in the viewport center. */}
+      <div className="modal relative flex max-h-[88dvh] w-[min(480px,100%)] flex-col overflow-hidden rounded-[24px] bg-surface shadow-lg animate-[rise_.24s_cubic-bezier(.2,.8,.2,1)]">
         <div className="modal-head flex items-center gap-2.5 border-b border-border px-[18px] py-[15px]">
           {total > 1 ? (
             <button
