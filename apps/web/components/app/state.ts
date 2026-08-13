@@ -11,11 +11,13 @@ import type {
   Invitation,
   Message,
   ModalName,
+  ReadReceipt,
   RoomInboxEntry,
   RoomMember,
   SearchUser,
   Tab,
   ToastType,
+  TypingUser,
 } from "./types";
 
 export type ConvKind = "dm" | "room";
@@ -56,6 +58,10 @@ export interface ShellCtx {
   roomUnread: number;
   msgs: Record<string, Message[]>;
   roomMembers: Record<string, RoomMember[]>;
+  /** convKey -> read cursors of every participant (excluding self's). */
+  readReceipts: Record<string, ReadReceipt[]>;
+  /** convKey -> users currently typing in that conversation. */
+  typing: Record<string, TypingUser[]>;
   q: string;
   results: SearchUser[];
   listLoading: boolean;
@@ -74,6 +80,8 @@ export interface ShellCtx {
   sendMessage: (content: string, files: File[]) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
+  /** Drop a client-only (pending/failed) message from the timeline. */
+  removeLocalMessage: (messageId: string) => void;
   markRead: () => void;
   /** Invitation payloads and join-link payloads share this row shape. */
   inviteRows: (list: Invitation[]) => Invitation[];

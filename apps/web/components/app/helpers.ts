@@ -1,6 +1,8 @@
 // Pure formatting/derivation helpers used across the app shell. Kept free of
 // React so every panel can import them without pulling in a component tree.
 
+import type { ReadReceipt } from "./types";
+
 export type ConvKind = "dm" | "room";
 
 /** Deterministic hue from a string so each user/room gets a stable color. */
@@ -82,4 +84,35 @@ export function typeLabel(mime: string | undefined): string {
   if (mime.startsWith("video/")) return "video";
   if (mime.startsWith("audio/")) return "audio";
   return "file";
+}
+
+export type ReadStatus =
+  "pending" | "failed" | "sent" | "read" | "readSome" | "readAll";
+
+/**
+ * Derive a message's delivery state from the participants' read cursors.
+ *
+ * - pending/failed are optimistic-send markers, not server state.
+ * - A message is "read" (DM) when the other participant's cursor passed it.
+ * - In a room it's "readAll" only when every other member's cursor passed it;
+ *   a partial set yields "readSome" (rendered with a muted tick + tooltip).
+ * - "sent" means nobody has read it yet.
+ */
+export function readStatusOf(
+  m: { pending?: boolean; failed?: boolean; createdAt: string },
+  mineId: string,
+  receipts: ReadReceipt[],
+  isRoom: boolean,
+): ReadStatus {
+  if (m.pending) return "pending";
+  if (m.failed) return "failed";
+  const ts = new Date(m.createdAt).getTime();
+  const others = receipts.filter((r) => r.userId !== mineId);
+  if (others.length === 0) return "sent";
+  const readCount = others.filter(
+    (r) => new Date(r.lastReadMessageCreatedAt).getTime() >= ts,
+  ).length;
+  if (readCount === 0) return "sent";
+  if (isRoom) return readCount >= others.length ? "readAll" : "readSome";
+  return "read";
 }

@@ -62,3 +62,10 @@ export const chatRoomDeleteMessageSchema = z.object({
   chatRoomId: z.string().min(1),
   messageId: z.string().min(1),
 });
+
+// Same shape as the DM typing event; room members broadcast to everyone in
+// the room except the sender.
+export const chatRoomTypingSchema = z.object({
+  chatRoomId: z.string().min(1),
+  isTyping: z.boolean(),
+});

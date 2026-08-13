@@ -43,17 +43,22 @@ interface MarkReadOptions {
  * The read cursor only ever moves forward — a stale cursor is ignored but the
  * unread count is still recomputed so the caller gets a consistent answer.
  *
- * Returns the acknowledged cursor and the computed unread count.
+ * Returns the acknowledged cursor, its message's createdAt (so clients can
+ * render per-message read ticks), and the computed unread count.
  */
 export async function markConversationRead(
   userId: string,
   lastReadMessageId: string,
   options: MarkReadOptions,
-): Promise<{ lastReadMessageId: string; unreadCount: number }> {
+): Promise<{
+  lastReadMessageId: string;
+  lastReadMessageCreatedAt: Date;
+  unreadCount: number;
+}> {
   const { scopeField, scopeId, receiptModel, receiptWhere, wrongScope } =
     options;
 
-  const unreadCount = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // 1. Verify the message exists and belongs to this conversation.
     const message = await tx.message.findUnique({
       where: { id: lastReadMessageId },
@@ -96,8 +101,12 @@ export async function markConversationRead(
       existing?.lastReadMessageCreatedAt &&
       existing.lastReadMessageCreatedAt >= createdAt
     ) {
-      // Cursor is not moving forward — skip update, still compute count.
-      return countUnreadAfter(existing.lastReadMessageCreatedAt);
+      // Cursor is not moving forward — skip update, still compute count and
+      // report the existing cursor so the sender's read ticks stay consistent.
+      return {
+        unreadCount: await countUnreadAfter(existing.lastReadMessageCreatedAt),
+        lastReadMessageCreatedAt: existing.lastReadMessageCreatedAt,
+      };
     }
 
     // 4. Upsert the receipt with the new cursor.
@@ -116,8 +125,15 @@ export async function markConversationRead(
     });
 
     // 5. Compute unread count after advancing the cursor.
-    return countUnreadAfter(createdAt);
+    return {
+      unreadCount: await countUnreadAfter(createdAt),
+      lastReadMessageCreatedAt: createdAt,
+    };
   });
 
-  return { lastReadMessageId, unreadCount };
+  return {
+    lastReadMessageId,
+    lastReadMessageCreatedAt: result.lastReadMessageCreatedAt,
+    unreadCount: result.unreadCount,
+  };
 }

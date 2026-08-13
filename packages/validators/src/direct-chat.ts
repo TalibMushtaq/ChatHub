@@ -72,6 +72,13 @@ export const directChatIdParamSchema = z.object({
   directChatId: z.string().min(1),
 });
 
+// Typing indicator events carry the conversation id plus a boolean so the
+// same event shape works for both "start typing" and "stopped typing".
+export const directChatTypingSchema = z.object({
+  directChatId: z.string().min(1),
+  isTyping: z.boolean(),
+});
+
 // Query params for the DM inbox endpoint. `z.coerce` converts the string
 // query values (Express always sends strings) to the expected types.
 export const getInboxQuerySchema = z.object({

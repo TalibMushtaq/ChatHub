@@ -30,7 +30,11 @@ describe("markRoomRead", () => {
 
     const result = await markRoomRead("u1", "room1", "msg-1");
 
-    expect(result).toEqual({ lastReadMessageId: "msg-1", unreadCount: 5 });
+    expect(result).toEqual({
+      lastReadMessageId: "msg-1",
+      lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      unreadCount: 5,
+    });
     expect(prismaMock.chatRoomReadReceipt.upsert).toHaveBeenCalledWith({
       where: { userId_chatRoomId: { userId: "u1", chatRoomId: "room1" } },
       create: {
@@ -65,7 +69,11 @@ describe("markRoomRead", () => {
 
     const result = await markRoomRead("u1", "room1", "msg-3");
 
-    expect(result).toEqual({ lastReadMessageId: "msg-3", unreadCount: 2 });
+    expect(result).toEqual({
+      lastReadMessageId: "msg-3",
+      lastReadMessageCreatedAt: new Date("2026-01-10T14:00:00Z"),
+      unreadCount: 2,
+    });
     expect(prismaMock.chatRoomReadReceipt.upsert).toHaveBeenCalled();
   });
 
@@ -84,10 +92,14 @@ describe("markRoomRead", () => {
       lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
     });
     prismaMock.message.count.mockResolvedValue(0);
-
     const result = await markRoomRead("u1", "room1", "msg-1");
 
-    expect(result).toEqual({ lastReadMessageId: "msg-1", unreadCount: 0 });
+    expect(result).toEqual({
+      lastReadMessageId: "msg-1",
+      lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      unreadCount: 0,
+    });
+
     expect(prismaMock.chatRoomReadReceipt.upsert).not.toHaveBeenCalled();
   });
 
@@ -106,10 +118,14 @@ describe("markRoomRead", () => {
       lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
     });
     prismaMock.message.count.mockResolvedValue(0);
-
     const result = await markRoomRead("u1", "room1", "msg-2");
 
-    expect(result).toEqual({ lastReadMessageId: "msg-2", unreadCount: 0 });
+    expect(result).toEqual({
+      lastReadMessageId: "msg-2",
+      lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      unreadCount: 0,
+    });
+
     expect(prismaMock.chatRoomReadReceipt.upsert).not.toHaveBeenCalled();
   });
 

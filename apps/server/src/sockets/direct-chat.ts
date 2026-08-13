@@ -8,8 +8,14 @@ import type {
 import { assertDirectChatAccess } from "../middleware/socketAccess";
 import { ApiError } from "../lib/ApiError";
 import { createLogger } from "../lib/logger";
+import { directChatTypingSchema } from "@repo/validators";
 
 const log = createLogger("directChatSocket");
+
+// Throttle typing broadcasts so a fast typist doesn't saturate the socket.
+// The client re-emits periodically while typing and always sends the final
+// "stopped" event, so a dropped intermediate "start" is harmless.
+const TYPING_THROTTLE_MS = 1500;
 
 // ---------------------------------------------------------------------------
 // Room helpers — no raw string literals
@@ -140,6 +146,46 @@ export function registerDirectChat(
       socket.emit("directChat:error", {
         code: "LEAVE_FAILED",
         message: err instanceof Error ? err.message : "Failed to leave chat",
+      });
+    }
+  });
+
+  socket.on("directChat:typing", async (payload: unknown) => {
+    const parsed = directChatTypingSchema.safeParse(payload);
+    if (!parsed.success) return;
+    const { directChatId, isTyping } = parsed.data;
+    try {
+      await assertDirectChatAccess(user.id, directChatId);
+      const throttle = (socket.data.typingThrottle ??= new Map());
+      const now = Date.now();
+      if (
+        isTyping &&
+        now - (throttle.get(directChatId) ?? 0) < TYPING_THROTTLE_MS
+      ) {
+        return;
+      }
+      throttle.set(directChatId, now);
+      // Broadcast to every participant except the sender, so only the other
+      // side sees the indicator.
+      socket.broadcast
+        .to(getDirectChatRoom(directChatId))
+        .emit("directChat:typing", {
+          userId: user.id,
+          username: user.username,
+          directChatId,
+          isTyping,
+        });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        socket.emit("directChat:error", {
+          code: err.code ?? "JOIN_FAILED",
+          message: err.message,
+        });
+        return;
+      }
+      log.error("directChat:typing failed", err, {
+        userId: user.id,
+        directChatId,
       });
     }
   });

@@ -9,6 +9,7 @@ import { loadInitialState } from "../../app/lib/initialLoad";
 import { ChatAPI, RoomSocket } from "./api";
 import {
   ShellContext,
+  convKey,
   type ActiveConv,
   type ModalEntry,
   type ToastItem,
@@ -18,11 +19,13 @@ import type {
   DMInboxEntry,
   Invitation,
   Message,
+  ReadReceipt,
   RoomInboxEntry,
   RoomMember,
   SearchUser,
   Tab,
   ToastType,
+  TypingUser,
 } from "./types";
 import AppAvatar from "./AppAvatar";
 import ListPanel from "./ListPanel";
@@ -66,6 +69,10 @@ export default function AppShell() {
   const [roomMembers, setRoomMembers] = useState<Record<string, RoomMember[]>>(
     {},
   );
+  const [readReceipts, setReadReceipts] = useState<
+    Record<string, ReadReceipt[]>
+  >({});
+  const [typing, setTyping] = useState<Record<string, TypingUser[]>>({});
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchUser[]>([]);
   const [mStack, setMStack] = useState<ModalEntry[]>([]);
@@ -82,6 +89,10 @@ export default function AppShell() {
   const loadedKeysRef = useRef<Set<string>>(new Set());
   const msgsRef = useRef<Record<string, Message[]>>({});
   const roomMembersRef = useRef<Record<string, RoomMember[]>>({});
+  const readReceiptsRef = useRef<Record<string, ReadReceipt[]>>({});
+  const typingRef = useRef<Record<string, TypingUser[]>>({});
+  // conversation key -> userId -> pending "stopped typing" removal timer.
+  const typingTimersRef = useRef<Record<string, Record<string, number>>>({});
 
   function setMsgsBoth(
     fn: (prev: Record<string, Message[]>) => Record<string, Message[]>,
@@ -94,6 +105,18 @@ export default function AppShell() {
   ) {
     roomMembersRef.current = fn(roomMembersRef.current);
     setRoomMembers(roomMembersRef.current);
+  }
+  function setReadReceiptsBoth(
+    fn: (prev: Record<string, ReadReceipt[]>) => Record<string, ReadReceipt[]>,
+  ) {
+    readReceiptsRef.current = fn(readReceiptsRef.current);
+    setReadReceipts(readReceiptsRef.current);
+  }
+  function setTypingBoth(
+    fn: (prev: Record<string, TypingUser[]>) => Record<string, TypingUser[]>,
+  ) {
+    typingRef.current = fn(typingRef.current);
+    setTyping(typingRef.current);
   }
 
   // ---------------------------------------------------------------------------
@@ -399,6 +422,117 @@ export default function AppShell() {
       },
     );
 
+    // Socket.IO serializes Date payloads as ISO strings, so normalize either
+    // shape before storing.
+    const toIso = (v: Date | string): string =>
+      typeof v === "string" ? v : v.toISOString();
+
+    function upsertReceipt(
+      map: Record<string, ReadReceipt[]>,
+      key: string,
+      receipt: ReadReceipt,
+    ): Record<string, ReadReceipt[]> {
+      const list = map[key] ?? [];
+      const idx = list.findIndex((r) => r.userId === receipt.userId);
+      const next =
+        idx >= 0
+          ? list.map((r) => (r.userId === receipt.userId ? receipt : r))
+          : [...list, receipt];
+      return { ...map, [key]: next };
+    }
+
+    socket.on(
+      "directChat:readReceipt",
+      (payload: {
+        userId: string;
+        directChatId: string;
+        lastReadMessageId: string;
+        lastReadMessageCreatedAt: Date | string;
+      }) => {
+        if (payload.userId === userRef.current?.id) return;
+        setReadReceiptsBoth((prev) =>
+          upsertReceipt(prev, `dm:${payload.directChatId}`, {
+            userId: payload.userId,
+            lastReadMessageId: payload.lastReadMessageId,
+            lastReadMessageCreatedAt: toIso(payload.lastReadMessageCreatedAt),
+          }),
+        );
+      },
+    );
+
+    socket.on(
+      "chatroom:readReceipt",
+      (payload: {
+        userId: string;
+        chatRoomId: string;
+        lastReadMessageId: string;
+        lastReadMessageCreatedAt: Date | string;
+      }) => {
+        if (payload.userId === userRef.current?.id) return;
+        setReadReceiptsBoth((prev) =>
+          upsertReceipt(prev, `room:${payload.chatRoomId}`, {
+            userId: payload.userId,
+            lastReadMessageId: payload.lastReadMessageId,
+            lastReadMessageCreatedAt: toIso(payload.lastReadMessageCreatedAt),
+          }),
+        );
+      },
+    );
+
+    function clearTypingTimer(key: string, userId: string) {
+      const byUser = typingTimersRef.current[key];
+      if (!byUser?.[userId]) return;
+      window.clearTimeout(byUser[userId]);
+      delete byUser[userId];
+    }
+
+    function removeTyper(key: string, userId: string) {
+      clearTypingTimer(key, userId);
+      setTypingBoth((prev) => ({
+        ...prev,
+        [key]: (prev[key] ?? []).filter((t) => t.userId !== userId),
+      }));
+    }
+
+    // Shared handler for DM and room typing events. A 3s safety timer drops
+    // the indicator if the final "stopped" event is ever lost in transit.
+    function onTyping(payload: {
+      userId: string;
+      username: string;
+      directChatId?: string;
+      chatRoomId?: string;
+      isTyping: boolean;
+    }) {
+      if (payload.userId === userRef.current?.id) return;
+      const isDm = payload.directChatId != null;
+      const id = isDm ? payload.directChatId! : payload.chatRoomId!;
+      const key = convKey(isDm ? "dm" : "room", id);
+      if (!payload.isTyping) {
+        removeTyper(key, payload.userId);
+        return;
+      }
+      setTypingBoth((prev) => {
+        const list = prev[key] ?? [];
+        if (list.some((t) => t.userId === payload.userId)) return prev;
+        return {
+          ...prev,
+          [key]: [
+            ...list,
+            { userId: payload.userId, username: payload.username },
+          ],
+        };
+      });
+      const byUser = (typingTimersRef.current[key] ??= {});
+      window.clearTimeout(byUser[payload.userId]);
+      byUser[payload.userId] = window.setTimeout(
+        () => removeTyper(key, payload.userId),
+        3000,
+      );
+    }
+
+    socket.on("directChat:typing", onTyping);
+    socket.on("chatroom:typing", onTyping);
+
     // Re-join the active conversation after a reconnect (the server drops rooms).
     socket.on("connect", () => {
       joinedRef.current.clear();
@@ -417,8 +551,17 @@ export default function AppShell() {
       socket.off("inbox:update");
       socket.off("directChat:read");
       socket.off("chatroom:read");
+      socket.off("directChat:readReceipt");
+      socket.off("chatroom:readReceipt");
+      socket.off("directChat:typing");
+      socket.off("chatroom:typing");
       socket.off("connect");
       socket.off("disconnect");
+      // Clear pending typing indicators on unmount (app teardown only).
+      for (const byUser of Object.values(typingTimersRef.current)) {
+        for (const t of Object.values(byUser)) window.clearTimeout(t);
+      }
+      typingTimersRef.current = {};
     };
   }, []);
 
@@ -489,7 +632,22 @@ export default function AppShell() {
         )
         .catch(() => {});
     }
-    const key = `${c.kind}:${c.id}`;
+    // Load the current read cursors so per-message read ticks render as soon
+    // as the timeline does. Best-effort: a failure just means ticks appear
+    // after the next readReceipt event.
+    const key = convKey(c.kind, c.id);
+    void (
+      c.kind === "dm"
+        ? ChatAPI.getDmReadReceipt(c.id)
+        : ChatAPI.getRoomReadReceipts(c.id)
+    )
+      .then((receipts) => {
+        const list = (
+          receipts ? (Array.isArray(receipts) ? receipts : [receipts]) : []
+        ).filter((r) => r.userId !== userRef.current?.id);
+        setReadReceiptsBoth((prev) => ({ ...prev, [key]: list }));
+      })
+      .catch(() => {});
     if (!loadedKeysRef.current.has(key)) {
       loadedKeysRef.current.add(key);
       void loadMessages(c);
@@ -511,6 +669,35 @@ export default function AppShell() {
   async function sendMessage(content: string, files: File[]): Promise<void> {
     const a = activeRef.current;
     if (!a) return;
+    const me = userRef.current!;
+    const key = convKey(a.kind, a.id);
+
+    // Optimistic bubble: render immediately with a pending marker, then swap
+    // in the server's canonical message on success (or mark failed).
+    const tempId = `temp-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    const temp: Message = {
+      id: tempId,
+      content: content.trim() || null,
+      messageType: "TEXT",
+      createdAt: new Date().toISOString(),
+      isDeleted: false,
+      attachments: [],
+      pending: true,
+      User: {
+        id: me.id,
+        username: me.username,
+        displayname: me.displayname,
+        avatar: me.avatar,
+      },
+      ...(a.kind === "room" ? { chatRoomId: a.id, senderId: me.id } : {}),
+    };
+    setMsgsBoth((prev) => ({
+      ...prev,
+      [key]: [...(prev[key] ?? []), temp],
+    }));
+
     try {
       let msg: Message | null = null;
       if (files.length) {
@@ -550,7 +737,8 @@ export default function AppShell() {
         }
       }
       if (msg) {
-        const me = userRef.current!;
+        // Drop the optimistic bubble and upsert the real message (the socket
+        // echo may have already delivered it).
         const norm = {
           ...msg,
           User: {
@@ -560,9 +748,8 @@ export default function AppShell() {
             avatar: me.avatar,
           },
         };
-        const key = `${a.kind}:${a.id}`;
         setMsgsBoth((prev) => {
-          const list = prev[key] ?? [];
+          const list = (prev[key] ?? []).filter((m) => m.id !== tempId);
           const idx = list.findIndex((m) => m.id === msg.id);
           const next =
             idx >= 0
@@ -598,9 +785,27 @@ export default function AppShell() {
         }
       }
     } catch (err) {
+      // Keep the bubble so the user can see the failure and dismiss it.
+      setMsgsBoth((prev) => ({
+        ...prev,
+        [key]: (prev[key] ?? []).map((m) =>
+          m.id === tempId ? { ...m, pending: false, failed: true } : m,
+        ),
+      }));
       toast(getErrorMessage(err, "Failed to send message"), "error");
       throw err;
     }
+  }
+
+  /** Drop a client-only (pending/failed) message from the timeline. */
+  function removeLocalMessage(messageId: string) {
+    const a = activeRef.current;
+    if (!a) return;
+    const key = convKey(a.kind, a.id);
+    setMsgsBoth((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? []).filter((m) => m.id !== messageId),
+    }));
   }
 
   async function editMessage(
@@ -730,6 +935,8 @@ export default function AppShell() {
     roomUnread,
     msgs,
     roomMembers,
+    readReceipts,
+    typing,
     q,
     results,
     listLoading,
@@ -748,6 +955,7 @@ export default function AppShell() {
     sendMessage,
     editMessage,
     deleteMessage,
+    removeLocalMessage,
     markRead,
     inviteRows: (list: Invitation[]) => list,
     joinRequests: (roomId: string) => ChatAPI.getJoinRequests(roomId),

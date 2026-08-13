@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chatRoomMessageSchema } from "@repo/validators";
+import { chatRoomMessageSchema, chatRoomTypingSchema } from "@repo/validators";
 
 describe("roomChat validators", () => {
   describe("TEXT message", () => {
@@ -83,6 +83,36 @@ describe("roomChat validators", () => {
         messageType: "SYSTEM",
         chatRoomId: "room-1",
         content: "System update",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("chatRoomTypingSchema", () => {
+    it("should accept start and stop typing events", () => {
+      expect(
+        chatRoomTypingSchema.safeParse({
+          chatRoomId: "room-1",
+          isTyping: true,
+        }).success,
+      ).toBe(true);
+      expect(
+        chatRoomTypingSchema.safeParse({
+          chatRoomId: "room-1",
+          isTyping: false,
+        }).success,
+      ).toBe(true);
+    });
+
+    it("should reject a missing isTyping flag", () => {
+      const result = chatRoomTypingSchema.safeParse({ chatRoomId: "room-1" });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject an empty chatRoomId", () => {
+      const result = chatRoomTypingSchema.safeParse({
+        chatRoomId: "",
+        isTyping: true,
       });
       expect(result.success).toBe(false);
     });

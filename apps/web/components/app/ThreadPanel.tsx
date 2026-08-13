@@ -1,11 +1,19 @@
 "use client";
 
 // Thread column: header, message timeline, and composer for the active conversation.
-import { useEffect, useRef, useState } from "react";
-import { useShell } from "./state";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useShell, convKey } from "./state";
+import { socket } from "../../app/lib/socket";
 import { ChatAPI, getErrorMessage } from "./api";
-import { displayName, fmtBytes, fmtDay, fmtTime, typeLabel } from "./helpers";
-import type { Attachment, Message } from "./types";
+import {
+  displayName,
+  fmtBytes,
+  fmtDay,
+  fmtTime,
+  readStatusOf,
+  typeLabel,
+} from "./helpers";
+import type { Attachment, Message, ReadReceipt } from "./types";
 import AppAvatar from "./AppAvatar";
 import {
   BackIcon,
@@ -15,6 +23,8 @@ import {
   CloseIcon,
   EditIcon,
   TrashIcon,
+  CheckIcon,
+  DoubleCheckIcon,
   iconForMime,
 } from "./icons";
 import { iconBtn } from "./styles";
@@ -27,12 +37,15 @@ export default function ThreadPanel() {
     active,
     msgs,
     roomMembers,
+    readReceipts,
+    typing,
     user,
     closeConv,
     openModal,
     sendMessage,
     editMessage,
     deleteMessage,
+    removeLocalMessage,
     toast,
     roomInfo,
   } = useShell();
@@ -48,9 +61,64 @@ export default function ThreadPanel() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  // Typing lifecycle: emit start on the first keystroke, re-emit every 2s so
+  // the far side keeps the indicator during long pauses between keys, and stop
+  // after 2.5s of inactivity. The server throttles to 1.5s anyway. `active`
+  // is mirrored to a ref so these helpers stay stable across renders.
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const typingRef = useRef(false);
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const key = active ? `${active.kind}:${active.id}` : null;
+  const key = active ? convKey(active.kind, active.id) : null;
   const list = key ? (msgs[key] ?? []) : [];
+  const typers = key ? (typing[key] ?? []) : [];
+  const receipts = key ? (readReceipts[key] ?? []) : [];
+
+  const emitTyping = useCallback((isTyping: boolean) => {
+    const a = activeRef.current;
+    if (!a) return;
+    if (a.kind === "dm") {
+      socket.emit("directChat:typing", { directChatId: a.id, isTyping });
+    } else {
+      socket.emit("chatroom:typing", { chatRoomId: a.id, isTyping });
+    }
+  }, []);
+
+  const stopTyping = useCallback(() => {
+    if (typingRef.current) emitTyping(false);
+    typingRef.current = false;
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }, [emitTyping]);
+
+  const startTyping = useCallback(() => {
+    if (typingRef.current) return;
+    typingRef.current = true;
+    emitTyping(true);
+    typingIntervalRef.current = setInterval(() => emitTyping(true), 2000);
+  }, [emitTyping]);
+
+  const handleComposerChange = useCallback(
+    (v: string) => {
+      setContent(v);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (v.trim().length > 0) {
+        startTyping();
+        idleTimerRef.current = setTimeout(stopTyping, 2500);
+      } else {
+        stopTyping();
+      }
+    },
+    [startTyping, stopTyping],
+  );
 
   // Autosize the composer and scroll to the newest message.
   useEffect(() => {
@@ -64,13 +132,18 @@ export default function ThreadPanel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [list.length, active?.id]);
 
-  // Reset composer state whenever the conversation changes.
+  // Reset composer state whenever the conversation changes, and make sure a
+  // stale "typing" flag never leaks into the newly opened conversation.
   useEffect(() => {
     setContent("");
     setFiles([]);
     setEditing(null);
     setEditText("");
-  }, [active?.id]);
+    stopTyping();
+  }, [active?.id, stopTyping]);
+
+  // Send the "stopped typing" event when the panel unmounts.
+  useEffect(() => () => stopTyping(), [stopTyping]);
 
   if (!active) {
     return (
@@ -186,7 +259,15 @@ export default function ThreadPanel() {
             {active.kind === "room" && "# "}
             {other}
           </div>
-          <div className="sub text-[12.5px] text-muted">{sub}</div>
+          <div className="sub text-[12.5px] text-muted">
+            {typers.length > 0 ? (
+              <span className="text-accent-solid">
+                {typers.map((t) => t.username).join(", ")} typing…
+              </span>
+            ) : (
+              sub
+            )}
+          </div>
         </div>
         {active.kind === "room" && (
           <button
@@ -227,8 +308,11 @@ export default function ThreadPanel() {
                 }
                 firstOfSender={row.firstOfSender}
                 isRoom={active.kind === "room"}
+                mine={mine}
+                receipts={receipts}
                 onEdit={() => startEdit(row.m)}
                 onDelete={() => askDelete(row.m)}
+                onDismissFailed={(id) => removeLocalMessage(id)}
               />
             ),
           )}
@@ -305,7 +389,7 @@ export default function ThreadPanel() {
               rows={1}
               className="max-h-[150px] min-w-0 flex-1 resize-none rounded-[20px] border-[1.5px] border-border bg-bg px-[15px] py-[11px] text-[15px] leading-[1.4] transition-[border-color,box-shadow] duration-150 ease-app focus:border-accent-solid focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_45%,transparent)] focus:outline-none"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => handleComposerChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -356,21 +440,71 @@ function MessageRow({
   isOwn,
   firstOfSender,
   isRoom,
+  mine,
+  receipts,
   onEdit,
   onDelete,
+  onDismissFailed,
 }: {
   m: Message;
   isOwn: boolean;
   firstOfSender: boolean;
   isRoom: boolean;
+  mine: string;
+  receipts: ReadReceipt[];
   onEdit: () => void;
   onDelete: () => void;
+  onDismissFailed: (messageId: string) => void;
 }) {
   const [menu, setMenu] = useState(false);
   const withinEdit =
     Date.now() - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS;
   const withinDelete =
     Date.now() - new Date(m.createdAt).getTime() < DELETE_WINDOW_MS;
+
+  const status = readStatusOf(m, mine, receipts, isRoom);
+  // Readers other than self, and how many of them have passed this message.
+  const others = receipts.filter((r) => r.userId !== mine);
+  const readCount = others.filter(
+    (r) =>
+      new Date(r.lastReadMessageCreatedAt).getTime() >=
+      new Date(m.createdAt).getTime(),
+  ).length;
+
+  const ticks =
+    isOwn && !m.isDeleted ? (
+      <div className="ticks mt-[3px] flex items-center gap-1 self-end pr-[3px] text-[11px] leading-none">
+        {status === "pending" && (
+          <span className="animate-pulse text-muted" title="Sending…">
+            …
+          </span>
+        )}
+        {status === "sent" && (
+          <span title="Sent">
+            <CheckIcon className="h-[14px] w-[14px] text-muted" />
+          </span>
+        )}
+        {(status === "read" || status === "readAll") && (
+          <span title={status === "readAll" ? "Read by all" : "Read"}>
+            <DoubleCheckIcon className="h-[14px] w-[14px] text-accent-solid" />
+          </span>
+        )}
+        {status === "readSome" && (
+          <span title={`Read by ${readCount} of ${others.length}`}>
+            <DoubleCheckIcon className="h-[14px] w-[14px] text-muted" />
+          </span>
+        )}
+        {status === "failed" && (
+          <button
+            className="cursor-pointer rounded-[8px] px-1.5 py-[1px] text-[11px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
+            onClick={() => onDismissFailed(m.id)}
+            title="Not sent — tap to remove"
+          >
+            Not sent
+          </button>
+        )}
+      </div>
+    ) : null;
 
   return (
     <div
@@ -434,6 +568,8 @@ function MessageRow({
             )}
           </div>
         )}
+
+        {ticks}
       </div>
 
       {isOwn && !m.isDeleted && (withinEdit || withinDelete) && (

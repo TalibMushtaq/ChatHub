@@ -9,6 +9,7 @@ export {
   chatRoomMessageSchema,
   chatRoomEditMessageSchema,
   chatRoomDeleteMessageSchema,
+  chatRoomTypingSchema,
 } from "./roomChat";
 export {
   startDmSchema,
@@ -17,6 +18,7 @@ export {
   editMessageSchema,
   messageIdParamSchema,
   directChatIdParamSchema,
+  directChatTypingSchema,
   getInboxQuerySchema,
 } from "./direct-chat";
 export {

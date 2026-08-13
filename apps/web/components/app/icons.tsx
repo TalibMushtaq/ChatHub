@@ -108,6 +108,15 @@ export const CheckIcon = (p: IconProps) => (
   </svg>
 );
 
+// WhatsApp-style read receipt: two stacked checks. Shared path moved along the
+// x-axis so it reads as a single glyph at small sizes.
+export const DoubleCheckIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 12.5 7.5 16 15 8.5" />
+    <path d="M10 12.5 13.5 16 21 8.5" />
+  </svg>
+);
+
 export const CopyIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <rect x="9" y="9" width="13" height="13" rx="2" />

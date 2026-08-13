@@ -3,6 +3,14 @@ import type { SocketData } from "socket.io";
 export interface ClientToServerEvents {
   "directChat:join": (payload: { directChatId: string }) => void;
   "directChat:leave": (payload: { directChatId: string }) => void;
+  "directChat:typing": (payload: {
+    directChatId: string;
+    isTyping: boolean;
+  }) => void;
+  "chatroom:typing": (payload: {
+    chatRoomId: string;
+    isTyping: boolean;
+  }) => void;
 }
 
 export interface ServerToClientEvents {
@@ -20,6 +28,30 @@ export interface ServerToClientEvents {
   "chatroom:read": (payload: {
     chatRoomId: string;
     unreadCount: number;
+  }) => void;
+  "directChat:typing": (payload: {
+    userId: string;
+    username: string;
+    directChatId: string;
+    isTyping: boolean;
+  }) => void;
+  "chatroom:typing": (payload: {
+    userId: string;
+    username: string;
+    chatRoomId: string;
+    isTyping: boolean;
+  }) => void;
+  "directChat:readReceipt": (payload: {
+    userId: string;
+    directChatId: string;
+    lastReadMessageId: string;
+    lastReadMessageCreatedAt: Date;
+  }) => void;
+  "chatroom:readReceipt": (payload: {
+    userId: string;
+    chatRoomId: string;
+    lastReadMessageId: string;
+    lastReadMessageCreatedAt: Date;
   }) => void;
 }
 

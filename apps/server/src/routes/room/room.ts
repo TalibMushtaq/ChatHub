@@ -314,7 +314,45 @@ router.post(
       unreadCount: result.unreadCount,
     });
 
+    // Broadcast the read cursor to the room so senders' read ticks update.
+    req.io.to(`room:${chatRoomId}`).emit("chatroom:readReceipt", {
+      userId,
+      chatRoomId,
+      lastReadMessageId: result.lastReadMessageId,
+      lastReadMessageCreatedAt: result.lastReadMessageCreatedAt,
+    });
+
     res.json({ ok: true, ...result });
+  }),
+);
+
+// GET /:chatRoomId/read-receipts
+// Returns every member's read cursor so each participant can render
+// per-message read ticks ("read by all") when the room is first opened.
+router.get(
+  "/:chatRoomId/read-receipts",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = chatRoomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "chatRoomId missing" });
+      return;
+    }
+
+    await assertRoomAccess(userId, params.data.chatRoomId);
+
+    const receipts = await prisma.chatRoomReadReceipt.findMany({
+      where: { chatRoomId: params.data.chatRoomId },
+      select: {
+        userId: true,
+        lastReadMessageId: true,
+        lastReadMessageCreatedAt: true,
+      },
+    });
+
+    res.json({ ok: true, receipts });
   }),
 );
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import requireAuth from "../../middleware/requireAuth";
 import { asyncHandler } from "../../middleware/async-handler";
+import { prisma } from "../../../db/prisma";
 import { startDirectChat } from "../../services/direct-chat/startDirectChat";
 import { getInbox } from "../../services/direct-chat/getInbox";
 import { markDirectChatRead } from "../../services/direct-chat/markRead";
@@ -99,7 +100,47 @@ router.post(
       unreadCount: result.unreadCount,
     });
 
+    // Broadcast the read cursor to the conversation so the sender's read
+    // ticks update in real time.
+    req.io.to(`directChat:${directChatId}`).emit("directChat:readReceipt", {
+      userId,
+      directChatId,
+      lastReadMessageId: result.lastReadMessageId,
+      lastReadMessageCreatedAt: result.lastReadMessageCreatedAt,
+    });
+
     res.json({ ok: true, ...result });
+  }),
+);
+
+// GET /:directChatId/read-receipt
+// Returns the other participant's read cursor so the sender can render
+// per-message read ticks when the conversation is first opened.
+router.get(
+  "/:directChatId/read-receipt",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = req.user.id;
+
+    const { directChatId } = unwrapParsed(
+      directChatIdParamSchema.safeParse(req.params),
+      { message: "directChatId missing" },
+    );
+
+    await assertDirectChatAccess(userId, directChatId);
+
+    const receipts = await prisma.directChatReadReceipt.findMany({
+      where: { directChatId },
+      select: {
+        userId: true,
+        lastReadMessageId: true,
+        lastReadMessageCreatedAt: true,
+      },
+    });
+
+    // Only the other participant's cursor matters for read ticks.
+    const receipt = receipts.find((r) => r.userId !== userId) ?? null;
+    res.json({ ok: true, receipt });
   }),
 );
 

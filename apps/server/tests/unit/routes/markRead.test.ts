@@ -5,7 +5,7 @@ import dmChatsRouter from "../../../src/routes/direct-chat/chats";
 import roomRouter from "../../../src/routes/room/room";
 import { ApiError } from "../../../src/lib/ApiError";
 import { assertRoomAccess } from "../../../src/middleware/socketAccess";
-import { resetPrismaMock } from "../../mocks/prisma";
+import { resetPrismaMock, prismaMock } from "../../mocks/prisma";
 
 // Shared mock setup for both DM and room route tests
 vi.mock("../../../src/middleware/requireAuth", () => ({
@@ -167,6 +167,47 @@ describe("POST /:directChatId/mark-read", () => {
   });
 });
 
+describe("GET /:directChatId/read-receipt", () => {
+  beforeEach(() => {
+    resetPrismaMock();
+    vi.clearAllMocks();
+  });
+
+  it("should return the other participant's read receipt", async () => {
+    prismaMock.directChatReadReceipt.findMany.mockResolvedValue([
+      {
+        userId: "user-1",
+        lastReadMessageId: "msg-1",
+        lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      },
+      {
+        userId: "user-2",
+        lastReadMessageId: "msg-1",
+        lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      },
+    ] as any);
+
+    const app = createDmTestApp();
+
+    const res = await supertest(app).get("/dc1/read-receipt");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.receipt.userId).toBe("user-2");
+  });
+
+  it("should return null when the other participant has not read anything", async () => {
+    prismaMock.directChatReadReceipt.findMany.mockResolvedValue([] as any);
+
+    const app = createDmTestApp();
+
+    const res = await supertest(app).get("/dc1/read-receipt");
+
+    expect(res.status).toBe(200);
+    expect(res.body.receipt).toBeNull();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Room mark-read route tests
 // ---------------------------------------------------------------------------
@@ -289,5 +330,35 @@ describe("POST /:chatRoomId/mark-read", () => {
 
     expect(res.status).toBe(404);
     expect(res.body.code).toBe("MESSAGE_NOT_FOUND");
+  });
+});
+
+describe("GET /:chatRoomId/read-receipts", () => {
+  beforeEach(() => {
+    resetPrismaMock();
+    vi.clearAllMocks();
+  });
+
+  it("should return every member's read receipts", async () => {
+    prismaMock.chatRoomReadReceipt.findMany.mockResolvedValue([
+      {
+        userId: "user-1",
+        lastReadMessageId: "msg-1",
+        lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      },
+      {
+        userId: "user-2",
+        lastReadMessageId: "msg-1",
+        lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      },
+    ] as any);
+
+    const app = createRoomTestApp();
+
+    const res = await supertest(app).get("/room1/read-receipts");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.receipts).toHaveLength(2);
   });
 });

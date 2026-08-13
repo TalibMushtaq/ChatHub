@@ -5,6 +5,7 @@ import {
   chatRoomMessageSchema,
   chatRoomEditMessageSchema,
   chatRoomDeleteMessageSchema,
+  chatRoomTypingSchema,
 } from "@repo/validators";
 import { MessageType } from "@prisma/client";
 import type { S3Service } from "../../services/S3Service";
@@ -24,6 +25,10 @@ const log = createLogger("roomChat");
 // How long a room membership check stays cached on a socket. Bounds the
 // window in which a user removed from a room can keep using it.
 const ROOM_ACCESS_TTL_MS = 60_000;
+
+// Same anti-spam window as DMs; typing is high-frequency by nature so the
+// server drops redundant "start" events while the client keeps re-emitting.
+const TYPING_THROTTLE_MS = 1500;
 
 /**
  * Registers chat room socket handlers.
@@ -105,6 +110,41 @@ export function registerRoomChat(io: Server, socket: Socket) {
     socket.data.rooms.delete(chatRoomId);
     socket.leave(`room:${chatRoomId}`);
     socket.emit("chatroom:left", { chatRoomId });
+  });
+
+  // Typing indicator — broadcast to everyone except the sender.
+  socket.on("chatroom:typing", async (payload: unknown) => {
+    const parsed = chatRoomTypingSchema.safeParse(payload);
+    if (!parsed.success) return;
+    const { chatRoomId, isTyping } = parsed.data;
+    try {
+      await ensureRoomAccess(chatRoomId);
+      const throttle = (socket.data.typingThrottle ??= new Map());
+      const now = Date.now();
+      if (
+        isTyping &&
+        now - (throttle.get(chatRoomId) ?? 0) < TYPING_THROTTLE_MS
+      ) {
+        return;
+      }
+      throttle.set(chatRoomId, now);
+      socket.broadcast.to(`room:${chatRoomId}`).emit("chatroom:typing", {
+        userId,
+        username: user.username,
+        chatRoomId,
+        isTyping,
+      });
+    } catch (err: unknown) {
+      if (!(err instanceof ApiError)) {
+        log.error("chatroom:typing failed", err, { userId, chatRoomId });
+      }
+      socket.emit("chatroom:error", {
+        code:
+          err instanceof ApiError ? (err.code ?? "JOIN_FAILED") : "JOIN_FAILED",
+        message:
+          err instanceof ApiError ? err.message : "Failed to broadcast typing",
+      });
+    }
   });
 
   // Messages

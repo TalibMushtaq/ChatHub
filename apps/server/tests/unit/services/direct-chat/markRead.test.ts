@@ -30,7 +30,11 @@ describe("markDirectChatRead", () => {
 
     const result = await markDirectChatRead("u1", "dc1", "msg-1");
 
-    expect(result).toEqual({ lastReadMessageId: "msg-1", unreadCount: 3 });
+    expect(result).toEqual({
+      lastReadMessageId: "msg-1",
+      lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      unreadCount: 3,
+    });
     expect(prismaMock.directChatReadReceipt.upsert).toHaveBeenCalledWith({
       where: { userId_directChatId: { userId: "u1", directChatId: "dc1" } },
       create: {
@@ -65,7 +69,11 @@ describe("markDirectChatRead", () => {
 
     const result = await markDirectChatRead("u1", "dc1", "msg-3");
 
-    expect(result).toEqual({ lastReadMessageId: "msg-3", unreadCount: 1 });
+    expect(result).toEqual({
+      lastReadMessageId: "msg-3",
+      lastReadMessageCreatedAt: new Date("2026-01-10T14:00:00Z"),
+      unreadCount: 1,
+    });
     expect(prismaMock.directChatReadReceipt.upsert).toHaveBeenCalled();
   });
 
@@ -87,7 +95,11 @@ describe("markDirectChatRead", () => {
 
     const result = await markDirectChatRead("u1", "dc1", "msg-1");
 
-    expect(result).toEqual({ lastReadMessageId: "msg-1", unreadCount: 0 });
+    expect(result).toEqual({
+      lastReadMessageId: "msg-1",
+      lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      unreadCount: 0,
+    });
     expect(prismaMock.directChatReadReceipt.upsert).not.toHaveBeenCalled();
   });
 
@@ -109,7 +121,11 @@ describe("markDirectChatRead", () => {
 
     const result = await markDirectChatRead("u1", "dc1", "msg-2");
 
-    expect(result).toEqual({ lastReadMessageId: "msg-2", unreadCount: 0 });
+    expect(result).toEqual({
+      lastReadMessageId: "msg-2",
+      lastReadMessageCreatedAt: new Date("2026-01-10T12:00:00Z"),
+      unreadCount: 0,
+    });
     expect(prismaMock.directChatReadReceipt.upsert).not.toHaveBeenCalled();
   });
 

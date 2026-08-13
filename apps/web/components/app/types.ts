@@ -34,6 +34,19 @@ export interface MessageUser {
   avatar?: string | null;
 }
 
+/** A user's read cursor in a conversation. */
+export interface ReadReceipt {
+  userId: string;
+  lastReadMessageId: string;
+  lastReadMessageCreatedAt: string;
+}
+
+/** Someone currently typing in the active conversation. */
+export interface TypingUser {
+  userId: string;
+  username: string;
+}
+
 export interface Message {
   id: string;
   content: string | null;

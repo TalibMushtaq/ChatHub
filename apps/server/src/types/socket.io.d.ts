@@ -11,6 +11,8 @@ declare module "socket.io" {
     user: AuthUser;
     /** chatRoomId -> epoch ms at which the cached membership check expires. */
     rooms?: Map<string, number>;
+    /** conversationId -> epoch ms of the last typing broadcast (anti-spam). */
+    typingThrottle?: Map<string, number>;
   }
 }
 

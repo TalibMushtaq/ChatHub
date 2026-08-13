@@ -6,6 +6,7 @@ import {
   editMessageSchema,
   messageIdParamSchema,
   directChatIdParamSchema,
+  directChatTypingSchema,
 } from "@repo/validators";
 
 describe("direct-chat validators", () => {
@@ -137,6 +138,38 @@ describe("direct-chat validators", () => {
 
     it("should reject an empty directChatId", () => {
       const result = directChatIdParamSchema.safeParse({ directChatId: "" });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("directChatTypingSchema", () => {
+    it("should accept start and stop typing events", () => {
+      expect(
+        directChatTypingSchema.safeParse({
+          directChatId: "dc-1",
+          isTyping: true,
+        }).success,
+      ).toBe(true);
+      expect(
+        directChatTypingSchema.safeParse({
+          directChatId: "dc-1",
+          isTyping: false,
+        }).success,
+      ).toBe(true);
+    });
+
+    it("should reject a missing isTyping flag", () => {
+      const result = directChatTypingSchema.safeParse({
+        directChatId: "dc-1",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject an empty directChatId", () => {
+      const result = directChatTypingSchema.safeParse({
+        directChatId: "",
+        isTyping: true,
+      });
       expect(result.success).toBe(false);
     });
   });

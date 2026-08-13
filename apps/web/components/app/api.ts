@@ -20,6 +20,7 @@ import type {
   Invitation,
   JoinRequest,
   JoinLink,
+  ReadReceipt,
   SearchUser,
 } from "./types";
 
@@ -120,6 +121,12 @@ export const ChatAPI = {
     return data.unreadCount;
   },
 
+  /** The other participant's read cursor, or null if they haven't read yet. */
+  async getDmReadReceipt(directChatId: string): Promise<ReadReceipt | null> {
+    const { data } = await api.get(`/dm/${directChatId}/read-receipt`);
+    return data.receipt;
+  },
+
   // ---------------------------------------------------------------------------
   // Rooms (REST list/read, socket for messaging)
   // ---------------------------------------------------------------------------
@@ -161,6 +168,12 @@ export const ChatAPI = {
       lastReadMessageId,
     });
     return data.unreadCount;
+  },
+
+  /** Every member's read cursor for the room. */
+  async getRoomReadReceipts(chatRoomId: string): Promise<ReadReceipt[]> {
+    const { data } = await api.get(`/room/${chatRoomId}/read-receipts`);
+    return data.receipts;
   },
 
   async inviteToRoom(roomId: string, targetUserId: string): Promise<void> {

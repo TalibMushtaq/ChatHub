@@ -25,12 +25,14 @@ function createIo() {
 
 function createSocketWithHandlers(userId = "u1") {
   const handlers: Record<string, (payload: any) => Promise<void> | void> = {};
+  const broadcastEmit = vi.fn();
   const socket = {
     id: "socket-1",
     data: { user: { id: userId, username: "user1" } },
     join: vi.fn(),
     leave: vi.fn(),
     emit: vi.fn(),
+    broadcast: { to: vi.fn().mockReturnValue({ emit: broadcastEmit }) },
     on: vi.fn((event: string, handler: (payload: any) => Promise<void>) => {
       handlers[event] = handler;
     }),
@@ -38,7 +40,7 @@ function createSocketWithHandlers(userId = "u1") {
 
   registerDirectChat({} as any, socket);
 
-  return { socket, handlers };
+  return { socket, handlers, broadcastEmit };
 }
 
 describe("direct-chat socket helpers", () => {
@@ -166,6 +168,79 @@ describe("registerDirectChat", () => {
     expect(socket.emit).toHaveBeenCalledWith("directChat:error", {
       code: "LEAVE_FAILED",
       message: "Failed to leave chat",
+    });
+  });
+
+  describe("directChat:typing", () => {
+    it("should broadcast typing to the conversation, excluding the sender", async () => {
+      const { socket, handlers, broadcastEmit } =
+        createSocketWithHandlers("u1");
+
+      await handlers["directChat:typing"]!({
+        directChatId: "dc1",
+        isTyping: true,
+      });
+
+      expect(socket.broadcast.to).toHaveBeenCalledWith("directChat:dc1");
+      expect(broadcastEmit).toHaveBeenCalledWith("directChat:typing", {
+        userId: "u1",
+        username: "user1",
+        directChatId: "dc1",
+        isTyping: true,
+      });
+    });
+
+    it("should pass the throttle check after the interval elapses", async () => {
+      vi.useFakeTimers();
+      const { handlers, broadcastEmit } = createSocketWithHandlers("u1");
+
+      await handlers["directChat:typing"]!({
+        directChatId: "dc1",
+        isTyping: true,
+      });
+      expect(broadcastEmit).toHaveBeenCalledTimes(1);
+
+      // Second event within the window is dropped.
+      await handlers["directChat:typing"]!({
+        directChatId: "dc1",
+        isTyping: true,
+      });
+      expect(broadcastEmit).toHaveBeenCalledTimes(1);
+
+      // After the window it is emitted again.
+      vi.advanceTimersByTime(2000);
+      await handlers["directChat:typing"]!({
+        directChatId: "dc1",
+        isTyping: true,
+      });
+      expect(broadcastEmit).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
+    });
+
+    it("should surface access denial as an error", async () => {
+      vi.mocked(assertDirectChatAccess).mockRejectedValueOnce(
+        new ApiError("Not a participant", 403, "DIRECT_CHAT_ACCESS_DENIED"),
+      );
+      const { socket, handlers } = createSocketWithHandlers();
+
+      await handlers["directChat:typing"]!({
+        directChatId: "dc1",
+        isTyping: true,
+      });
+
+      expect(socket.emit).toHaveBeenCalledWith("directChat:error", {
+        code: "DIRECT_CHAT_ACCESS_DENIED",
+        message: "Not a participant",
+      });
+    });
+
+    it("should ignore malformed payloads", async () => {
+      const { handlers, broadcastEmit } = createSocketWithHandlers();
+
+      await handlers["directChat:typing"]!({ directChatId: "dc1" });
+      await handlers["directChat:typing"]!({ isTyping: true });
+
+      expect(broadcastEmit).not.toHaveBeenCalled();
     });
   });
 });
