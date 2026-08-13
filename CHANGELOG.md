@@ -5,6 +5,12 @@
 **Impact:** `apps/server` (rooms endpoint shape gains `avatar`) and `apps/web` (rendering + immediate refresh). No DB reset — only the one pending migration was applied. Server tests (384) and web tests (14), typecheck, lint, and prettier all pass.
 **Follow-ups:** Consider also showing room avatars in `ThreadPanel` composer placeholder/headers if a room-upload flow is added.
 
+## [2026-08-13] - Use ChatHubby WebP in Landing Navbar & Footer Logos
+
+**What changed:** The landing-page topbar (`LandingNavbar.tsx`) and footer (`LandingFooter.tsx`) logos now render `/chathubby.webp` (rounded, 34px) instead of the inline-SVG mascot.
+**Why:** Follow-up to the icon change — the landing navbar had been left with the old mascot.
+**Impact:** `apps/web` only. Feature illustrations (Hero/Personality/CTA mascot expressions) intentionally stay as animated SVGs. Typecheck, lint, prettier pass; landing page emits the WebP in both header and footer.
+
 ## [2026-08-13] - Use ChatHubby WebP as App Icon & Favicon
 
 **What changed:** The brand mascot image `apps/web/public/chathubby.webp` is now the site icon everywhere. Root `metadata.icons` (`layout.tsx`) points `icon`, `shortcut`, and `apple` (iOS touch) at `/chathubby.webp`, and the default `app/favicon.ico` was removed so it can't shadow the WebP in `<link>` order. The app-shell rail logo (`AppShell.tsx`) and the auth-page header logo (`app/auth/page.tsx`) now render the WebP instead of the inline-SVG mascot / initials avatar.

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Mascot } from "./Mascot";
 
 export function LandingFooter() {
   const links = [
@@ -13,7 +12,13 @@ export function LandingFooter() {
       <div className="container footer-inner">
         <div className="footer-brand">
           <Link className="logo" href="#top" aria-label="ChatHubby home">
-            <Mascot expr="smile" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/chathubby.webp"
+              alt=""
+              className="mascot"
+              style={{ borderRadius: "50%", objectFit: "cover" }}
+            />
             <span className="logo-text">
               <span>Chat</span>
               <span className="accent">Hubby</span>

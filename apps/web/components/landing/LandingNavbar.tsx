@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "../../app/lib/api";
-import { Mascot } from "./Mascot";
 import { MenuIcon, MoonIcon, SunIcon } from "./icons";
 
 type AuthState = "loading" | "in" | "out";
@@ -67,7 +66,13 @@ export function LandingNavbar() {
     <header className="topbar" data-od-id="topbar">
       <div className="container topbar-inner">
         <Link className="logo" href="#top" aria-label="ChatHubby home">
-          <Mascot expr="smile" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/chathubby.webp"
+            alt=""
+            className="mascot"
+            style={{ borderRadius: "50%", objectFit: "cover" }}
+          />
           <span className="logo-text">
             <span>Chat</span>
             <span className="accent">Hubby</span>
