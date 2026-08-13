@@ -986,7 +986,12 @@ export default function AppShell() {
           {/* Rail */}
           <aside className="rail flex flex-col items-center border-r border-border bg-surface px-0 py-4 pb-3 max-[760px]:hidden">
             <div className="logo flex items-center justify-center">
-              <AppAvatar name="ChatHubby" size={38} square />
+              <AppAvatar
+                name="ChatHubby"
+                src="/chathubby.webp"
+                size={38}
+                square
+              />
             </div>
             <div className="nav flex w-full flex-1 flex-col gap-2 px-2.5 py-[22px]">
               {navItem(

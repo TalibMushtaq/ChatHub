@@ -5,6 +5,12 @@
 **Impact:** `apps/server` (rooms endpoint shape gains `avatar`) and `apps/web` (rendering + immediate refresh). No DB reset — only the one pending migration was applied. Server tests (384) and web tests (14), typecheck, lint, and prettier all pass.
 **Follow-ups:** Consider also showing room avatars in `ThreadPanel` composer placeholder/headers if a room-upload flow is added.
 
+## [2026-08-13] - Use ChatHubby WebP as App Icon & Favicon
+
+**What changed:** The brand mascot image `apps/web/public/chathubby.webp` is now the site icon everywhere. Root `metadata.icons` (`layout.tsx`) points `icon`, `shortcut`, and `apple` (iOS touch) at `/chathubby.webp`, and the default `app/favicon.ico` was removed so it can't shadow the WebP in `<link>` order. The app-shell rail logo (`AppShell.tsx`) and the auth-page header logo (`app/auth/page.tsx`) now render the WebP instead of the inline-SVG mascot / initials avatar.
+**Why:** `/logo.svg` referenced by metadata never existed, and the product's icon should be the actual mascot art.
+**Impact:** `apps/web` only. Landing-page `Mascot` illustrations (animated expressions) are intentionally left as inline SVGs. Verified: all pages emit `<link rel="icon|shortcut icon|apple-touch-icon" href="/chathubby.webp">`, the WebP serves as `image/webp`, and typecheck/lint/prettier/tests pass.
+
 ## [2026-08-13] - Fix Avatar Display (Key → URL Proxy)
 
 **What changed:** Avatars stored as S3 keys (e.g. `defaults/user/3.png`) were being passed straight to `<img src>`, producing broken relative URLs and rendering the name fallback instead of the picture. Added a server proxy `GET /api/avatars?key=...` (`apps/server/src/routes/avatars.ts`) that validates the key (only `defaults/*` and `avatars/*` patterns), streams the S3 object via a new `S3Service.getObjectStream()`, sets `Cache-Control: public, max-age=3600`, and relaxes CORP to `cross-origin` (helmet's `same-origin` default would block the cross-port image load). The client helper `avatarUrl()` in `helpers.ts` turns keys into those proxy URLs, and `AppAvatar` applies it centrally so every avatar (rail user, DM/room list rows, thread header, message rows, modals) resolves without per-site changes; full URLs (defaults picker presigned links) pass through untouched.

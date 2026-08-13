@@ -33,7 +33,9 @@ export const metadata: Metadata = {
   description:
     "ChatHubby is a private, real-time, personal place to chat. Instant delivery, honest presence, read receipts, and a little green personality.",
   icons: {
-    icon: "/logo.svg",
+    icon: "/chathubby.webp",
+    shortcut: "/chathubby.webp",
+    apple: "/chathubby.webp",
   },
 };
 export default function RootLayout({

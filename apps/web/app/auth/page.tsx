@@ -7,7 +7,7 @@ import { serverApi } from "../lib/serverApi";
 import AuthCard from "./AuthCard";
 import ThemeToggle from "./ThemeToggle";
 import Link from "next/link";
-import { Mascot, MascotDefs } from "../../components/landing/Mascot";
+import { MascotDefs } from "../../components/landing/Mascot";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,12 @@ export default async function AuthPage() {
           href="/"
           aria-label="ChatHubby home"
         >
-          <Mascot expr="smile" className="h-10 w-10" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/chathubby.webp"
+            alt="ChatHubby"
+            className="h-10 w-10 rounded-[12px]"
+          />
           <span className="logo-text font-display text-2xl font-bold tracking-[-0.01em]">
             <span>Chat</span>
             <span className="accent text-accent-solid">Hubby</span>
