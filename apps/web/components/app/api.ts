@@ -267,6 +267,27 @@ export const ChatAPI = {
     return data.avatars;
   },
 
+  /**
+   * Request a presigned PUT URL for an avatar upload.
+   *
+   * Never modifies the database — the returned `s3Key` is associated with
+   * the user or room by the subsequent updateMyAvatar/updateRoomAvatar call.
+   */
+  async presignAvatar(
+    context: "user" | "room",
+    file: { name: string; type: string; size: number },
+    contextId?: string,
+  ): Promise<{ presignedUrl: string; s3Key: string }> {
+    const { data } = await api.post("/avatars/presign", {
+      context,
+      ...(contextId ? { contextId } : {}),
+      filename: file.name,
+      mimeType: file.type,
+      size: file.size,
+    });
+    return { presignedUrl: data.presignedUrl, s3Key: data.s3Key };
+  },
+
   /** Update the authenticated user's avatar to a default or custom S3 key. */
   async updateMyAvatar(avatarKey: string): Promise<void> {
     await api.patch("/auth/me/avatar", { avatarKey });

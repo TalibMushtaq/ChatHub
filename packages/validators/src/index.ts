@@ -43,3 +43,9 @@ export {
   MAX_ATTACHMENTS_PER_MESSAGE,
   ALL_ALLOWED_MIME_TYPES,
 } from "./attachment";
+export {
+  avatarPresignSchema,
+  avatarMimeTypeSchema,
+  AVATAR_ALLOWED_MIME_TYPES,
+  AVATAR_MAX_SIZE,
+} from "./avatar";

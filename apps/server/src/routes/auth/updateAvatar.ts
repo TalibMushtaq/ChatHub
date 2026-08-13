@@ -5,6 +5,7 @@ import { prisma } from "../../../db/prisma";
 import { asyncHandler } from "../../middleware/async-handler";
 import { createLogger } from "../../lib/logger";
 import { z } from "zod";
+import { getRequiredS3Service } from "../../lib/s3";
 
 const router = express.Router();
 const log = createLogger("updateAvatar");
@@ -55,6 +56,13 @@ router.patch(
 
     const { avatarKey } = parsed.data;
 
+    // Read the old avatar before writing so a replaced custom upload can be
+    // cleaned up afterwards — defaults are shared, so they're never deleted.
+    const before = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatar: true },
+    });
+
     await prisma.user.update({
       where: { id: userId },
       data: { avatar: avatarKey },
@@ -68,6 +76,23 @@ router.patch(
     log.info("User avatar updated", { userId, avatarKey });
 
     res.json({ ok: true, avatarKey });
+
+    // Best-effort S3 cleanup of the replaced custom avatar. Deletion is
+    // fire-and-forget after the response so an S3 hiccup never surfaces as
+    // a failed avatar update (the DB row is already authoritative).
+    const oldKey = before?.avatar ?? null;
+    if (oldKey && oldKey.startsWith("avatars/") && oldKey !== avatarKey) {
+      try {
+        await getRequiredS3Service().deleteObject(oldKey);
+        log.info("Deleted replaced user avatar", { userId, oldKey });
+      } catch (err) {
+        log.error("Failed to delete replaced user avatar", {
+          userId,
+          oldKey,
+          error: err,
+        });
+      }
+    }
   }),
 );
 

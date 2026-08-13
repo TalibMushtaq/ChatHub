@@ -5,6 +5,7 @@ import { prisma } from "../../../db/prisma";
 import { asyncHandler } from "../../middleware/async-handler";
 import { createLogger } from "../../lib/logger";
 import { z } from "zod";
+import { getRequiredS3Service } from "../../lib/s3";
 
 const router = express.Router();
 const log = createLogger("updateRoomAvatar");
@@ -77,6 +78,13 @@ router.patch(
 
     const { avatarKey } = parsed.data;
 
+    // Read the old avatar before writing so a replaced custom upload can be
+    // cleaned up afterwards — defaults are shared, so they're never deleted.
+    const before = await prisma.chatRoom.findUnique({
+      where: { id: chatRoomId },
+      select: { avatar: true },
+    });
+
     await prisma.chatRoom.update({
       where: { id: chatRoomId },
       data: { avatar: avatarKey },
@@ -85,6 +93,22 @@ router.patch(
     log.info("Room avatar updated", { userId, chatRoomId, avatarKey });
 
     res.json({ ok: true, avatarKey });
+
+    // Best-effort S3 cleanup of the replaced custom avatar. Fire-and-forget
+    // after the response so an S3 hiccup never fails the DB update.
+    const oldKey = before?.avatar ?? null;
+    if (oldKey && oldKey.startsWith("avatars/") && oldKey !== avatarKey) {
+      try {
+        await getRequiredS3Service().deleteObject(oldKey);
+        log.info("Deleted replaced room avatar", { chatRoomId, oldKey });
+      } catch (err) {
+        log.error("Failed to delete replaced room avatar", {
+          chatRoomId,
+          oldKey,
+          error: err,
+        });
+      }
+    }
   }),
 );
 

@@ -387,6 +387,7 @@ function RoomAvatarSection({
           source="room"
           selected={pendingKey}
           onSelect={setPendingKey}
+          contextId={info.roomId}
         />
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button

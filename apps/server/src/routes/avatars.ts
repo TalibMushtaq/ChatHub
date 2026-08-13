@@ -6,8 +6,23 @@ import requireAuth from "../middleware/requireAuth";
 import { asyncHandler } from "../middleware/async-handler";
 import { getRequiredS3Service } from "../lib/s3";
 import { createLogger } from "../lib/logger";
+import { prisma } from "../../db/prisma";
+import { createRateLimiter, enforceRateLimit } from "../lib/rateLimiter";
+import { unwrapParsed } from "../lib/validate";
+import { avatarPresignSchema } from "@repo/validators";
+import { presignAvatarUpload } from "../services/avatar/presignUpload";
+import {
+  AVATAR_RATE_LIMIT_MAX,
+  AVATAR_RATE_LIMIT_WINDOW_MS,
+} from "../constants/avatar";
 
 const log = createLogger("avatars");
+
+const presignLimiter = createRateLimiter({
+  maxAttempts: AVATAR_RATE_LIMIT_MAX,
+  windowMs: AVATAR_RATE_LIMIT_WINDOW_MS,
+  prefix: "avatar:presign",
+});
 
 /**
  * Avatar key validation — mirrors the write-path schemas in
@@ -21,6 +36,70 @@ const avatarKeySchema = z.union([
 ]);
 
 const router = Router();
+
+/**
+ * POST /avatars/presign
+ *
+ * Returns a presigned PUT URL so the client can upload a processed/cropped
+ * avatar image straight to S3. Does NOT modify the database — the returned
+ * `s3Key` is associated with the user or room via the existing PATCH
+ * endpoints (/auth/me/avatar, /room/:chatRoomId/avatar) afterwards.
+ *
+ * For room avatars the caller must be OWNER or ADMIN of the room, and the
+ * S3 key is scoped to that room so members cannot overwrite each other's
+ * uploads.
+ */
+router.post(
+  "/presign",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user.id;
+
+    await enforceRateLimit(res, presignLimiter, `presign:${userId}`);
+
+    const parsed = unwrapParsed(avatarPresignSchema.safeParse(req.body));
+
+    if (parsed.context === "room") {
+      const membership = await prisma.chatRoomMember.findUnique({
+        where: {
+          userId_chatRoomId: {
+            userId,
+            chatRoomId: parsed.contextId!,
+          },
+        },
+        select: { role: true },
+      });
+      if (!membership) {
+        res.status(403).json({ ok: false, error: "Not a member of this room" });
+        return;
+      }
+      if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+        res.status(403).json({
+          ok: false,
+          error: "Only owners and admins can change the room avatar",
+        });
+        return;
+      }
+    }
+
+    const s3Service = getRequiredS3Service();
+    const { s3Key, presignedUrl } = await presignAvatarUpload(
+      s3Service,
+      userId,
+      parsed.context,
+      parsed.contextId,
+      parsed.mimeType,
+    );
+
+    log.info("Presigned avatar upload", {
+      userId,
+      context: parsed.context,
+      contextId: parsed.contextId ?? null,
+    });
+
+    res.status(201).json({ ok: true, presignedUrl, s3Key });
+  }),
+);
 
 /**
  * GET /avatars?key=...
