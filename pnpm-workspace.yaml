@@ -4,5 +4,11 @@ packages:
 
 # pnpm 10 reads overrides from the workspace file, not package.json.
 overrides:
-  "postcss@<8.5.23": "^8.5.23"
   "sharp@<0.35.0": "^0.35.0"
+
+# Build scripts required by native/runtime dependencies.
+onlyBuiltDependencies:
+  - "@prisma/engines"
+  - "argon2"
+  - "esbuild"
+  - "prisma"
