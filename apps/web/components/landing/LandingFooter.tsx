@@ -14,7 +14,7 @@ export function LandingFooter() {
           <Link className="logo" href="#top" aria-label="ChatHubby home">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/chathubby.webp"
+              src="/chathubby-v2.webp"
               alt=""
               className="mascot"
               style={{ borderRadius: "50%", objectFit: "cover" }}

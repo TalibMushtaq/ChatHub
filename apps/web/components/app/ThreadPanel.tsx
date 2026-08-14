@@ -149,7 +149,12 @@ export default function ThreadPanel() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-[30px] text-center text-[14.5px] text-muted">
         <div className="mb-4">
-          <AppAvatar name="ChatHubby" size={96} square />
+          <AppAvatar
+            name="ChatHubby"
+            src="/chathubby-v2.webp"
+            size={96}
+            square
+          />
         </div>
         <b className="mb-1 block text-[17px] text-fg">ChatHubby</b>
         <p>Select a conversation to start chatting.</p>

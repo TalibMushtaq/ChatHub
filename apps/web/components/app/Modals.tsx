@@ -439,7 +439,7 @@ function RoomInfoModal() {
   return (
     <>
       <div className={`${rowItem}`} style={{ padding: "2px 4px 14px" }}>
-        <AppAvatar name={info.name} size={52} square />
+        <AppAvatar name={info.name} src={info.avatar} size={52} square />
         <div className={rowGrow}>
           <div className={rowT1}>
             # {info.name}{" "}

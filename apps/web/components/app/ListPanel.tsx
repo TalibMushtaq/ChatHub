@@ -378,7 +378,7 @@ function Empty({ text, sub }: { text: string; sub?: string }) {
   return (
     <div className="px-6 py-[42px] text-center text-[14px] text-muted">
       <div className="mb-3.5 flex justify-center">
-        <AppAvatar name="ChatHubby" size={74} square />
+        <AppAvatar name="ChatHubby" src="/chathubby-v2.webp" size={74} square />
       </div>
       <b className="mb-1 block text-fg">{text}</b>
       {sub && <span>{sub}</span>}

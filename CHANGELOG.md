@@ -1,3 +1,43 @@
+## [2026-08-14] - Fix Room Avatar in Room Info Modal
+
+**What changed:** `apps/web/components/app/Modals.tsx` now passes `src={info.avatar}` to the `AppAvatar` in `RoomInfoModal`, matching how the room avatar is rendered in the room list and thread header.
+
+**Why:** The room info modal rendered `<AppAvatar name={info.name} size={52} square />` without a `src`, so it always fell back to the "CH" initials block even after the room avatar was updated elsewhere.
+
+**Impact:** The room info modal now shows the room's actual avatar. No layout or styling changes.
+
+**Follow-ups:** None.
+
+## [2026-08-14] - Use Logo Asset in Dashboard Empty States
+
+**What changed:** Replaced the `AppAvatar` "CH" initials placeholder with the `chathubby-v2.webp` logo asset in `apps/web/components/app/ThreadPanel.tsx` (empty conversation state), `apps/web/components/app/AppShell.tsx` (load-error and initial-loading states), and `apps/web/components/app/ListPanel.tsx` (empty list state).
+
+**Why:** The dashboard rendered `AppAvatar` without a `src`, so it fell back to the "CH" initials block. Pointing it at the shared logo asset keeps branding consistent with the sidebar rail logo.
+
+**Impact:** All ChatHubby-branded dashboard placeholders now render the same logo image. No layout, spacing, or sizing changes.
+
+**Follow-ups:** None.
+
+## [2026-08-14] - Cache-Bust App Icon Filename
+
+**What changed:** Renamed `apps/web/public/chathubby.webp` to `chathubby-v2.webp` and updated the reference in `apps/web/app/layout.tsx` (metadata `icon`/`shortcut`/`apple`), `apps/web/components/app/AppShell.tsx`, `apps/web/components/landing/LandingNavbar.tsx`, `apps/web/components/landing/LandingFooter.tsx`, and `apps/web/app/auth/page.tsx`.
+
+**Why:** The dashboard was still showing the old icon because browsers cache tab favicons by URL independently of HTTP cache headers; the served `/chathubby.webp` was already in sync (304), so only a new URL forces a fresh fetch.
+
+**Impact:** New favicon/logo URL served everywhere the old one was. Only asset filename and references changed; image content is unchanged.
+
+**Follow-ups:** None.
+
+## [2026-08-14] - Rewrite README to Reflect Current API, Socket, and Setup
+
+**What changed:** Replaced the stale `README.md` with an accurate one: corrected the architecture tree (added `packages/ui`, web on port 3000, server on port 3100), fixed the Quick Start (the previous `pnpm db:migrate`/`pnpm db:generate` scripts do not exist — now uses `pnpm --filter @repo/server prisma migrate dev` / `prisma generate`), mirrored the real `.env.example` variables (dropped the non-existent `PORT`, added `CSRF_SECRET` and the `NEXT_PUBLIC_*`/`API_URL` web vars), documented S3 env requirements, and rewrote the REST endpoint table (auth, DMs, rooms, attachments, avatars, defaults, search, health — all under `/api`) and the Socket.IO event tables (client→server and server→client) to match the actual route/socket handlers. Also refreshed the Tech Stack, Security Features (added CSRF and recovery-code notes), and Database Schema model list.
+
+**Why:** The README had drifted far from the codebase — it documented removed routes (`/signup`, `/:roomId/invitations`, etc.), wrong ports and setup commands, a socket event list from an earlier prototype, and an incomplete package/architecture listing.
+
+**Impact:** Documentation only. No code, dependencies, or behavior changed. README now matches `apps/server/src/routes/**`, `apps/server/src/sockets/**`, `types/socket-events.ts`, `.env.example`, and the package layout.
+
+**Follow-ups:** None.
+
 ## [2026-08-14] - Fix Onboarding Avatar Save
 
 **What changed:** `apps/web/app/auth/AuthCard.tsx` now calls `ChatAPI.updateMyAvatar(suAvatarKey)` (which sends `PATCH /auth/me/avatar`) instead of `postCsrf("/auth/me/avatar", …)` (which sent `POST`). The server only exposes `PATCH /auth/me/avatar`, so the previous POST was silently failing (request caught and ignored) and the avatar selected during signup never persisted.

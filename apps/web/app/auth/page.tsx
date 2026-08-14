@@ -39,7 +39,7 @@ export default async function AuthPage() {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/chathubby.webp"
+            src="/chathubby-v2.webp"
             alt="ChatHubby"
             className="h-10 w-10 rounded-[12px]"
           />

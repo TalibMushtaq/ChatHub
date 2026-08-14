@@ -889,7 +889,12 @@ export default function AppShell() {
     return (
       <div className="app h-full overflow-hidden bg-bg font-body text-fg antialiased">
         <div className="flex h-dvh flex-col items-center justify-center p-[30px] text-center text-[14.5px] text-muted">
-          <AppAvatar name="ChatHubby" size={96} square />
+          <AppAvatar
+            name="ChatHubby"
+            src="/chathubby-v2.webp"
+            size={96}
+            square
+          />
           <p className="mt-4">{loadError}</p>
           <button
             className={`${btnPrimary} mt-4`}
@@ -906,7 +911,12 @@ export default function AppShell() {
     return (
       <div className="app h-full overflow-hidden bg-bg font-body text-fg antialiased">
         <div className="flex h-dvh flex-col items-center justify-center p-[30px] text-center text-[14.5px] text-muted">
-          <AppAvatar name="ChatHubby" size={96} square />
+          <AppAvatar
+            name="ChatHubby"
+            src="/chathubby-v2.webp"
+            size={96}
+            square
+          />
           <p className="mt-4">Loading your conversations…</p>
         </div>
       </div>
@@ -988,7 +998,7 @@ export default function AppShell() {
             <div className="logo flex items-center justify-center">
               <AppAvatar
                 name="ChatHubby"
-                src="/chathubby.webp"
+                src="/chathubby-v2.webp"
                 size={38}
                 square
               />

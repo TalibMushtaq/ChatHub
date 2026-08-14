@@ -32,10 +32,11 @@ export const metadata: Metadata = {
   title: "ChatHubby — Private, real-time, personal chat",
   description:
     "ChatHubby is a private, real-time, personal place to chat. Instant delivery, honest presence, read receipts, and a little green personality.",
+  // Versioned filename so browsers fetch the new icon instead of a cached favicon URL.
   icons: {
-    icon: "/chathubby.webp",
-    shortcut: "/chathubby.webp",
-    apple: "/chathubby.webp",
+    icon: "/chathubby-v2.webp",
+    shortcut: "/chathubby-v2.webp",
+    apple: "/chathubby-v2.webp",
   },
 };
 export default function RootLayout({
