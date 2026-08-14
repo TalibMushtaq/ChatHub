@@ -1095,7 +1095,7 @@ export default function AppShell() {
 
           {/* Thread column: slides in as a full-screen sheet on mobile. */}
           <aside
-            className={`thread flex min-w-0 flex-col bg-bg max-[760px]:fixed max-[760px]:inset-0 max-[760px]:z-30 max-[760px]:translate-x-full max-[760px]:transition-transform max-[760px]:duration-[260ms] max-[760px]:ease-app ${active ? "group-data-[thread-open]:max-[760px]:translate-x-0" : ""}`}
+            className={`thread flex min-h-0 min-w-0 flex-col bg-bg max-[760px]:fixed max-[760px]:inset-0 max-[760px]:z-30 max-[760px]:translate-x-full max-[760px]:transition-transform max-[760px]:duration-[260ms] max-[760px]:ease-app ${active ? "group-data-[thread-open]:max-[760px]:translate-x-0" : ""}`}
           >
             <ThreadPanel />
           </aside>

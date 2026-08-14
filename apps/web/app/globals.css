@@ -180,6 +180,14 @@ select:focus-visible {
   background: color-mix(in oklab, var(--color-fg) 30%, transparent);
 }
 
+/* Aggressive word breaking for message bubbles: allows breaking anywhere so
+   a long unbroken string (e.g. 30k chars, base64, URLs) never overflows the
+   bubble width or blows out the thread column. Tailwind ships no overflow-wrap
+   "anywhere" utility, so this is defined once here. */
+.break-anywhere {
+  overflow-wrap: anywhere;
+}
+
 /* Subtle grainy overlay used by splash/empty states if ever enabled. */
 .noise-overlay::before {
   content: "";

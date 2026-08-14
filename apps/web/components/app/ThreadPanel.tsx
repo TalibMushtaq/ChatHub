@@ -287,7 +287,10 @@ export default function ThreadPanel() {
         )}
       </div>
 
-      <div className="msgs flex flex-1 flex-col overflow-y-auto">
+      {/* why: min-h-0 lets this flex child shrink below its content height so
+          very tall messages scroll inside it instead of pushing the thread
+          column past the viewport. */}
+      <div className="msgs min-h-0 flex flex-1 flex-col overflow-y-auto">
         <div className="msgs-inner mx-auto w-full max-w-[860px] px-4 pt-4 pb-2">
           {rows.length === 0 && (
             <div className="empty-thread-msg flex flex-1 items-center justify-center p-5 text-sm text-muted">
@@ -664,12 +667,12 @@ function MessageRow({
         </div>
 
         {m.isDeleted ? (
-          <div className="bubble rounded-br-[6px] rounded-bl-[18px] rounded-[18px] border border-border bg-surface-2 px-[13px] py-[9px] text-[14.5px] leading-[1.45] italic opacity-70 text-muted break-words overflow-wrap-anywhere">
+          <div className="bubble rounded-br-[6px] rounded-bl-[18px] rounded-[18px] border border-border bg-surface-2 px-[13px] py-[9px] text-[14.5px] leading-[1.45] italic opacity-70 text-muted break-words break-anywhere">
             This message was deleted
           </div>
         ) : (
           <div
-            className={`bubble rounded-[18px] px-[13px] py-[9px] text-[14.5px] leading-[1.45] break-words overflow-wrap-anywhere ${
+            className={`bubble rounded-[18px] px-[13px] py-[9px] text-[14.5px] leading-[1.45] break-words break-anywhere ${
               isOwn
                 ? "rounded-br-[6px] rounded-bl-[18px] border-transparent bg-accent-btn text-accent-on"
                 : "rounded-bl-[6px] rounded-br-[18px] border border-border bg-surface-2"

@@ -1,3 +1,13 @@
+## [2026-08-15] - Fix Thread Scrolling and Wrapping for Very Long Messages
+
+**What changed:** Added `min-h-0` to the thread column (`AppShell.tsx`) and the messages scroll container (`ThreadPanel.tsx`) so tall messages scroll inside the thread instead of expanding it past the viewport. Added a `.break-anywhere` utility in `globals.css` and replaced the two invalid `overflow-wrap-anywhere` classes on message bubbles so unbroken 30k-char strings wrap instead of overflowing.
+
+**Why:** After raising the message limit to 30k, messages taller than the visible screen broke the chat UI because the thread column and message list weren't shrink-locked, and the wrap utility used on bubbles was not a real class.
+
+**Impact:** The message list scrolls normally even for messages taller than the viewport; long unbroken strings stay within the bubble width.
+
+**Follow-ups:** None.
+
 ## [2026-08-14] - Raise Message Character Limit to 30k for DMs and Rooms
 
 **What changed:** Raised `MAX_MESSAGE_LENGTH` from 5000 to 30000 in `packages/validators/src/direct-chat.ts` and `apps/server/src/constants/direct-chat.ts`, and `MAX_ROOM_MESSAGE_LENGTH` from 2000 to 30000 in `packages/validators/src/roomChat.ts`. Updated the "too long" rejection tests in `apps/server/tests/unit/validators/direct-chat.test.ts` and `roomChat.test.ts` to use 30001 characters.
