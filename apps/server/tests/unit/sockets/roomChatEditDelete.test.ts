@@ -283,9 +283,8 @@ describe("registerRoomChat - edit and delete", () => {
 
     it("should purge the message's attachments after delete", async () => {
       const { handlers } = createSocketWithHandlers("u1");
-      const { deleteMessageAttachments } = await import(
-        "../../../../src/services/attachment/deleteMessageAttachments"
-      );
+      const { deleteMessageAttachments } =
+        await import("../../../../src/services/attachment/deleteMessageAttachments");
 
       prismaMock.message.findFirst.mockResolvedValue({
         id: "msg-1",

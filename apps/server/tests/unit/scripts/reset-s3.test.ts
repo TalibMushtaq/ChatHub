@@ -107,7 +107,9 @@ describe("collectApplicationKeys", () => {
 describe("chunkKeys", () => {
   it("splits keys into max-size batches", () => {
     const keys = Array.from({ length: 2500 }, (_, i) => `k${i}`);
-    expect(chunkKeys(keys, 1000).map((c) => c.length)).toEqual([1000, 1000, 500]);
+    expect(chunkKeys(keys, 1000).map((c) => c.length)).toEqual([
+      1000, 1000, 500,
+    ]);
   });
 
   it("returns no batches for an empty list", () => {

@@ -130,7 +130,7 @@ async function main() {
   const s3 = new S3Service(config);
 
   console.log(
-    `Environment: ${isProduction ? "production" : process.env.NODE_ENV ?? "development"}`,
+    `Environment: ${isProduction ? "production" : (process.env.NODE_ENV ?? "development")}`,
   );
   console.log(`Bucket: ${config.bucket}`);
   console.log(`Protected prefix: ${PROTECTED_PREFIX}/`);
@@ -147,9 +147,9 @@ async function main() {
   }
 
   // Discover: pagination is handled by S3Service.listObjects (ListObjectsV2).
-  const keys = (await collectApplicationKeys((prefix) =>
-    s3.listObjects(prefix),
-  )).sort();
+  const keys = (
+    await collectApplicationKeys((prefix) => s3.listObjects(prefix))
+  ).sort();
 
   // Safety gate 3: never allow a protected key into the deletion set. Fail
   // loudly instead of skipping silently, so a bug is impossible to miss.
@@ -161,7 +161,9 @@ async function main() {
     for (const key of protectedHits) {
       console.error(`  REFUSED: ${key}`);
     }
-    console.error(`ABORT: refusing to delete. ${PROTECTED_PREFIX}/ is immutable.`);
+    console.error(
+      `ABORT: refusing to delete. ${PROTECTED_PREFIX}/ is immutable.`,
+    );
     process.exit(1);
   }
 
@@ -194,21 +196,21 @@ async function main() {
   let deletedCount = 0;
   for (const batch of chunkKeys(keys, MAX_DELETE_BATCH)) {
     try {
-      const response = await s3
-        .getClient()
-        .send(
-          new DeleteObjectsCommand({
-            Bucket: config.bucket,
-            Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: false },
-          }),
-        );
+      const response = await s3.getClient().send(
+        new DeleteObjectsCommand({
+          Bucket: config.bucket,
+          Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: false },
+        }),
+      );
       deletedCount += response.Deleted?.length ?? 0;
       for (const err of response.Errors ?? []) {
         if (err.Key) failed.push(err.Key);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`Batch delete request failed (${batch.length} key(s)): ${message}`);
+      console.error(
+        `Batch delete request failed (${batch.length} key(s)): ${message}`,
+      );
       failed.push(...batch);
     }
   }
@@ -234,7 +236,8 @@ const isDirectRun =
 
 if (isDirectRun) {
   main().catch((err: unknown) => {
-    const message = err instanceof Error ? err.stack ?? err.message : String(err);
+    const message =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
     console.error("reset-s3 failed unexpectedly:", message);
     process.exit(1);
   });
