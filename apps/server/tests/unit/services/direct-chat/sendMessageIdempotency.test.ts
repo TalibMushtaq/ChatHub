@@ -33,6 +33,7 @@ describe("sendMessage - idempotency branches", () => {
       createMockTransaction(prismaMock),
     );
     prismaMock.message.create.mockResolvedValue(msg as any);
+    prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({ id: "dc1" } as any);
 
     await sendMessage(
@@ -52,6 +53,7 @@ describe("sendMessage - idempotency branches", () => {
       createMockTransaction(prismaMock),
     );
     prismaMock.message.create.mockResolvedValue(msg as any);
+    prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({ id: "dc1" } as any);
 
     await sendMessage(
@@ -68,7 +70,11 @@ describe("sendMessage - idempotency branches", () => {
   it("should re-send when the idempotency key points at a deleted message", async () => {
     const msg = createMessage({ id: "msg-3", directChatId: "dc1" });
     vi.mocked(checkIdempotency).mockResolvedValueOnce("msg-gone");
-    prismaMock.message.findUnique.mockResolvedValue(null);
+    // First findUnique is the idempotency check (deleted → null),
+    // second is the post-create re-fetch inside the transaction.
+    prismaMock.message.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(msg as any);
     prismaMock.$transaction.mockImplementation(
       createMockTransaction(prismaMock),
     );

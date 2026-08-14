@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerRoomChat } from "../../../../src/routes/room/roomChat";
-import { prismaMock, resetPrismaMock } from "../../mocks/prisma";
+import { prismaMock, resetPrismaMock, createMockTransaction } from "../../mocks/prisma";
 
 // Mock socketAccess
 vi.mock("../../../src/middleware/socketAccess", () => ({
@@ -81,6 +81,77 @@ describe("registerRoomChat with attachments", () => {
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({ ok: true }),
     );
+  });
+
+  it("should broadcast a message with populated attachments", async () => {
+    const { handlers } = createSocketWithHandlers("u1");
+
+    const msg = {
+      id: "msg-1",
+      content: null,
+      senderId: "u1",
+      chatRoomId: "room-1",
+      messageType: "IMAGE",
+      createdAt: new Date(),
+      attachments: [],
+    };
+
+    const msgWithAttachments = {
+      ...msg,
+      attachments: [
+        {
+          id: "att-1",
+          filename: "photo.jpg",
+          mimeType: "image/jpeg",
+          size: 12345,
+          width: null,
+          height: null,
+          thumbnailKey: null,
+        },
+      ],
+    };
+
+    // Execute the real transaction callback instead of mocking the return
+    prismaMock.$transaction.mockImplementation(
+      createMockTransaction(prismaMock),
+    );
+    prismaMock.message.create.mockResolvedValue(msg as any);
+    prismaMock.message.findUnique.mockResolvedValue(msgWithAttachments as any);
+    prismaMock.attachment.findMany.mockResolvedValue([
+      { id: "att-1", status: "PENDING", uploaderId: "u1" },
+    ] as any);
+    prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 } as any);
+    prismaMock.chatRoom.update.mockResolvedValue({ id: "room-1" } as any);
+
+    const callback = vi.fn();
+    await handlers["chatroom:message"](
+      {
+        chatRoomId: "room-1",
+        messageType: "IMAGE",
+        attachmentIds: ["att-1"],
+      },
+      callback,
+    );
+
+    // The ack should carry the re-fetched message with populated attachments
+    expect(callback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ok: true,
+        message: expect.objectContaining({
+          attachments: expect.arrayContaining([
+            expect.objectContaining({ id: "att-1" }),
+          ]),
+        }),
+      }),
+    );
+
+    // The socket broadcast should also carry populated attachments
+    expect(mockIo.to).toHaveBeenCalledWith("room:room-1");
+    const emitCall = mockIo.to.mock.results[0]?.value.emit;
+    if (emitCall) {
+      const broadcastMsg = emitCall.mock.calls[0]?.[1];
+      expect(broadcastMsg.attachments).toHaveLength(1);
+    }
   });
 
   it("should reject SYSTEM message from client", async () => {

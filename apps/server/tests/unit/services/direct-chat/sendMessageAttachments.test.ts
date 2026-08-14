@@ -39,6 +39,7 @@ describe("sendMessage with attachments", () => {
       createMockTransaction(prismaMock),
     );
     prismaMock.message.create.mockResolvedValue(msg as any);
+    prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({ id: "dc1" } as any);
 
     const result = await sendMessage(
@@ -61,6 +62,11 @@ describe("sendMessage with attachments", () => {
         }),
       }),
     );
+    expect(prismaMock.message.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: msg.id },
+      }),
+    );
     expect(prismaMock.directChat.update).toHaveBeenCalledWith({
       where: { id: "dc1" },
       data: { lastMessageAt: expect.any(Date) },
@@ -76,10 +82,26 @@ describe("sendMessage with attachments", () => {
       messageType: "IMAGE",
     });
 
+    const msgWithAttachments = {
+      ...msg,
+      attachments: [
+        {
+          id: "att-1",
+          filename: "photo.jpg",
+          mimeType: "image/jpeg",
+          size: 12345,
+          width: null,
+          height: null,
+          thumbnailKey: null,
+        },
+      ],
+    };
+
     prismaMock.$transaction.mockImplementation(
       createMockTransaction(prismaMock),
     );
     prismaMock.message.create.mockResolvedValue(msg as any);
+    prismaMock.message.findUnique.mockResolvedValue(msgWithAttachments as any);
     prismaMock.attachment.findMany.mockResolvedValue([
       {
         id: "att-1",
@@ -113,7 +135,13 @@ describe("sendMessage with attachments", () => {
         data: { status: "ATTACHED", messageId: msg.id },
       }),
     );
-    expect(result).toEqual(msg);
+    expect(prismaMock.message.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: msg.id },
+      }),
+    );
+    expect(result).toEqual(msgWithAttachments);
+    expect(result.attachments).toHaveLength(1);
   });
 
   it("should reject attachment hijacking", async () => {

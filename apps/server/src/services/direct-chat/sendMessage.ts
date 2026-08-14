@@ -64,7 +64,8 @@ export async function sendMessage(
       select: messageWithAttachmentsSelect,
     });
 
-    // Link attachments
+    // Link attachments, then re-fetch so the returned message includes the
+    // now-linked attachment rows (the create() result has attachments: []).
     if (attachmentIds && attachmentIds.length > 0) {
       await transitionAttachmentsToAttached(tx, attachmentIds, message.id);
     }
@@ -74,7 +75,16 @@ export async function sendMessage(
       data: { lastMessageAt: new Date() },
     });
 
-    return message;
+    const updated = await tx.message.findUnique({
+      where: { id: message.id },
+      select: messageWithAttachmentsSelect,
+    });
+
+    // The message was just created above in the same transaction, so this
+    // lookup is guaranteed to succeed.
+    if (!updated) throw new Error("Message disappeared after creation");
+
+    return updated;
   });
 
   // Step 6: Store idempotency key (after transaction succeeds)

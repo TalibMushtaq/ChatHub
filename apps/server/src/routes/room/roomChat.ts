@@ -211,7 +211,17 @@ export function registerRoomChat(io: Server, socket: Socket) {
           data: { lastMessageAt: new Date() },
         });
 
-        return msg;
+        // Re-fetch with linked attachments so the socket broadcast and ack
+        // response carry the complete message (the create() result has []).
+        const updated = await tx.message.findUnique({
+          where: { id: msg.id },
+          select: messageWithAttachmentsSelect,
+        });
+
+        // The message was just created above in the same transaction.
+        if (!updated) throw new Error("Message disappeared after creation");
+
+        return updated;
       });
 
       // Store idempotency key after transaction succeeds

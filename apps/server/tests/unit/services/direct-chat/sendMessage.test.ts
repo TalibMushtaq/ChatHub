@@ -23,6 +23,7 @@ describe("sendMessage", () => {
       createMockTransaction(prismaMock),
     );
     prismaMock.message.create.mockResolvedValue(msg as any);
+    prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({ id: "dc1" } as any);
 
     const result = await sendMessage("dc1", "u1", {
@@ -39,6 +40,11 @@ describe("sendMessage", () => {
       },
       select: expect.any(Object),
     });
+    expect(prismaMock.message.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: msg.id },
+      }),
+    );
     expect(prismaMock.directChat.update).toHaveBeenCalledWith({
       where: { id: "dc1" },
       data: { lastMessageAt: expect.any(Date) },
@@ -52,6 +58,7 @@ describe("sendMessage", () => {
       createMockTransaction(prismaMock),
     );
     prismaMock.message.create.mockResolvedValue(msg as any);
+    prismaMock.message.findUnique.mockResolvedValue(msg as any);
     prismaMock.directChat.update.mockResolvedValue({} as any);
 
     await sendMessage("dc1", "u1", {
