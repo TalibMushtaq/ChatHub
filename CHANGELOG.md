@@ -1,3 +1,43 @@
+## [2026-08-14] - Raise Message Character Limit to 30k for DMs and Rooms
+
+**What changed:** Raised `MAX_MESSAGE_LENGTH` from 5000 to 30000 in `packages/validators/src/direct-chat.ts` and `apps/server/src/constants/direct-chat.ts`, and `MAX_ROOM_MESSAGE_LENGTH` from 2000 to 30000 in `packages/validators/src/roomChat.ts`. Updated the "too long" rejection tests in `apps/server/tests/unit/validators/direct-chat.test.ts` and `roomChat.test.ts` to use 30001 characters.
+
+**Why:** Users needed to send longer messages in both DMs and rooms.
+
+**Impact:** The zod send/edit schemas for both DM (`sendMessageSchema`, `editMessageSchema`) and room (`chatRoomMessageSchema`, `chatRoomEditMessageSchema`) now accept up to 30000 characters. No DB change needed — `Message.content` is unconstrained `String?` (Postgres TEXT). No client-side composer cap existed.
+
+**Follow-ups:** None.
+
+## [2026-08-14] - Remove `menu-btn` Class and Flatten `...` Button Classes
+
+**What changed:** In `apps/web/components/app/ThreadPanel.tsx` (`MessageRow`), removed the unused `menu-btn` class from the three-dot button (only `.landing .menu-btn` styles exist, scoped to the marketing page) and flattened the button `className` so `opacity-0`/`opacity-100`, `pointer-events-none`/`pointer-events-auto`, and `group-hover:*` appear as explicit literal strings rather than inside a nested ternary.
+
+**Why:** The `menu-btn` class is dead in the app shell and the nested-ternary class construction is the only complex Tailwind class expression in the file, the most likely spot for Tailwind's scanner to miss a utility.
+
+**Impact:** Only `apps/web/components/app/ThreadPanel.tsx` and `CHANGELOG.md` changed. Behavior unchanged: desktop hides the button at rest and reveals it on row hover; touch reveals it on bubble tap. No layout shift.
+
+**Follow-ups:** If the button is still visible at rest, inspect computed `opacity`/`pointer-events` and whether `.group-hover:opacity-100` is generated before considering a React-driven hover fallback.
+
+## [2026-08-14] - Refine Chat Message `...` Button Spacing and Reveal
+
+**What changed:** In `apps/web/components/app/ThreadPanel.tsx` (`MessageRow`), tightened the own-message `...` button to sit ~5px from the message bubble (via `-mr-[4px]` on the per-message wrapper) and made the button hidden by default. Hover-capable inputs reveal it through `group-hover:opacity-100` with a 150ms opacity transition; touch devices get a tap fallback driven by a `(hover: hover)` media-query check, toggling the button on bubble tap and hiding it on tapping elsewhere or tapping the bubble again. The button keeps its layout space while invisible via `opacity`/`pointer-events` instead of `display: none`.
+
+**Why:** The button sat ~9px from the bubble and was always visible on every input type; on touch, hover never fires, so the reveal now uses a tap-to-toggle fallback instead of relying on hover alone.
+
+**Impact:** Only `apps/web/components/app/ThreadPanel.tsx` and `CHANGELOG.md` changed. Timestamp, read ticks, bubble styling, and the Edit/Delete actions are unchanged.
+
+**Follow-ups:** None.
+
+## [2026-08-14] - Fix Chat Message `...` Menu Positioning
+
+**What changed:** In `apps/web/components/app/ThreadPanel.tsx` (`MessageRow`), moved the own-message `...` button to the left of the message bubble, wrapped the button and Edit/Delete menu in a per-message `relative` container, anchored the menu absolutely to it (vertically centered, opening to the left with an 8px gap, and flipping to the right when the other side of the `.msgs` scroll container has more horizontal room), and added a `document` `mousedown` listener so clicking outside the wrapper closes the menu and only one message menu stays open.
+
+**Why:** The menu was positioned at `left: 12px` relative to the full-width message row, so it rendered detached at the far-left of the chat viewport instead of beside the `...` button, and a menu could stay open when clicking elsewhere.
+
+**Impact:** Only `apps/web/components/app/ThreadPanel.tsx` and `CHANGELOG.md` changed. Own-message layout is now `[...][bubble]`; received-message layout and the Edit/Delete actions are unchanged.
+
+**Follow-ups:** None.
+
 ## [2026-08-14] - Fix Room Avatar in Room Info Modal
 
 **What changed:** `apps/web/components/app/Modals.tsx` now passes `src={info.avatar}` to the `AppAvatar` in `RoomInfoModal`, matching how the room avatar is rendered in the room list and thread header.

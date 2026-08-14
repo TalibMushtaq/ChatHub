@@ -464,10 +464,46 @@ function MessageRow({
   onDismissFailed: (messageId: string) => void;
 }) {
   const [menu, setMenu] = useState(false);
+  const [menuDir, setMenuDir] = useState<"left" | "right">("left");
+  const [tapReveal, setTapReveal] = useState(false);
+  const [canHover, setCanHover] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const colRef = useRef<HTMLDivElement>(null);
   const withinEdit =
     Date.now() - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS;
   const withinDelete =
     Date.now() - new Date(m.createdAt).getTime() < DELETE_WINDOW_MS;
+
+  // why: only hover-capable inputs get the group-hover reveal; touch devices
+  // have no hover, so track that capability to drive the tap-to-reveal
+  // fallback instead of relying on hover alone.
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: hover)");
+    setCanHover(mq.matches);
+    const onChange = () => setCanHover(mq.matches);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+
+  // why: close the menu on any outside mousedown; because mousedown fires
+  // before click, a click on another message's button also collapses this
+  // menu before that menu opens. On touch, the same outside tap hides the
+  // tap-revealed button too — but taps on the bubble itself are left to the
+  // bubble's toggle handler so the reveal state flips exactly once per tap.
+  useEffect(() => {
+    if (!menu && !(!canHover && tapReveal)) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      setMenu(false);
+      if (!canHover && colRef.current && !colRef.current.contains(t)) {
+        setTapReveal(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menu, canHover, tapReveal]);
 
   const status = readStatusOf(m, mine, receipts, isRoom);
   // Readers other than self, and how many of them have passed this message.
@@ -513,6 +549,21 @@ function MessageRow({
       </div>
     ) : null;
 
+  // why: pick the side of the button with more horizontal room inside the
+  // scroll container so the menu is never clipped by .msgs overflow-y-auto.
+  const toggleMenu = () => {
+    if (!menu && btnRef.current) {
+      const b = btnRef.current.getBoundingClientRect();
+      const s = btnRef.current.closest(".msgs")?.getBoundingClientRect();
+      if (s) {
+        const leftRoom = b.left - s.left;
+        const rightRoom = s.right - b.right;
+        setMenuDir(leftRoom >= rightRoom ? "left" : "right");
+      }
+    }
+    setMenu((v) => !v);
+  };
+
   return (
     <div
       className={`msg-row group my-0.5 flex items-end gap-[9px] animate-[pop_.16s_cubic-bezier(.2,.8,.2,1)] ${isOwn ? "justify-end" : ""}`}
@@ -528,7 +579,73 @@ function MessageRow({
           />
         </div>
       )}
+
+      {isOwn && !m.isDeleted && (withinEdit || withinDelete) && (
+        <div ref={wrapRef} className="relative -mr-[4px] flex-none self-center">
+          <button
+            ref={btnRef}
+            className={`rounded-full text-muted transition-opacity duration-150 ease-app cursor-pointer ${
+              canHover
+                ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                : tapReveal
+                  ? "opacity-100 pointer-events-auto"
+                  : "opacity-0 pointer-events-none"
+            }`}
+            onClick={toggleMenu}
+            aria-label="Message actions"
+          >
+            <MoreIcon className="h-5 w-5" />
+          </button>
+          {/* why: the menu is anchored to the per-message wrapper (not the chat
+              viewport) so it stays beside this message while scrolling; the
+              open direction is chosen dynamically by toggleMenu(). */}
+          {menu && (
+            <div
+              className="absolute z-[90] min-w-[190px] rounded-[14px] border border-border bg-surface p-1.5 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
+              style={
+                menuDir === "left"
+                  ? {
+                      right: "calc(100% + 8px)",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                    }
+                  : {
+                      left: "calc(100% + 8px)",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                    }
+              }
+              onClick={(e) => e.stopPropagation()}
+            >
+              {withinEdit && (
+                <button
+                  className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
+                  onClick={() => {
+                    setMenu(false);
+                    onEdit();
+                  }}
+                >
+                  <EditIcon className="h-4 w-4 flex-none" /> Edit
+                </button>
+              )}
+              {withinDelete && (
+                <button
+                  className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
+                  onClick={() => {
+                    setMenu(false);
+                    onDelete();
+                  }}
+                >
+                  <TrashIcon className="h-4 w-4 flex-none" /> Delete
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div
+        ref={colRef}
         className={`col flex min-w-0 max-w-[min(74%,560px)] flex-col ${isOwn ? "items-end" : ""}`}
       >
         <div
@@ -557,6 +674,11 @@ function MessageRow({
                 ? "rounded-br-[6px] rounded-bl-[18px] border-transparent bg-accent-btn text-accent-on"
                 : "rounded-bl-[6px] rounded-br-[18px] border border-border bg-surface-2"
             }`}
+            onClick={
+              !canHover && isOwn && !m.isDeleted && (withinEdit || withinDelete)
+                ? () => setTapReveal((v) => !v)
+                : undefined
+            }
           >
             {m.content && <span>{m.content}</span>}
             {m.attachments && m.attachments.length > 0 && (
@@ -578,55 +700,6 @@ function MessageRow({
 
         {ticks}
       </div>
-
-      {isOwn && !m.isDeleted && (withinEdit || withinDelete) && (
-        <>
-          <button
-            className={`menu-btn flex-none self-center rounded-full text-muted transition-opacity duration-150 ease-app cursor-pointer ${
-              isOwn ? "opacity-100" : "opacity-0"
-            } group-hover:opacity-100`}
-            onClick={() => setMenu((v) => !v)}
-            aria-label="Message actions"
-          >
-            <MoreIcon className="h-5 w-5" />
-          </button>
-          {menu && (
-            <div
-              className="fmenu fixed z-[90] min-w-[190px] rounded-[14px] border border-border bg-surface p-1.5 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
-              style={{
-                position: "absolute",
-                left: 12,
-                bottom: 0,
-                transform: "translateY(-4px)",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {withinEdit && (
-                <button
-                  className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
-                  onClick={() => {
-                    setMenu(false);
-                    onEdit();
-                  }}
-                >
-                  <EditIcon className="h-4 w-4 flex-none" /> Edit
-                </button>
-              )}
-              {withinDelete && (
-                <button
-                  className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
-                  onClick={() => {
-                    setMenu(false);
-                    onDelete();
-                  }}
-                >
-                  <TrashIcon className="h-4 w-4 flex-none" /> Delete
-                </button>
-              )}
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }
