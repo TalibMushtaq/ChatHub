@@ -48,7 +48,7 @@ describe("direct-chat validators", () => {
 
     it("should reject content that is too long", () => {
       const result = sendMessageSchema.safeParse({
-        content: "a".repeat(5001),
+        content: "a".repeat(30001),
         messageType: "TEXT",
       });
       expect(result.success).toBe(false);

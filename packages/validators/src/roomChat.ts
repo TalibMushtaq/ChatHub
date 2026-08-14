@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const MAX_ROOM_MESSAGE_LENGTH = 2000;
+export const MAX_ROOM_MESSAGE_LENGTH = 30000;
 
 /**
  * Chat room message schema.

@@ -5,7 +5,7 @@
  */
 import { attachmentSummarySelect } from "./attachment";
 
-export const MAX_MESSAGE_LENGTH = 5000;
+export const MAX_MESSAGE_LENGTH = 30000;
 export const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 export const DELETE_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 export const DEFAULT_PAGE_SIZE = 50;

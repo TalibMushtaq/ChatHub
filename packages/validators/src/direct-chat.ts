@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const MAX_MESSAGE_LENGTH = 5000;
+export const MAX_MESSAGE_LENGTH = 30000;
 export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
 export const startDmSchema = z.object({

@@ -33,7 +33,7 @@ describe("roomChat validators", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "TEXT",
         chatRoomId: "room-1",
-        content: "a".repeat(2001),
+        content: "a".repeat(30001),
       });
       expect(result.success).toBe(false);
     });
