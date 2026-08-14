@@ -40,7 +40,7 @@ export default function ThreadPanel() {
     readReceipts,
     typing,
     user,
-    closeConv,
+    navigateBack,
     openModal,
     sendMessage,
     editMessage,
@@ -247,8 +247,8 @@ export default function ThreadPanel() {
     <>
       <div className="thread-head flex items-center gap-3 border-b border-border bg-surface px-[14px] py-[11px]">
         <button
-          className={`${iconBtn} back h-10 w-10 hidden max-[760px]:inline-flex`}
-          onClick={closeConv}
+          className={`${iconBtn} back h-10 w-10 hidden max-md:inline-flex`}
+          onClick={navigateBack}
           aria-label="Back"
         >
           <BackIcon />

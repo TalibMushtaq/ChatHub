@@ -73,6 +73,7 @@ export interface ShellCtx {
   search: (q: string) => Promise<void>;
   openConv: (c: ActiveConv) => void;
   closeConv: () => void;
+  navigateBack: () => void;
   refreshLists: () => Promise<void>;
   /** Re-fetch the current user (e.g. after an avatar update). */
   refreshUser: () => Promise<void>;

@@ -93,6 +93,9 @@ export default function AppShell() {
   const typingRef = useRef<Record<string, TypingUser[]>>({});
   // conversation key -> userId -> pending "stopped typing" removal timer.
   const typingTimersRef = useRef<Record<string, Record<string, number>>>({});
+  // Track whether we pushed a synthetic history entry for the mobile thread
+  // view so that the hardware back button can close it.
+  const threadHistoryRef = useRef(false);
 
   function setMsgsBoth(
     fn: (prev: Record<string, Message[]>) => Record<string, Message[]>,
@@ -566,6 +569,25 @@ export default function AppShell() {
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Browser back-button support for mobile thread view
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      if (
+        threadHistoryRef.current &&
+        e.state &&
+        typeof e.state === "object" &&
+        (e.state as { threadOpen?: boolean }).threadOpen === true
+      ) {
+        closeConv();
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Conversation lifecycle
   // ---------------------------------------------------------------------------
   function joinSocket(c: ActiveConv) {
@@ -620,6 +642,7 @@ export default function AppShell() {
 
   function openConv(c: ActiveConv) {
     const prev = activeRef.current;
+    const wasActive = prev != null;
     if (prev && !(prev.kind === c.kind && prev.id === c.id)) leaveSocket(prev);
     activeRef.current = c;
     setActive(c);
@@ -654,6 +677,16 @@ export default function AppShell() {
     } else {
       markRead();
     }
+    // Push a synthetic history entry on mobile only when transitioning from
+    // the list view (no active conversation) to the thread view. Switching
+    // between rooms while already in the thread view does not add entries.
+    if (!wasActive && typeof window !== "undefined") {
+      const isMobile = window.innerWidth < 768;
+      if (isMobile && !threadHistoryRef.current) {
+        threadHistoryRef.current = true;
+        window.history.pushState({ threadOpen: true }, "");
+      }
+    }
   }
 
   function closeConv() {
@@ -661,6 +694,16 @@ export default function AppShell() {
     if (a) leaveSocket(a);
     activeRef.current = null;
     setActive(null);
+    threadHistoryRef.current = false;
+  }
+
+  function navigateBack() {
+    if (threadHistoryRef.current) {
+      threadHistoryRef.current = false;
+      window.history.back();
+    } else {
+      closeConv();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -967,6 +1010,7 @@ export default function AppShell() {
     search,
     openConv,
     closeConv,
+    navigateBack,
     refreshLists,
     refreshUser,
     openModal,
@@ -990,11 +1034,12 @@ export default function AppShell() {
   return (
     <ShellContext.Provider value={ctx}>
       <div
-        className={`app group h-full overflow-hidden bg-bg font-body text-fg antialiased ${active ? "data-thread-open" : ""}`}
+        data-thread-open={active ? "" : undefined}
+        className="app group h-full overflow-hidden bg-bg font-body text-fg antialiased"
       >
-        <div className="shell grid h-dvh grid-cols-[76px_330px_1fr] max-[760px]:grid-cols-1">
+        <div className="shell grid h-dvh grid-cols-[76px_330px_1fr] max-md:grid-cols-1">
           {/* Rail */}
-          <aside className="rail flex flex-col items-center border-r border-border bg-surface px-0 py-4 pb-3 max-[760px]:hidden">
+          <aside className="rail flex flex-col items-center border-r border-border bg-surface px-0 py-4 pb-3 max-md:hidden">
             <div className="logo flex items-center justify-center">
               <AppAvatar
                 name="ChatHubby"
@@ -1089,24 +1134,29 @@ export default function AppShell() {
           </aside>
 
           {/* List column */}
-          <section className="list flex min-w-0 flex-col border-r border-border bg-surface max-[760px]:pb-[70px]">
+          <section className="list flex min-w-0 flex-col border-r border-border bg-surface max-md:pb-[70px] max-md:group-data-[thread-open]:hidden">
             <ListPanel />
           </section>
 
           {/* Thread column: slides in as a full-screen sheet on mobile. */}
           <aside
-            className={`thread flex min-h-0 min-w-0 flex-col bg-bg max-[760px]:fixed max-[760px]:inset-0 max-[760px]:z-30 max-[760px]:translate-x-full max-[760px]:transition-transform max-[760px]:duration-[260ms] max-[760px]:ease-app ${active ? "group-data-[thread-open]:max-[760px]:translate-x-0" : ""}`}
+            className={`thread flex min-h-0 min-w-0 flex-col bg-bg max-md:fixed max-md:inset-0 max-md:z-30 max-md:translate-x-full max-md:transition-transform max-md:duration-[260ms] max-md:ease-app ${active ? "max-md:group-data-[thread-open]:translate-x-0" : ""}`}
           >
             <ThreadPanel />
           </aside>
         </div>
 
         {/* Mobile bottom nav */}
-        <nav className="bottomnav fixed inset-x-0 bottom-0 z-20 hidden border-t border-border bg-surface px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 max-[760px]:block">
+        <nav className="bottomnav fixed inset-x-0 bottom-0 z-20 hidden border-t border-border bg-surface px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 max-md:block">
           <div className="bn-row grid grid-cols-4 gap-1.5">
             <button
               className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "dm" ? "bg-accent-soft text-accent-solid" : ""}`}
-              onClick={() => setTab("dm")}
+              onClick={() => {
+                setTab("dm");
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  navigateBack();
+                }
+              }}
             >
               <ChatIcon className="h-[21px] w-[21px]" />
               {dmUnread > 0 && (
@@ -1118,7 +1168,12 @@ export default function AppShell() {
             </button>
             <button
               className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "room" ? "bg-accent-soft text-accent-solid" : ""}`}
-              onClick={() => setTab("room")}
+              onClick={() => {
+                setTab("room");
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  navigateBack();
+                }
+              }}
             >
               <UsersIcon className="h-[21px] w-[21px]" />
               {roomUnread > 0 && (
@@ -1130,14 +1185,24 @@ export default function AppShell() {
             </button>
             <button
               className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "search" ? "bg-accent-soft text-accent-solid" : ""}`}
-              onClick={() => setTab("search")}
+              onClick={() => {
+                setTab("search");
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  navigateBack();
+                }
+              }}
             >
               <SearchIcon className="h-[21px] w-[21px]" />
               Search
             </button>
             <button
               className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "settings" ? "bg-accent-soft text-accent-solid" : ""}`}
-              onClick={() => setTab("settings")}
+              onClick={() => {
+                setTab("settings");
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  navigateBack();
+                }
+              }}
             >
               <GearIcon className="h-[21px] w-[21px]" />
               Settings
