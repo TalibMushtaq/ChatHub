@@ -23,6 +23,7 @@ describe("deleteMessage (room)", () => {
       id: "msg-1",
       chatRoomId: "r1",
       deletedAt: new Date(),
+      attachments: [],
     } as any);
 
     const result = await deleteMessage("u1", "r1", "msg-1");
@@ -33,8 +34,14 @@ describe("deleteMessage (room)", () => {
         data: {
           isDeleted: true,
           deletedAt: expect.any(Date),
-          content: null,
+          content: "deleted",
         },
+        select: expect.objectContaining({
+          id: true,
+          chatRoomId: true,
+          deletedAt: true,
+          attachments: { select: { id: true } },
+        }),
       }),
     );
     expect(result.id).toBe("msg-1");

@@ -4,6 +4,6 @@
     "lib": ["ES2022"],
     "isolatedModules": true
   },
-  "include": ["src", "tests"],
+  "include": ["src", "tests", "scripts"],
   "exclude": ["**/*.test.ts"]
 }

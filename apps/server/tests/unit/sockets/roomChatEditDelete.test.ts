@@ -7,6 +7,10 @@ vi.mock("../../../src/middleware/socketAccess", () => ({
   assertDirectChatAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../../../src/services/attachment/deleteMessageAttachments", () => ({
+  deleteMessageAttachments: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe("registerRoomChat - edit and delete", () => {
   const mockIo = {
     to: vi.fn().mockReturnValue({ emit: vi.fn() }),
@@ -259,6 +263,7 @@ describe("registerRoomChat - edit and delete", () => {
         id: "msg-1",
         chatRoomId: "room-1",
         deletedAt: new Date(),
+        attachments: [],
       } as any);
 
       const callback = vi.fn();
@@ -274,6 +279,44 @@ describe("registerRoomChat - edit and delete", () => {
         expect.objectContaining({ ok: true }),
       );
       expect(mockIo.to).toHaveBeenCalledWith("room:room-1");
+    });
+
+    it("should purge the message's attachments after delete", async () => {
+      const { handlers } = createSocketWithHandlers("u1");
+      const { deleteMessageAttachments } = await import(
+        "../../../../src/services/attachment/deleteMessageAttachments"
+      );
+
+      prismaMock.message.findFirst.mockResolvedValue({
+        id: "msg-1",
+        senderId: "u1",
+        chatRoomId: "room-1",
+        isDeleted: false,
+        createdAt: new Date(Date.now() - 60_000),
+      } as any);
+
+      prismaMock.message.update.mockResolvedValue({
+        id: "msg-1",
+        chatRoomId: "room-1",
+        deletedAt: new Date(),
+        attachments: [{ id: "att-1" }, { id: "att-2" }],
+      } as any);
+
+      const callback = vi.fn();
+      await handlers["chatroom:message:delete"](
+        {
+          chatRoomId: "room-1",
+          messageId: "msg-1",
+        },
+        callback,
+      );
+
+      const cleanupCalls = vi.mocked(deleteMessageAttachments).mock.calls;
+      expect(cleanupCalls[0]?.[1]).toEqual(["att-1", "att-2"]);
+      expect(cleanupCalls[0]?.[2]).toBe("u1");
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true }),
+      );
     });
 
     it("should reject delete from non-sender", async () => {

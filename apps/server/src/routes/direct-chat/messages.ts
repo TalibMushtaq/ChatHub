@@ -9,7 +9,8 @@ import { deleteMessage } from "../../services/direct-chat/deleteMessage";
 import { createRateLimiter, enforceRateLimit } from "../../lib/rateLimiter";
 import { unwrapParsed } from "../../lib/validate";
 import type { S3Service } from "../../services/S3Service";
-import { getRequiredS3Service } from "../../lib/s3";
+import { getOptionalS3Service, getRequiredS3Service } from "../../lib/s3";
+import { deleteMessageAttachments } from "../../services/attachment/deleteMessageAttachments";
 import { MessageType } from "@prisma/client";
 import {
   sendMessageSchema,
@@ -169,6 +170,14 @@ router.delete(
         deletedAt: deleted.deletedAt,
       });
     }
+
+    // Permanently purge the message's attachments; best-effort so a storage
+    // failure can't roll back the delete the user already confirmed.
+    await deleteMessageAttachments(
+      getOptionalS3Service(),
+      (deleted.attachments ?? []).map((a) => a.id),
+      userId,
+    );
 
     res.json({ ok: true });
   }),

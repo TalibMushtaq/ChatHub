@@ -1,3 +1,13 @@
+## [2026-08-15] - Destructive S3 Storage Reset Script
+
+**What changed:** Added `apps/server/scripts/reset-s3.ts`, a standalone operator utility exposed as `pnpm reset:s3` in `apps/server/package.json`. It lists objects only under the application-owned prefixes (`attachments/room/`, `attachments/dm/`, `attachments/voice/`, `attachments/thumbnails/`, `avatars/`) via the existing `S3Service.listObjects()` (pagination handled by `ListObjectsV2`), then deletes them in batches of up to 1000 with `DeleteObjectsCommand` through the existing `S3Service`/`buildS3ConfigFromEnv()` config (bucket from `AWS_S3_BUCKET_NAME`). Requires `RESET_S3=true` (plus `RESET_S3_PRODUCTION=true` when `NODE_ENV=production`), prints the environment/bucket/prefixes, requires an explicit "yes" prompt before deleting, supports `--dry-run` (zero deletes), reports found/deleted/failed counts, and exits non-zero on any failure. The `defaults/` prefix is immutable: `isProtectedKey()` refuses `defaults` and any `defaults/...` key, and `findProtectedKeys()` aborts loudly if a protected key ever appears in the deletion candidate list. The utility functions (`APP_PREFIXES`, `PROTECTED_PREFIX`, `isProtectedKey`, `collectApplicationKeys`, `findProtectedKeys`, `chunkKeys`) are exported for tests; added `apps/server/tests/unit/scripts/reset-s3.test.ts` covering the defaults guard, prefix coverage, discovery/dedup, and batch chunking. Added `scripts` to `apps/server/tsconfig.json` so `check-types` covers the script.
+
+**Why:** There was no way to wipe application-generated S3 data (attachments/avatars) without either leaving orphaned objects or risking the permanent `defaults/` seed assets.
+
+**Impact:** `apps/server` only — new script, new `reset:s3` npm script, tsconfig include change, new unit tests, CHANGELOG entry. No changes to upload/deletion behavior, the S3 runtime services, the database schema, or the `defaults/` assets. Manual utility only; requires env-flag + confirmation, and never deletes the bucket itself.
+
+**Follow-ups:** None.
+
 ## [2026-08-15] - Fix Thread Scrolling and Wrapping for Very Long Messages
 
 **What changed:** Added `min-h-0` to the thread column (`AppShell.tsx`) and the messages scroll container (`ThreadPanel.tsx`) so tall messages scroll inside the thread instead of expanding it past the viewport. Added a `.break-anywhere` utility in `globals.css` and replaced the two invalid `overflow-wrap-anywhere` classes on message bubbles so unbroken 30k-char strings wrap instead of overflowing.

@@ -21,7 +21,15 @@ export type EditedMessage<F extends MessageScopeField> = Scoped<F> & {
 export type DeletedMessage<F extends MessageScopeField> = Scoped<F> & {
   id: string;
   deletedAt: Date | null;
+  /** Attachment ids that must be purged (S3 + DB) once the delete commits. */
+  attachments: { id: string }[];
 };
+
+/**
+ * Literal content stored in place of a deleted message's original text.
+ * The original text is permanently gone; the row survives as a history marker.
+ */
+export const DELETED_MESSAGE_CONTENT = "deleted";
 
 /**
  * Edit a message within the edit window.
@@ -91,19 +99,21 @@ export async function deleteMessageInScope<F extends MessageScopeField>(
     kind: "delete",
   });
 
-  // Null out content to reclaim storage and prevent leaking text after
-  // soft-delete; the UI relies on isDeleted / deletedAt to render a marker.
+  // Permanently replace the original text with a placeholder and soft-delete
+  // the row so the "deleted" marker (history) survives. The UI relies on
+  // isDeleted / deletedAt to render the marker and never shows the placeholder.
   const deleted = await prisma.message.update({
     where: { id: messageId },
     data: {
       isDeleted: true,
       deletedAt: new Date(),
-      content: null,
+      content: DELETED_MESSAGE_CONTENT,
     },
     select: {
       id: true,
       deletedAt: true,
       [scopeField]: true,
+      attachments: { select: { id: true } },
     } as Prisma.MessageSelect,
   });
 

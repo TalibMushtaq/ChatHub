@@ -23,6 +23,7 @@ describe("deleteMessage", () => {
       id: msg.id,
       directChatId: msg.directChatId,
       deletedAt: new Date(),
+      attachments: [],
     } as any);
 
     const result = await deleteMessage("u1", msg.id);
@@ -33,8 +34,17 @@ describe("deleteMessage", () => {
     });
     expect(prismaMock.message.update).toHaveBeenCalledWith({
       where: { id: msg.id },
-      data: { isDeleted: true, deletedAt: expect.any(Date), content: null },
-      select: { id: true, directChatId: true, deletedAt: true },
+      data: {
+        isDeleted: true,
+        deletedAt: expect.any(Date),
+        content: "deleted",
+      },
+      select: {
+        id: true,
+        directChatId: true,
+        deletedAt: true,
+        attachments: { select: { id: true } },
+      },
     });
     expect(result.id).toBe(msg.id);
   });

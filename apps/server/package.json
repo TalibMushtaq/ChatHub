@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prisma": "prisma"
+    "prisma": "prisma",
+    "reset:s3": "tsx scripts/reset-s3.ts"
   },
   "prisma": {
     "schema": "db/schema.prisma"

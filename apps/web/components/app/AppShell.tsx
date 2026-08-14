@@ -371,7 +371,8 @@ export default function AppShell() {
                 ...m,
                 isDeleted: true,
                 deletedAt: patch.deletedAt,
-                content: null,
+                // Mirror the server's placeholder so client state matches a refetch.
+                content: "deleted",
               }
             : m,
         ),
