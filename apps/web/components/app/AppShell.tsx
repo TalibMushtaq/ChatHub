@@ -142,9 +142,7 @@ export default function AppShell() {
     setTyping(typingRef.current);
   }
   function setPresenceBoth(
-    fn: (
-      prev: Record<string, PresenceInfo>,
-    ) => Record<string, PresenceInfo>,
+    fn: (prev: Record<string, PresenceInfo>) => Record<string, PresenceInfo>,
   ) {
     presenceRef.current = fn(presenceRef.current);
     setPresence(presenceRef.current);
@@ -403,7 +401,8 @@ export default function AppShell() {
             kind: "dm",
             conversationId: a.id,
             messageId: msg.id,
-            senderName: norm.User?.displayName ?? norm.User?.username ?? "Someone",
+            senderName:
+              norm.User?.displayName ?? norm.User?.username ?? "Someone",
             messageType: msg.messageType,
             content: msg.content,
           });
@@ -422,7 +421,8 @@ export default function AppShell() {
             kind: "room",
             conversationId: a.id,
             messageId: msg.id,
-            senderName: norm.User?.displayName ?? norm.User?.username ?? "Someone",
+            senderName:
+              norm.User?.displayName ?? norm.User?.username ?? "Someone",
             roomName: a.name,
             messageType: msg.messageType,
             content: msg.content,

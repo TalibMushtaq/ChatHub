@@ -79,7 +79,8 @@ function writePref(on: boolean) {
   }
 }
 
-export function notificationPermission(): NotificationPermission | "unsupported" {
+export function notificationPermission():
+  NotificationPermission | "unsupported" {
   if (!notificationsSupported()) return "unsupported";
   return Notification.permission;
 }
@@ -135,7 +136,16 @@ function postToServiceWorker(msg: Record<string, unknown>) {
  * exists. Called from the app shell on mount and from the settings modal.
  */
 export function ensureNotificationsInitialized(): Promise<void> {
-  if (initPromise) return initPromise;
+  if (initPromise) {
+    // Late callers (e.g. the settings modal opening after app init already
+    // finished) would otherwise never hear about the completed init — emit
+    // once more so they pick up the current snapshot.
+    void initPromise.then(() => {
+      checking = false;
+      emit();
+    });
+    return initPromise;
+  }
 
   initPromise = (async () => {
     if (!notificationsSupported()) {
@@ -268,7 +278,10 @@ export function notifyIncomingMessage(input: {
   if (!readPref()) return;
   if (isPushReady()) return;
   if (notifiedIds.has(input.messageId)) return;
-  if (typeof document !== "undefined" && document.visibilityState === "visible") {
+  if (
+    typeof document !== "undefined" &&
+    document.visibilityState === "visible"
+  ) {
     return;
   }
 

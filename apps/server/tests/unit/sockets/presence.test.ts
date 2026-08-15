@@ -62,9 +62,11 @@ function createSocket(
     emit: vi.fn(),
     on: vi
       .fn()
-      .mockImplementation((event: string, handler: (...args: unknown[]) => unknown) => {
-        handlers[event] = handler;
-      }),
+      .mockImplementation(
+        (event: string, handler: (...args: unknown[]) => unknown) => {
+          handlers[event] = handler;
+        },
+      ),
   } as any;
   return { socket, handlers };
 }
@@ -219,7 +221,10 @@ describe("emitPresenceSnapshot", () => {
     );
 
     const { io } = createIo();
-    const { socket } = createSocket({ ...createSocket().socket.data.user, id: "u1" });
+    const { socket } = createSocket({
+      ...createSocket().socket.data.user,
+      id: "u1",
+    });
 
     await emitPresenceSnapshot(io, socket);
 
@@ -250,7 +255,10 @@ describe("registerPresence", () => {
     registerPresence(io, socket);
     await handlers["presence:heartbeat"]!();
 
-    expect(redis.sAdd).toHaveBeenCalledWith("presence:connections:u1", "sock-1");
+    expect(redis.sAdd).toHaveBeenCalledWith(
+      "presence:connections:u1",
+      "sock-1",
+    );
     expect(ownEmit).toHaveBeenCalledWith("presence:changed", {
       userId: "u1",
       presence: "online",
@@ -267,7 +275,11 @@ describe("registerPresence", () => {
     } as any);
     // After the DB write, the blob reflects the new status.
     vi.mocked(redis.get).mockResolvedValue(
-      mockBlob({ ...VISIBLE_BLOB, status: "DND", customStatus: "In a meeting" }),
+      mockBlob({
+        ...VISIBLE_BLOB,
+        status: "DND",
+        customStatus: "In a meeting",
+      }),
     );
 
     const { io, ownEmit } = createIo();
@@ -337,7 +349,10 @@ describe("sweepIdleUsers", () => {
     const store = new Map<string, string>();
     const blobFor = (overrides: Record<string, unknown>) =>
       mockBlob({ ...VISIBLE_BLOB, ...overrides });
-    store.set("presence:status:stale", blobFor({ lastActiveAt: now - 10 * 60_000 }));
+    store.set(
+      "presence:status:stale",
+      blobFor({ lastActiveAt: now - 10 * 60_000 }),
+    );
     store.set("presence:status:fresh", blobFor({ lastActiveAt: now - 10_000 }));
     store.set(
       "presence:status:offline",
@@ -364,7 +379,9 @@ describe("sweepIdleUsers", () => {
     await sweepIdleUsers(io);
 
     // stale -> blob flipped to idle, broadcast (own room real, others gated).
-    expect(JSON.parse(store.get("presence:status:stale")!).presence).toBe("idle");
+    expect(JSON.parse(store.get("presence:status:stale")!).presence).toBe(
+      "idle",
+    );
     expect(io.to).toHaveBeenCalledWith("user:stale");
     expect(ownEmit).toHaveBeenCalledWith(
       "presence:changed",
@@ -376,8 +393,12 @@ describe("sweepIdleUsers", () => {
     );
 
     // fresh and offline -> untouched, no broadcast.
-    expect(JSON.parse(store.get("presence:status:fresh")!).presence).toBe("online");
-    expect(JSON.parse(store.get("presence:status:offline")!).presence).toBe("offline");
+    expect(JSON.parse(store.get("presence:status:fresh")!).presence).toBe(
+      "online",
+    );
+    expect(JSON.parse(store.get("presence:status:offline")!).presence).toBe(
+      "offline",
+    );
     expect(io.to).not.toHaveBeenCalledWith("user:fresh");
     expect(io.to).not.toHaveBeenCalledWith("user:offline");
   });

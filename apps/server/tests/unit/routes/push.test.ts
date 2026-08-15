@@ -40,10 +40,12 @@ describe("POST /push/subscribe", () => {
   it("upserts the subscription for the authenticated user", async () => {
     prismaMock.pushSubscription.upsert.mockResolvedValue({} as any);
 
-    const res = await supertest(createTestApp()).post("/push/subscribe").send({
-      endpoint: "https://push.example/sub1",
-      keys: { p256dh: "abc", auth: "xyz" },
-    });
+    const res = await supertest(createTestApp())
+      .post("/push/subscribe")
+      .send({
+        endpoint: "https://push.example/sub1",
+        keys: { p256dh: "abc", auth: "xyz" },
+      });
 
     expect(res.status).toBe(201);
     expect(prismaMock.pushSubscription.upsert).toHaveBeenCalledWith({
@@ -59,20 +61,24 @@ describe("POST /push/subscribe", () => {
   });
 
   it("rejects an invalid endpoint", async () => {
-    const res = await supertest(createTestApp()).post("/push/subscribe").send({
-      endpoint: "not-a-url",
-      keys: { p256dh: "abc", auth: "xyz" },
-    });
+    const res = await supertest(createTestApp())
+      .post("/push/subscribe")
+      .send({
+        endpoint: "not-a-url",
+        keys: { p256dh: "abc", auth: "xyz" },
+      });
 
     expect(res.status).toBe(400);
     expect(prismaMock.pushSubscription.upsert).not.toHaveBeenCalled();
   });
 
   it("rejects missing key material", async () => {
-    const res = await supertest(createTestApp()).post("/push/subscribe").send({
-      endpoint: "https://push.example/sub1",
-      keys: { p256dh: "" },
-    });
+    const res = await supertest(createTestApp())
+      .post("/push/subscribe")
+      .send({
+        endpoint: "https://push.example/sub1",
+        keys: { p256dh: "" },
+      });
 
     expect(res.status).toBe(400);
     expect(prismaMock.pushSubscription.upsert).not.toHaveBeenCalled();

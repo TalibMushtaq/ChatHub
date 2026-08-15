@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { presenceTone, STATUS_LABELS, STATUS_TONES } from "../components/app/statusTones";
+import {
+  presenceTone,
+  STATUS_LABELS,
+  STATUS_TONES,
+} from "../components/app/statusTones";
 import type { PresenceInfo } from "../components/app/types";
 
 const presence = (p: Partial<PresenceInfo>): PresenceInfo => ({

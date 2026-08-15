@@ -24,10 +24,22 @@ export function useNotifications() {
   const busyRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      if (!cancelled) setState(getNotificationsState());
+    };
     // Subscribe before kicking off init so the async completion re-renders us.
-    const unsub = subscribeNotifications(() => setState(getNotificationsState()));
-    void ensureNotificationsInitialized();
-    return unsub;
+    const unsub = subscribeNotifications(refresh);
+    // Snapshot the current state immediately: init may have finished before
+    // this component mounted (AppShell initializes at app load), in which case
+    // the singleton only emits on *change* and we'd otherwise show stale
+    // initial values (supported=false, prefEnabled=false).
+    refresh();
+    void ensureNotificationsInitialized().then(refresh);
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, []);
 
   async function enable(): Promise<PushEnableResult> {

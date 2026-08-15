@@ -39,9 +39,7 @@ router.patch(
     const { showOnlineStatus, showTypingStatus } = parsed.data;
 
     if (showOnlineStatus === undefined && showTypingStatus === undefined) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Nothing to update" });
+      return res.status(400).json({ ok: false, error: "Nothing to update" });
     }
 
     const user = await prisma.user.update({

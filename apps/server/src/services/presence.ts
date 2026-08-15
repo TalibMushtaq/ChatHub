@@ -66,11 +66,10 @@ async function readState(userId: string): Promise<PresenceState | null> {
   }
 }
 
-async function writeState(
-  userId: string,
-  state: PresenceState,
-): Promise<void> {
-  await redis.set(statusKey(userId), JSON.stringify(state), { EX: PRESENCE_TTL_S });
+async function writeState(userId: string, state: PresenceState): Promise<void> {
+  await redis.set(statusKey(userId), JSON.stringify(state), {
+    EX: PRESENCE_TTL_S,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -135,9 +134,7 @@ export async function removeConnection(
  * Flip a user's presence to "idle" (called by the idle sweep). No-op for
  * users already offline or idle.
  */
-export async function setIdle(
-  userId: string,
-): Promise<PresenceState | null> {
+export async function setIdle(userId: string): Promise<PresenceState | null> {
   const state = await readState(userId);
   if (!state || state.presence === "offline") return null;
   if (state.presence === "idle") return state;

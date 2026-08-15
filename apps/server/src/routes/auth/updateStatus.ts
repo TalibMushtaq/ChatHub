@@ -35,9 +35,7 @@ router.patch(
     const { status, customStatus } = parsed.data;
 
     if (status === undefined && customStatus === undefined) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Nothing to update" });
+      return res.status(400).json({ ok: false, error: "Nothing to update" });
     }
 
     const user = await updateUserStatus(req.user.id, { status, customStatus });

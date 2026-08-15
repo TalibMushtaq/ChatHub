@@ -7,7 +7,13 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useShell, type ModalEntry } from "./state";
 import { ChatAPI, getErrorMessage } from "./api";
 import { displayName, fmtList, fmtTime } from "./helpers";
-import type { Gender, Invitation, JoinLink, JoinRequest, UserStatus } from "./types";
+import type {
+  Gender,
+  Invitation,
+  JoinLink,
+  JoinRequest,
+  UserStatus,
+} from "./types";
 import AppAvatar from "./AppAvatar";
 import AvatarSelector from "./AvatarSelector";
 import { STATUS_OPTIONS, TONE_BG } from "./statusTones";
@@ -1299,8 +1305,8 @@ function PrivacyModal() {
   return (
     <>
       <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
-        Control what others can see about your activity. This never changes
-        what you see yourself.
+        Control what others can see about your activity. This never changes what
+        you see yourself.
       </p>
       <div className={rowItem}>
         <div className={rowGrow}>
@@ -1339,14 +1345,8 @@ function NotificationsModal() {
   // notifications singleton emits its own state changes.
   const { soundEnabled, setSoundEnabled } = useNotificationSound();
   const { toast } = useShell();
-  const {
-    supported,
-    checking,
-    prefEnabled,
-    permission,
-    enable,
-    disable,
-  } = useNotifications();
+  const { supported, checking, prefEnabled, permission, enable, disable } =
+    useNotifications();
 
   async function toggleDesktop(on: boolean) {
     if (!on) {

@@ -3,10 +3,7 @@ import requireAuth from "../middleware/requireAuth";
 import { asyncHandler } from "../middleware/async-handler";
 import { createRateLimiter, enforceRateLimit } from "../lib/rateLimiter";
 import { unwrapParsed } from "../lib/validate";
-import {
-  pushSubscribeSchema,
-  pushUnsubscribeSchema,
-} from "@repo/validators";
+import { pushSubscribeSchema, pushUnsubscribeSchema } from "@repo/validators";
 import {
   upsertPushSubscription,
   deletePushSubscription,

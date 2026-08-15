@@ -280,7 +280,7 @@ export default function ThreadPanel() {
   const members = active.kind === "room" ? (roomMembers[active.id] ?? []) : [];
   const otherPresence =
     active.kind === "dm"
-      ? presence[active.otherUser?.id ?? ""] ?? null
+      ? (presence[active.otherUser?.id ?? ""] ?? null)
       : null;
 
   const sub =

@@ -134,7 +134,9 @@ describe("PATCH /auth/me/status", () => {
   });
 
   it("rejects an empty update", async () => {
-    const res = await supertest(createTestApp()).patch("/auth/me/status").send({});
+    const res = await supertest(createTestApp())
+      .patch("/auth/me/status")
+      .send({});
 
     expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);

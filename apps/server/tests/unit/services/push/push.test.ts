@@ -5,10 +5,7 @@ import {
   upsertPushSubscription,
   deletePushSubscription,
 } from "../../../../src/services/push/push";
-import {
-  prismaMock,
-  resetPrismaMock,
-} from "../../../mocks/prisma";
+import { prismaMock, resetPrismaMock } from "../../../mocks/prisma";
 
 vi.mock("web-push", () => ({
   default: { sendNotification: vi.fn(), setVapidDetails: vi.fn() },

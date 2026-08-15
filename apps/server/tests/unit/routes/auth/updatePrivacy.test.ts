@@ -170,7 +170,9 @@ describe("PATCH /auth/me/privacy", () => {
   });
 
   it("rejects an empty update", async () => {
-    const res = await supertest(createTestApp()).patch("/auth/me/privacy").send({});
+    const res = await supertest(createTestApp())
+      .patch("/auth/me/privacy")
+      .send({});
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Nothing to update");

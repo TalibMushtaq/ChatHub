@@ -6,15 +6,15 @@ import {
 
 describe("notificationBody", () => {
   it("returns a generic preview for media messages", () => {
-    expect(notificationBody({ messageType: "IMAGE", content: "photo.jpg" })).toBe(
-      "[Photo]",
-    );
-    expect(notificationBody({ messageType: "VOICE", content: "clip.m4a" })).toBe(
-      "[Voice message]",
-    );
-    expect(notificationBody({ messageType: "FILE", content: "notes.pdf" })).toBe(
-      "[File]",
-    );
+    expect(
+      notificationBody({ messageType: "IMAGE", content: "photo.jpg" }),
+    ).toBe("[Photo]");
+    expect(
+      notificationBody({ messageType: "VOICE", content: "clip.m4a" }),
+    ).toBe("[Voice message]");
+    expect(
+      notificationBody({ messageType: "FILE", content: "notes.pdf" }),
+    ).toBe("[File]");
   });
 
   it("truncates long text at 140 chars", () => {
@@ -49,7 +49,11 @@ describe("buildPushPayload", () => {
     expect(p.title).toBe("Bob in #Games");
     expect(p.body).toBe("hello");
     expect(p.tag).toBe("chathubby:m1");
-    expect(p.data).toEqual({ kind: "room", conversationId: "r1", messageId: "m1" });
+    expect(p.data).toEqual({
+      kind: "room",
+      conversationId: "r1",
+      messageId: "m1",
+    });
     expect(p.icon).toBe("/chathubby-v2.webp");
   });
 

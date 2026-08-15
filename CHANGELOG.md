@@ -1,3 +1,13 @@
+## [2026-08-16] - Fix Desktop Notifications Toggle Showing Disabled
+
+**What changed:** Fixed the "Desktop notifications" toggle in the settings modal rendering permanently disabled with the "needs a secure connection" note even when the browser fully supports Web Push. The notification singleton only emitted state _changes_; AppShell initializes it at app load, so by the time the user opened Settings → Notifications the init had already completed and the modal never received a snapshot — it kept the hook's initial `{ supported: false, prefEnabled: false }`. `ensureNotificationsInitialized()` in `apps/web/components/app/notifications.ts` now re-emits current state for late callers, and `useNotifications.ts` refreshes its state immediately on mount (and again when init settles).
+
+**Why:** The push subscription flow was correct but unreachable — the switch couldn't be clicked to request the notification permission.
+
+**Impact:** `apps/web` only. No server, schema, or test changes; web typecheck, lint, and 44 tests still pass.
+
+**Follow-ups:** None.
+
 ## [2026-08-16] - Desktop Push Notifications (Web Push + Service Worker)
 
 **What changed:** Added browser/OS push notifications for incoming DMs and room messages, backed by Web Push (VAPID) so they work even when no ChatHubby tab is open.

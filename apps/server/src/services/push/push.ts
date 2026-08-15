@@ -45,9 +45,7 @@ async function resolveRecipients(input: PushNewMessageInput): Promise<{
     select: { userId: true, ChatRoom: { select: { name: true } } },
   });
   return {
-    userIds: members
-      .map((m) => m.userId)
-      .filter((id) => id !== input.senderId),
+    userIds: members.map((m) => m.userId).filter((id) => id !== input.senderId),
     roomName: members[0]?.ChatRoom?.name ?? null,
   };
 }
@@ -67,7 +65,9 @@ function isGoneSubscription(err: unknown): boolean {
  * Each subscription is sent in its own try/catch so one dead subscription
  * can't block the rest.
  */
-export async function pushNewMessage(input: PushNewMessageInput): Promise<void> {
+export async function pushNewMessage(
+  input: PushNewMessageInput,
+): Promise<void> {
   if (!isWebPushConfigured()) return;
   // SYSTEM messages are server-generated status lines; don't alert on them.
   if (input.messageType === "SYSTEM") return;

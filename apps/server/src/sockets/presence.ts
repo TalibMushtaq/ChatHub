@@ -124,10 +124,7 @@ export async function broadcastPresenceChanged(
  * showing stale presence until the next reload. The user's own sessions are
  * unaffected (their privacy choice does not change what they see).
  */
-export function broadcastPresenceHidden(
-  io: TypedServer,
-  userId: string,
-): void {
+export function broadcastPresenceHidden(io: TypedServer, userId: string): void {
   io.except(`user:${userId}`).emit("presence:changed", {
     userId,
     presence: "offline",
