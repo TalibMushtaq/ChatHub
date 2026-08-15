@@ -19,6 +19,10 @@ const user: AppUser = {
   bio: null,
   gender: null,
   dateOfBirth: null,
+  status: "AVAILABLE",
+  customStatus: null,
+  showOnlineStatus: true,
+  showTypingStatus: true,
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 

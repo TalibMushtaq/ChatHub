@@ -5,6 +5,9 @@ export {
   userIdParamSchema,
   forgotPasswordSchema,
   regenerateRecoveryCodesSchema,
+  updateStatusSchema,
+  updatePrivacySchema,
+  USER_STATUSES,
 } from "./user";
 export {
   chatRoomMessageSchema,

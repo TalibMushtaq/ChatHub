@@ -154,6 +154,10 @@ export function registerDirectChat(
     const parsed = directChatTypingSchema.safeParse(payload);
     if (!parsed.success) return;
     const { directChatId, isTyping } = parsed.data;
+    // Privacy gate: a user who disabled typing visibility never emits typing
+    // events. Both the start and the stop are dropped so receivers never see a
+    // stale indicator (they never saw a start).
+    if (user.showTypingStatus === false) return;
     try {
       await assertDirectChatAccess(user.id, directChatId);
       const throttle = (socket.data.typingThrottle ??= new Map());

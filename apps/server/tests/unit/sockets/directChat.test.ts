@@ -23,12 +23,17 @@ function createIo() {
   return { io, emit };
 }
 
-function createSocketWithHandlers(userId = "u1") {
+function createSocketWithHandlers(
+  userId = "u1",
+  user: Record<string, unknown> = {},
+) {
   const handlers: Record<string, (payload: any) => Promise<void> | void> = {};
   const broadcastEmit = vi.fn();
   const socket = {
     id: "socket-1",
-    data: { user: { id: userId, username: "user1" } },
+    data: {
+      user: { id: userId, username: "user1", ...user },
+    },
     join: vi.fn(),
     leave: vi.fn(),
     emit: vi.fn(),
@@ -241,6 +246,24 @@ describe("registerDirectChat", () => {
       await handlers["directChat:typing"]!({ isTyping: true });
 
       expect(broadcastEmit).not.toHaveBeenCalled();
+    });
+
+    it("should not emit typing for users who disabled typing visibility", async () => {
+      const { handlers, broadcastEmit } = createSocketWithHandlers("u1", {
+        showTypingStatus: false,
+      });
+
+      await handlers["directChat:typing"]!({
+        directChatId: "dc1",
+        isTyping: true,
+      });
+      await handlers["directChat:typing"]!({
+        directChatId: "dc1",
+        isTyping: false,
+      });
+
+      expect(broadcastEmit).not.toHaveBeenCalled();
+      expect(assertDirectChatAccess).not.toHaveBeenCalled();
     });
   });
 });

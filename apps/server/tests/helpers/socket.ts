@@ -11,7 +11,16 @@ export function createMockSocket(partial?: Partial<Socket>): Socket {
   const socket = {
     id: "socket-1",
     data: {
-      user: undefined as { id: string; username: string } | undefined,
+      user: undefined as
+        | {
+            id: string;
+            username: string;
+            status: string;
+            customStatus: string | null;
+            showOnlineStatus: boolean;
+            showTypingStatus: boolean;
+          }
+        | undefined,
       rooms: new Map<string, number>(),
     },
     request: {

@@ -64,6 +64,10 @@ export default function requireAuth(
         bio: true,
         gender: true,
         dateOfBirth: true,
+        status: true,
+        customStatus: true,
+        showOnlineStatus: true,
+        showTypingStatus: true,
         createdAt: true,
       },
     })

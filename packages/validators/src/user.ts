@@ -101,6 +101,44 @@ export const checkUsernameSchema = z.object({
   username: usernameSchema,
 });
 
+// Manual status the user can pick from their profile menu. Kept as a Zod enum
+// (not a shared TS union) so the allowed set is enforced by the same source of
+// truth used by both the API and the client's status picker.
+export const USER_STATUSES = [
+  "AVAILABLE",
+  "BUSY",
+  "DND",
+  "AWAY",
+  "INVISIBLE",
+] as const;
+
+const customStatusSchema = z
+  .string()
+  .max(128, "Custom status must be at most 128 characters")
+  .optional()
+  .nullable();
+
+// Updates can be partial: a user may change just the status or just the custom
+// status. `.strict()` rejects unknown fields (and requires `_csrf` to be
+// allowed explicitly, since the shared client injects it into every mutation).
+export const updateStatusSchema = z
+  .object({
+    status: z.enum(USER_STATUSES).optional(),
+    customStatus: customStatusSchema,
+    _csrf: z.string().optional(),
+  })
+  .strict();
+
+// Privacy toggles are independent: turning off online status does not affect
+// typing visibility and vice versa, so each field is optional.
+export const updatePrivacySchema = z
+  .object({
+    showOnlineStatus: z.boolean().optional(),
+    showTypingStatus: z.boolean().optional(),
+    _csrf: z.string().optional(),
+  })
+  .strict();
+
 export const userZod = {
   email: emailSchema,
   username: usernameSchema,

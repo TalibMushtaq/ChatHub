@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { readStatusOf, type ReadStatus } from "../components/app/helpers";
-import type { ReadReceipt } from "../components/app/types";
+import {
+  mergePresence,
+  readStatusOf,
+  type ReadStatus,
+} from "../components/app/helpers";
+import type { PresenceInfo, ReadReceipt } from "../components/app/types";
 
 const msg = { createdAt: "2026-01-10T12:00:00.000Z" };
 const receipt = (userId: string, createdAt: string): ReadReceipt => ({
@@ -67,5 +71,41 @@ describe("readStatusOf", () => {
       "readAll",
     ];
     expect(statuses).toContain(readStatusOf(msg, "me", [], false));
+  });
+});
+
+describe("mergePresence", () => {
+  const bobOnline: PresenceInfo = {
+    userId: "bob",
+    presence: "online",
+    status: "AVAILABLE",
+    customStatus: null,
+  };
+
+  it("adds a user's presence when they are not tracked yet", () => {
+    const next = mergePresence({}, bobOnline);
+    expect(next).toEqual({ bob: bobOnline });
+  });
+
+  it("replaces a user's prior entry with the latest payload", () => {
+    const prev = mergePresence({}, bobOnline);
+    const bobIdle: PresenceInfo = {
+      ...bobOnline,
+      presence: "idle",
+    };
+    expect(mergePresence(prev, bobIdle)["bob"]!.presence).toBe("idle");
+  });
+
+  it("keeps other users' entries untouched", () => {
+    const prev = mergePresence({}, bobOnline);
+    const carol: PresenceInfo = {
+      userId: "carol",
+      presence: "offline",
+      status: null,
+      customStatus: null,
+    };
+    const next = mergePresence(prev, carol);
+    expect(Object.keys(next).sort()).toEqual(["bob", "carol"]);
+    expect(next["bob"]!).toEqual(bobOnline);
   });
 });

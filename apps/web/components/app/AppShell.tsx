@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { socket } from "../../app/lib/socket";
 import { getErrorMessage } from "../../app/lib/errors";
 import { loadInitialState } from "../../app/lib/initialLoad";
+import { mergePresence } from "./helpers";
 import { ChatAPI, RoomSocket } from "./api";
 import {
   ShellContext,
@@ -19,6 +20,7 @@ import type {
   DMInboxEntry,
   Invitation,
   Message,
+  PresenceInfo,
   ReadReceipt,
   RoomInboxEntry,
   RoomMember,
@@ -41,6 +43,7 @@ import {
   SunIcon,
   MoonIcon,
   UserIcon,
+  SmileyIcon,
 } from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
 import { btnPrimary, iconBtn } from "./styles";
@@ -73,6 +76,7 @@ export default function AppShell() {
     Record<string, ReadReceipt[]>
   >({});
   const [typing, setTyping] = useState<Record<string, TypingUser[]>>({});
+  const [presence, setPresence] = useState<Record<string, PresenceInfo>>({});
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchUser[]>([]);
   const [mStack, setMStack] = useState<ModalEntry[]>([]);
@@ -91,6 +95,7 @@ export default function AppShell() {
   const roomMembersRef = useRef<Record<string, RoomMember[]>>({});
   const readReceiptsRef = useRef<Record<string, ReadReceipt[]>>({});
   const typingRef = useRef<Record<string, TypingUser[]>>({});
+  const presenceRef = useRef<Record<string, PresenceInfo>>({});
   // conversation key -> userId -> pending "stopped typing" removal timer.
   const typingTimersRef = useRef<Record<string, Record<string, number>>>({});
   // Track whether we pushed a synthetic history entry for the mobile thread
@@ -120,6 +125,14 @@ export default function AppShell() {
   ) {
     typingRef.current = fn(typingRef.current);
     setTyping(typingRef.current);
+  }
+  function setPresenceBoth(
+    fn: (
+      prev: Record<string, PresenceInfo>,
+    ) => Record<string, PresenceInfo>,
+  ) {
+    presenceRef.current = fn(presenceRef.current);
+    setPresence(presenceRef.current);
   }
 
   // ---------------------------------------------------------------------------
@@ -537,6 +550,14 @@ export default function AppShell() {
     socket.on("directChat:typing", onTyping);
     socket.on("chatroom:typing", onTyping);
 
+    // Live presence updates: the server broadcasts a gated payload for every
+    // change and pushes a snapshot of currently-present users on connect, so
+    // we can keep the presence map purely event-driven (no polling).
+    function onPresenceChanged(p: PresenceInfo) {
+      setPresenceBoth((prev) => mergePresence(prev, p));
+    }
+    socket.on("presence:changed", onPresenceChanged);
+
     // Re-join the active conversation after a reconnect (the server drops rooms).
     socket.on("connect", () => {
       joinedRef.current.clear();
@@ -559,6 +580,7 @@ export default function AppShell() {
       socket.off("chatroom:readReceipt");
       socket.off("directChat:typing");
       socket.off("chatroom:typing");
+      socket.off("presence:changed", onPresenceChanged);
       socket.off("connect");
       socket.off("disconnect");
       // Clear pending typing indicators on unmount (app teardown only).
@@ -566,6 +588,39 @@ export default function AppShell() {
         for (const t of Object.values(byUser)) window.clearTimeout(t);
       }
       typingTimersRef.current = {};
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Presence heartbeat
+  // ---------------------------------------------------------------------------
+  // Tab liveness signal: the server flags a user idle when no heartbeat
+  // arrives for 5 minutes. Pausing while the tab is hidden is what makes the
+  // idle threshold meaningful, so the interval only runs while visible.
+  useEffect(() => {
+    const HEARTBEAT_MS = 30_000;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const beat = () => socket.emit("presence:heartbeat");
+    const start = () => {
+      if (timer) return;
+      beat();
+      timer = setInterval(beat, HEARTBEAT_MS);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else start(); // emit immediately on return so presence flips back fast
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    start();
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
@@ -1001,6 +1056,7 @@ export default function AppShell() {
     roomMembers,
     readReceipts,
     typing,
+    presence,
     q,
     results,
     listLoading,
@@ -1094,6 +1150,7 @@ export default function AppShell() {
                   name={user.displayName ?? user.username}
                   src={user.avatar}
                   size={34}
+                  presence={presence[user.id]}
                 />
               </button>
               {fmenu && (
@@ -1102,6 +1159,15 @@ export default function AppShell() {
                   style={{ left: 68, bottom: 12 }}
                   onClick={(e) => e.stopPropagation()}
                 >
+                  <button
+                    className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
+                    onClick={() => {
+                      setFmenu(false);
+                      openModal("status");
+                    }}
+                  >
+                    <SmileyIcon className="h-4 w-4 flex-none" /> Status
+                  </button>
                   <button
                     className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
                     onClick={() => {

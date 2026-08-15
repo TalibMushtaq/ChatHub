@@ -11,6 +11,10 @@ type UserFactory = {
   gender: string | null;
   dateOfBirth: Date | null;
   passwordHash: string;
+  status: string;
+  customStatus: string | null;
+  showOnlineStatus: boolean;
+  showTypingStatus: boolean;
   createdAt: Date;
 };
 
@@ -37,6 +41,10 @@ export function createUser(partial: Partial<UserFactory> = {}): UserFactory {
     gender: null,
     dateOfBirth: null,
     passwordHash: `$argon2id$v=19$m=65536,t=3,p=4$${"A".repeat(22)}$${"B".repeat(43)}`,
+    status: "AVAILABLE",
+    customStatus: null,
+    showOnlineStatus: true,
+    showTypingStatus: true,
     createdAt: new Date("2024-01-01T00:00:00Z"),
   };
 
@@ -59,6 +67,10 @@ export function createAuthUser(
     bio: base.bio,
     gender: base.gender,
     dateOfBirth: base.dateOfBirth,
+    status: base.status,
+    customStatus: base.customStatus,
+    showOnlineStatus: base.showOnlineStatus,
+    showTypingStatus: base.showTypingStatus,
     createdAt: base.createdAt,
     ...partial,
   };

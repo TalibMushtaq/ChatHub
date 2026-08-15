@@ -11,6 +11,13 @@ export interface ClientToServerEvents {
     chatRoomId: string;
     isTyping: boolean;
   }) => void;
+  /** Tab liveness signal; the server treats absence as the idle signal. */
+  "presence:heartbeat": () => void;
+  /** Live update of the user's manual status / custom status. */
+  "presence:setStatus": (payload: {
+    status?: string;
+    customStatus?: string | null;
+  }) => void;
 }
 
 export interface ServerToClientEvents {
@@ -52,6 +59,12 @@ export interface ServerToClientEvents {
     chatRoomId: string;
     lastReadMessageId: string;
     lastReadMessageCreatedAt: Date;
+  }) => void;
+  "presence:changed": (payload: {
+    userId: string;
+    presence: "online" | "idle" | "offline";
+    status: string | null;
+    customStatus: string | null;
   }) => void;
 }
 

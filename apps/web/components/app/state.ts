@@ -11,6 +11,7 @@ import type {
   Invitation,
   Message,
   ModalName,
+  PresenceInfo,
   ReadReceipt,
   RoomInboxEntry,
   RoomMember,
@@ -63,6 +64,8 @@ export interface ShellCtx {
   readReceipts: Record<string, ReadReceipt[]>;
   /** convKey -> users currently typing in that conversation. */
   typing: Record<string, TypingUser[]>;
+  /** userId -> live presence/status, kept current by `presence:changed`. */
+  presence: Record<string, PresenceInfo>;
   q: string;
   results: SearchUser[];
   listLoading: boolean;

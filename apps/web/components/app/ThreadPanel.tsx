@@ -23,6 +23,7 @@ import type { Attachment, Message, ReadReceipt } from "./types";
 import AppAvatar from "./AppAvatar";
 import EmojiPicker from "./EmojiPicker";
 import { insertEmojiAtCursor } from "./insertEmojiAtCursor";
+import { STATUS_LABELS } from "./statusTones";
 import {
   BackIcon,
   MoreIcon,
@@ -52,6 +53,7 @@ export default function ThreadPanel() {
     roomMembers,
     readReceipts,
     typing,
+    presence,
     user,
     navigateBack,
     openModal,
@@ -91,6 +93,10 @@ export default function ThreadPanel() {
   // is mirrored to a ref so these helpers stay stable across renders.
   const activeRef = useRef(active);
   activeRef.current = active;
+  // Mirror `user` so the typing gate (a stable useCallback) reads the fresh
+  // privacy flag instead of the value captured at first render.
+  const userRef = useRef(user);
+  userRef.current = user;
   const typingRef = useRef(false);
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,6 +119,9 @@ export default function ThreadPanel() {
   const emitTyping = useCallback((isTyping: boolean) => {
     const a = activeRef.current;
     if (!a) return;
+    // Client-side mirror of the server's typing gate: when the user hides
+    // their typing status we don't emit at all, saving the round trip.
+    if (userRef.current.showTypingStatus === false) return;
     if (a.kind === "dm") {
       socket.emit("directChat:typing", { directChatId: a.id, isTyping });
     } else {
@@ -269,10 +278,22 @@ export default function ThreadPanel() {
 
   const room = active.kind === "room" ? roomInfo() : null;
   const members = active.kind === "room" ? (roomMembers[active.id] ?? []) : [];
+  const otherPresence =
+    active.kind === "dm"
+      ? presence[active.otherUser?.id ?? ""] ?? null
+      : null;
 
   const sub =
     active.kind === "dm"
-      ? `@${active.otherUser?.username ?? ""}`
+      ? otherPresence?.status
+        ? // A manual status wins over the raw presence line, so e.g. "Do not
+          // disturb" shows instead of "online" — matching the dot's color.
+          STATUS_LABELS[otherPresence.status]
+        : otherPresence?.presence === "online"
+          ? "online"
+          : otherPresence?.presence === "idle"
+            ? "idle"
+            : `@${active.otherUser?.username ?? ""}`
       : room
         ? `${room.memberCount} member${room.memberCount === 1 ? "" : "s"}${room.description ? " · " + room.description : ""}`
         : `${members.length} members`;
@@ -357,6 +378,7 @@ export default function ThreadPanel() {
           }
           size={40}
           square={active.kind === "room"}
+          presence={otherPresence}
         />
         <div className="titles min-w-0 flex-1">
           <div className="name truncate text-[15px] font-extrabold">

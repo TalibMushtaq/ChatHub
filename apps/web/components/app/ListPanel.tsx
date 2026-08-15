@@ -14,6 +14,7 @@ import {
   RefreshIcon,
   GearIcon,
   UserIcon,
+  LockIcon,
   MoreIcon,
 } from "./icons";
 import { iconBtn, searchBox, searchInput } from "./styles";
@@ -36,6 +37,7 @@ export default function ListPanel() {
     roomList,
     active,
     listLoading,
+    presence,
     openConv,
     openModal,
     toast,
@@ -138,6 +140,7 @@ export default function ListPanel() {
                     name={displayName(e.otherUser)}
                     src={e.otherUser.avatar}
                     size={44}
+                    presence={presence[e.otherUser.id]}
                   />
                   <div className="mid min-w-0 flex-1">
                     <div className="line1 flex items-baseline justify-between gap-2">
@@ -318,6 +321,12 @@ function SettingsMenu() {
       sub: "Your public info",
       icon: <UserIcon />,
       modal: "profile",
+    },
+    {
+      label: "Privacy",
+      sub: "Online & typing visibility",
+      icon: <LockIcon />,
+      modal: "privacy",
     },
     {
       label: "Recovery codes",

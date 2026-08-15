@@ -13,13 +13,16 @@ describe("registerRoomChat - typing", () => {
     to: vi.fn().mockReturnValue({ emit: vi.fn() }),
   } as any;
 
-  function createSocketWithHandlers(userId: string) {
+  function createSocketWithHandlers(
+    userId: string,
+    user: Record<string, unknown> = {},
+  ) {
     const handlers: Record<string, (...args: unknown[]) => unknown> = {};
     const broadcastEmit = vi.fn();
     const socket = {
       id: "socket-1",
       data: {
-        user: { id: userId, username: "user1" },
+        user: { id: userId, username: "user1", ...user },
         rooms: new Map<string, number>([["room-1", Date.now() + 60_000]]),
       },
       request: { session: {} },
@@ -120,6 +123,23 @@ describe("registerRoomChat - typing", () => {
 
     await handlers["chatroom:typing"]!({ chatRoomId: "room-1" });
     await handlers["chatroom:typing"]!({ isTyping: true });
+
+    expect(broadcastEmit).not.toHaveBeenCalled();
+  });
+
+  it("should not emit typing for users who disabled typing visibility", async () => {
+    const { handlers, broadcastEmit } = createSocketWithHandlers("u1", {
+      showTypingStatus: false,
+    });
+
+    await handlers["chatroom:typing"]!({
+      chatRoomId: "room-1",
+      isTyping: true,
+    });
+    await handlers["chatroom:typing"]!({
+      chatRoomId: "room-1",
+      isTyping: false,
+    });
 
     expect(broadcastEmit).not.toHaveBeenCalled();
   });

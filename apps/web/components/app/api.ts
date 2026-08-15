@@ -23,6 +23,7 @@ import type {
   JoinLink,
   ReadReceipt,
   SearchUser,
+  UserStatus,
 } from "./types";
 
 export interface Paginated<T> {
@@ -54,6 +55,24 @@ export const ChatAPI = {
     dateOfBirth?: string | null;
   }): Promise<AppUser> {
     const { data } = await api.patch("/auth/me", payload);
+    return data.user;
+  },
+
+  /** Change the manual status/custom status. Returns the updated subset. */
+  async updateStatus(payload: {
+    status?: UserStatus;
+    customStatus?: string | null;
+  }): Promise<Pick<AppUser, "id" | "status" | "customStatus">> {
+    const { data } = await api.patch("/auth/me/status", payload);
+    return data.user;
+  },
+
+  /** Toggle which presence info is shared with others. Returns the subset. */
+  async updatePrivacy(payload: {
+    showOnlineStatus?: boolean;
+    showTypingStatus?: boolean;
+  }): Promise<Pick<AppUser, "id" | "showOnlineStatus" | "showTypingStatus">> {
+    const { data } = await api.patch("/auth/me/privacy", payload);
     return data.user;
   },
 

@@ -1,7 +1,7 @@
 // Pure formatting/derivation helpers used across the app shell. Kept free of
 // React so every panel can import them without pulling in a component tree.
 
-import type { ReadReceipt } from "./types";
+import type { PresenceInfo, ReadReceipt } from "./types";
 
 export type ConvKind = "dm" | "room";
 
@@ -96,6 +96,18 @@ export function typeLabel(mime: string | undefined): string {
   if (mime.startsWith("video/")) return "video";
   if (mime.startsWith("audio/")) return "audio";
   return "file";
+}
+
+/**
+ * Merge a `presence:changed` payload into the client's presence map,
+ * replacing any prior entry for that user. Purely functional so the AppShell
+ * socket handler can stay a one-liner and the merge rule is unit-testable.
+ */
+export function mergePresence(
+  prev: Record<string, PresenceInfo>,
+  next: PresenceInfo,
+): Record<string, PresenceInfo> {
+  return { ...prev, [next.userId]: next };
 }
 
 export type ReadStatus =

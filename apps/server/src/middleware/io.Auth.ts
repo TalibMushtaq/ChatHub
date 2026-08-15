@@ -31,7 +31,14 @@ export default function socketAuth(
   prisma.user
     .findUnique({
       where: { id: session.userId },
-      select: { id: true, username: true },
+      select: {
+        id: true,
+        username: true,
+        status: true,
+        customStatus: true,
+        showOnlineStatus: true,
+        showTypingStatus: true,
+      },
     })
     .then((user) => {
       if (!user) {

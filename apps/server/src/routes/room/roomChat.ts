@@ -118,6 +118,9 @@ export function registerRoomChat(io: Server, socket: Socket) {
     const parsed = chatRoomTypingSchema.safeParse(payload);
     if (!parsed.success) return;
     const { chatRoomId, isTyping } = parsed.data;
+    // Privacy gate: a user who disabled typing visibility never emits typing
+    // events (start or stop), so receivers never see a stale indicator.
+    if (user.showTypingStatus === false) return;
     try {
       await ensureRoomAccess(chatRoomId);
       const throttle = (socket.data.typingThrottle ??= new Map());

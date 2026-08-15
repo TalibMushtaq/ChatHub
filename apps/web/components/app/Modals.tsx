@@ -7,9 +7,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useShell, type ModalEntry } from "./state";
 import { ChatAPI, getErrorMessage } from "./api";
 import { displayName, fmtList, fmtTime } from "./helpers";
-import type { Gender, Invitation, JoinLink, JoinRequest } from "./types";
+import type { Gender, Invitation, JoinLink, JoinRequest, UserStatus } from "./types";
 import AppAvatar from "./AppAvatar";
 import AvatarSelector from "./AvatarSelector";
+import { STATUS_OPTIONS, TONE_BG } from "./statusTones";
 import {
   BackIcon,
   CloseIcon,
@@ -61,6 +62,8 @@ const TITLES: Record<ModalEntry["name"], string> = {
   sentInvites: "Sent invitations",
   myLinks: "My join links",
   profile: "Profile",
+  status: "Status",
+  privacy: "Privacy",
   account: "My account",
   recovery: "Recovery codes",
   confirm: "Confirm",
@@ -159,6 +162,10 @@ function Body(entry: ModalEntry) {
       return <MyLinksModal />;
     case "profile":
       return <ProfileModal />;
+    case "status":
+      return <StatusModal />;
+    case "privacy":
+      return <PrivacyModal />;
     case "account":
       return <AccountModal />;
     case "recovery":
@@ -1002,7 +1009,7 @@ function formatDateInput(iso: string | null | undefined): string {
 }
 
 function ProfileModal() {
-  const { user, toast, refreshUser } = useShell();
+  const { user, presence, toast, refreshUser } = useShell();
 
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [bio, setBio] = useState(user.bio ?? "");
@@ -1058,6 +1065,7 @@ function ProfileModal() {
           name={user.displayName ?? user.username}
           src={user.avatar}
           size={56}
+          presence={presence[user.id]}
         />
         <div className={rowGrow}>
           <div className={rowT1}>{displayName}</div>
@@ -1178,8 +1186,173 @@ function ProfileModal() {
   );
 }
 
+const CUSTOM_STATUS_MAX = 128;
+
+function StatusModal() {
+  const { user, refreshUser, toast, clearModals } = useShell();
+  const [status, setStatus] = useState<UserStatus>(user.status);
+  const [customStatus, setCustomStatus] = useState(user.customStatus ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      // The server normalizes a blank custom status to null; mirror that so
+      // the input clears in the same way the API treats "cleared".
+      await ChatAPI.updateStatus({
+        status,
+        customStatus: customStatus.trim() || null,
+      });
+      await refreshUser();
+      toast("Status updated", "success");
+      clearModals();
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to update status"), "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        Your status shows next to your name. It&apos;s independent of whether
+        you&apos;re online right now.
+      </p>
+      <div className="mb-3.5 flex flex-col gap-1.5">
+        {STATUS_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-left text-[14.5px] font-extrabold transition-colors duration-150 ease-app ${status === opt.value ? "bg-accent-soft text-accent-solid" : "text-fg hover:bg-surface-2"}`}
+            onClick={() => setStatus(opt.value)}
+            aria-pressed={status === opt.value}
+          >
+            {/* Colored dot advertises each status's tone; the checkmark (not
+                the dot) marks which one is currently selected. */}
+            <span className="flex min-w-0 items-center gap-2.5">
+              <span
+                className={`h-3 w-3 flex-none rounded-full ${TONE_BG[opt.tone]}`}
+              />
+              <span className="truncate">{opt.label}</span>
+            </span>
+            {status === opt.value && (
+              <CheckIcon className="h-4 w-4 flex-none text-accent-solid" />
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="mfield mb-3.5">
+        <label className={fieldLabel}>Custom status (optional)</label>
+        <input
+          className={fieldInput}
+          value={customStatus}
+          onChange={(e) => setCustomStatus(e.target.value)}
+          maxLength={CUSTOM_STATUS_MAX}
+          placeholder="e.g. Coding, BRB…"
+        />
+        <p className="mt-1 text-right text-[11px] text-muted">
+          {customStatus.length}/{CUSTOM_STATUS_MAX}
+        </p>
+      </div>
+      <div className="mactions mt-4 grid gap-2.5">
+        <button
+          className={`${btnPrimary} ${btnBlock}`}
+          onClick={() => void save()}
+          disabled={saving}
+        >
+          {saving ? "Saving…" : "Save status"}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function PrivacyModal() {
+  const { user, refreshUser, toast, clearModals } = useShell();
+  const [showOnlineStatus, setShowOnlineStatus] = useState(
+    user.showOnlineStatus,
+  );
+  const [showTypingStatus, setShowTypingStatus] = useState(
+    user.showTypingStatus,
+  );
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await ChatAPI.updatePrivacy({ showOnlineStatus, showTypingStatus });
+      await refreshUser();
+      toast("Privacy settings saved", "success");
+      clearModals();
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to save privacy settings"), "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        Control what others can see about your activity. This never changes
+        what you see yourself.
+      </p>
+      <div className={rowItem}>
+        <div className={rowGrow}>
+          <div className={rowT1}>Show online status</div>
+          <div className={rowT2}>
+            Let others see when you&apos;re online, idle, or offline.
+          </div>
+        </div>
+        <Toggle on={showOnlineStatus} onChange={setShowOnlineStatus} />
+      </div>
+      <div className={rowItem}>
+        <div className={rowGrow}>
+          <div className={rowT1}>Show typing status</div>
+          <div className={rowT2}>
+            Let others see when you&apos;re typing a message.
+          </div>
+        </div>
+        <Toggle on={showTypingStatus} onChange={setShowTypingStatus} />
+      </div>
+      <div className="mactions mt-4 grid gap-2.5">
+        <button
+          className={`${btnPrimary} ${btnBlock}`}
+          onClick={() => void save()}
+          disabled={saving}
+        >
+          {saving ? "Saving…" : "Save privacy"}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function Toggle({
+  on,
+  onChange,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={on ? "On" : "Off"}
+      className={`relative h-6 w-11 flex-none cursor-pointer rounded-full transition-colors duration-150 ease-app ${on ? "bg-accent-btn" : "bg-surface-3"}`}
+      onClick={() => onChange(!on)}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ease-app ${on ? "translate-x-5" : ""}`}
+      />
+    </button>
+  );
+}
+
 function AccountModal() {
-  const { user, toast, refreshUser } = useShell();
+  const { user, presence, toast, refreshUser } = useShell();
   const { theme, toggle } = useTheme();
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [pendingAvatarKey, setPendingAvatarKey] = useState<string | null>(null);
@@ -1208,6 +1381,7 @@ function AccountModal() {
           name={user.displayName ?? user.username}
           src={user.avatar}
           size={40}
+          presence={presence[user.id]}
         />
         <div className={rowGrow}>
           <div className={rowT1}>{displayName(user)}</div>

@@ -5,6 +5,24 @@
 export type Gender =
   "MALE" | "FEMALE" | "NON_BINARY" | "OTHER" | "PREFER_NOT_TO_SAY";
 
+/** Manual status a user chooses (independent of their live presence). */
+export type UserStatus = "AVAILABLE" | "BUSY" | "DND" | "AWAY" | "INVISIBLE";
+
+/** Live connection state, derived server-side from heartbeat activity. */
+export type PresenceState = "online" | "idle" | "offline";
+
+/**
+ * A user's live presence as broadcast by the server's `presence:changed`
+ * event. `status`/`customStatus` are null for hidden or invisible users (the
+ * server never leaks those to other clients).
+ */
+export interface PresenceInfo {
+  userId: string;
+  presence: PresenceState;
+  status: UserStatus | null;
+  customStatus: string | null;
+}
+
 export interface AppUser {
   id: string;
   email: string;
@@ -14,6 +32,10 @@ export interface AppUser {
   bio: string | null;
   gender: Gender | null;
   dateOfBirth: string | null;
+  status: UserStatus;
+  customStatus: string | null;
+  showOnlineStatus: boolean;
+  showTypingStatus: boolean;
   createdAt: string;
 }
 
@@ -195,6 +217,8 @@ export type ModalName =
   | "sentInvites"
   | "myLinks"
   | "profile"
+  | "status"
+  | "privacy"
   | "account"
   | "recovery"
   | "confirm";

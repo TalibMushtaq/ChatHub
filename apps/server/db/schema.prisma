@@ -160,6 +160,16 @@ model User {
   bio                                 String?
   gender                              Gender?
   dateOfBirth                         DateTime?
+  // Manual status chosen by the user (AVAILABLE/BUSY/DND/AWAY/INVISIBLE).
+  // Stored as String (not an enum) so new statuses never require a migration;
+  // the API validator enforces the allowed set at the boundary.
+  status                              String           @default("AVAILABLE")
+  // Optional free-text status shown alongside the manual status; kept separate
+  // from `status` so clearing the text never changes the selected status.
+  customStatus                        String?
+  // Privacy: what THIS user exposes to others (never what they can see).
+  showOnlineStatus                    Boolean          @default(true)
+  showTypingStatus                    Boolean          @default(true)
   createdAt                           DateTime         @default(now())
   updatedAt                           DateTime         @updatedAt
   sessions                            Session[]

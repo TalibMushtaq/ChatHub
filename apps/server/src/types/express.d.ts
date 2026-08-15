@@ -11,6 +11,10 @@ export type AuthUser = Pick<
   | "bio"
   | "gender"
   | "dateOfBirth"
+  | "status"
+  | "customStatus"
+  | "showOnlineStatus"
+  | "showTypingStatus"
   | "createdAt"
 >;
 
