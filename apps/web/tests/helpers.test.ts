@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { readStatusOf, type ReadStatus } from "./helpers";
-import type { ReadReceipt } from "./types";
+import { readStatusOf, type ReadStatus } from "../components/app/helpers";
+import type { ReadReceipt } from "../components/app/types";
 
 const msg = { createdAt: "2026-01-10T12:00:00.000Z" };
 const receipt = (userId: string, createdAt: string): ReadReceipt => ({

@@ -1,8 +1,8 @@
 /// <reference types="vitest/config" />
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { insertEmojiAtCursor } from "./insertEmojiAtCursor";
-import { cssVarRgb, cssVarResolved } from "./emojiTheme";
+import { insertEmojiAtCursor } from "../components/app/insertEmojiAtCursor";
+import { cssVarRgb, cssVarResolved } from "../components/app/emojiTheme";
 
 // Minimal stand-in for a textarea: enough surface for the insertion helper
 // (selection range + focus) without pulling in a DOM environment.
