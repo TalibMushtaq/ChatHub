@@ -41,7 +41,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@repo/validators": path.resolve(
-        __dirname,
+        import.meta.dirname,
         "../../packages/validators/src/index.ts",
       ),
     },

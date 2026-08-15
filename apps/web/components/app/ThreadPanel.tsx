@@ -1,7 +1,13 @@
 "use client";
 
 // Thread column: header, message timeline, and composer for the active conversation.
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useShell, convKey } from "./state";
 import { socket } from "../../app/lib/socket";
 import { ChatAPI, getErrorMessage } from "./api";
@@ -15,11 +21,14 @@ import {
 } from "./helpers";
 import type { Attachment, Message, ReadReceipt } from "./types";
 import AppAvatar from "./AppAvatar";
+import EmojiPicker from "./EmojiPicker";
+import { insertEmojiAtCursor } from "./insertEmojiAtCursor";
 import {
   BackIcon,
   MoreIcon,
   ClipIcon,
   SendIcon,
+  SmileyIcon,
   CloseIcon,
   EditIcon,
   TrashIcon,
@@ -31,6 +40,10 @@ import { iconBtn } from "./styles";
 
 const EDIT_WINDOW_MS = 5 * 60 * 1000;
 const DELETE_WINDOW_MS = 30 * 60 * 1000;
+// Desktop popover size (emoji-mart's default). Measured against the viewport
+// so the popover flips above/below the button and clamps horizontally.
+const PICKER_W = 352;
+const PICKER_H = 435;
 
 export default function ThreadPanel() {
   const {
@@ -58,9 +71,20 @@ export default function ThreadPanel() {
     content: string;
   } | null>(null);
   const [editText, setEditText] = useState("");
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  // Measured fixed position for the desktop popover (flip/clamp against the
+  // viewport). null until measured so the popover never flashes at (0, 0).
+  const [pickerPos, setPickerPos] = useState<{
+    left: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const emojiBtnRef = useRef<HTMLButtonElement | null>(null);
+  const pickerWrapRef = useRef<HTMLDivElement | null>(null);
   // Typing lifecycle: emit start on the first keystroke, re-emit every 2s so
   // the far side keeps the indicator during long pauses between keys, and stop
   // after 2.5s of inactivity. The server throttles to 1.5s anyway. `active`
@@ -70,6 +94,16 @@ export default function ThreadPanel() {
   const typingRef = useRef(false);
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Track the Tailwind `md` breakpoint (768px) so the picker can be rendered
+  // as a bottom sheet on mobile and a measured popover on desktop.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767.98px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
 
   const key = active ? convKey(active.kind, active.id) : null;
   const list = key ? (msgs[key] ?? []) : [];
@@ -139,11 +173,74 @@ export default function ThreadPanel() {
     setFiles([]);
     setEditing(null);
     setEditText("");
+    setIsEmojiPickerOpen(false);
     stopTyping();
   }, [active?.id, stopTyping]);
 
   // Send the "stopped typing" event when the panel unmounts.
   useEffect(() => () => stopTyping(), [stopTyping]);
+
+  // Insert an emoji at the textarea's current caret (replacing any selection),
+  // leave the caret right after it, and keep focus in the composer. Closes the
+  // picker after a single selection.
+  function handleEmojiSelect(emoji: string) {
+    const ta = textareaRef.current;
+    if (ta) {
+      insertEmojiAtCursor(ta, emoji, content, handleComposerChange);
+    } else {
+      handleComposerChange(content + emoji);
+    }
+    setIsEmojiPickerOpen(false);
+  }
+
+  // Close on outside click and Escape while the picker is open. Clicking the
+  // emoji button itself is excluded — its own onClick toggles the state.
+  useEffect(() => {
+    if (!isEmojiPickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (pickerWrapRef.current?.contains(t)) return;
+      if (emojiBtnRef.current?.contains(t)) return;
+      setIsEmojiPickerOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsEmojiPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [isEmojiPickerOpen]);
+
+  // Desktop: measure the emoji button and place the fixed popover just above
+  // it, flipping below and clamping horizontally when the viewport is tight.
+  // Runs synchronously before paint so the popover never renders at (0, 0).
+  useLayoutEffect(() => {
+    if (!isEmojiPickerOpen || isMobile) {
+      setPickerPos(null);
+      return;
+    }
+    const measure = () => {
+      const btn = emojiBtnRef.current;
+      if (!btn) return;
+      const b = btn.getBoundingClientRect();
+      const left = Math.max(
+        8,
+        Math.min(b.right - PICKER_W, window.innerWidth - PICKER_W - 8),
+      );
+      const spaceAbove = b.top;
+      if (spaceAbove >= PICKER_H + 8) {
+        setPickerPos({ left, bottom: window.innerHeight - b.top + 8 });
+      } else {
+        setPickerPos({ left, top: b.bottom + 8 });
+      }
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [isEmojiPickerOpen, isMobile]);
 
   if (!active) {
     return (
@@ -291,7 +388,7 @@ export default function ThreadPanel() {
           very tall messages scroll inside it instead of pushing the thread
           column past the viewport. */}
       <div className="msgs min-h-0 flex flex-1 flex-col overflow-y-auto">
-        <div className="msgs-inner mx-auto w-full max-w-[860px] px-4 pt-4 pb-2">
+        <div className="msgs-inner w-full px-4 pt-4 pb-2">
           {rows.length === 0 && (
             <div className="empty-thread-msg flex flex-1 items-center justify-center p-5 text-sm text-muted">
               No messages yet — say hi!
@@ -416,6 +513,18 @@ export default function ThreadPanel() {
               <ClipIcon />
             </button>
             <button
+              ref={emojiBtnRef}
+              className={`c-btn flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color] duration-150 ease-app hover:bg-accent-soft hover:text-accent-solid ${
+                isEmojiPickerOpen ? "bg-accent-soft text-accent-solid" : ""
+              }`}
+              onClick={() => setIsEmojiPickerOpen((v) => !v)}
+              aria-label="Add emoji"
+              aria-haspopup="dialog"
+              aria-expanded={isEmojiPickerOpen}
+            >
+              <SmileyIcon />
+            </button>
+            <button
               className="c-btn send flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full bg-accent-btn text-accent-on transition-colors duration-150 ease-app hover:bg-accent-hover hover:text-accent-on disabled:cursor-default disabled:opacity-45"
               onClick={() => void handleSend()}
               disabled={!canSend}
@@ -439,6 +548,40 @@ export default function ThreadPanel() {
               }}
             />
           </div>
+
+          {/* why: the picker is a fixed overlay either way, so it never pushes
+              the composer or message list around. Mobile gets a bottom sheet
+              (scrim + sheet sized by dvh so it stays above the on-screen
+              keyboard); desktop gets a viewport-clamped popover measured from
+              the emoji button (pickerPos set before paint to avoid a flash). */}
+          {isEmojiPickerOpen &&
+            (isMobile ? (
+              <>
+                <div
+                  className="fixed inset-0 z-[100] bg-black/45"
+                  onClick={() => setIsEmojiPickerOpen(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  ref={pickerWrapRef}
+                  role="dialog"
+                  aria-label="Emoji picker"
+                  className="fixed inset-x-0 bottom-0 z-[110] h-[55dvh] w-full overflow-hidden rounded-t-[18px] border-t border-border bg-surface shadow-lg"
+                >
+                  <EmojiPicker onSelect={handleEmojiSelect} />
+                </div>
+              </>
+            ) : pickerPos ? (
+              <div
+                ref={pickerWrapRef}
+                role="dialog"
+                aria-label="Emoji picker"
+                className="fixed z-[110] h-[435px] w-[352px] overflow-hidden rounded-2xl border border-border bg-surface shadow-lg"
+                style={pickerPos}
+              >
+                <EmojiPicker onSelect={handleEmojiSelect} />
+              </div>
+            ) : null)}
         </div>
       )}
     </>
@@ -478,9 +621,9 @@ function MessageRow({
   const withinDelete =
     Date.now() - new Date(m.createdAt).getTime() < DELETE_WINDOW_MS;
 
-  // why: only hover-capable inputs get the group-hover reveal; touch devices
-  // have no hover, so track that capability to drive the tap-to-reveal
-  // fallback instead of relying on hover alone.
+  // why: only hover-capable inputs get the bubble-scoped group/msg reveal;
+  // touch devices have no hover, so track that capability to drive the
+  // tap-to-reveal fallback instead of relying on hover alone.
   useEffect(() => {
     const mq = window.matchMedia("(hover: hover)");
     setCanHover(mq.matches);
@@ -569,7 +712,7 @@ function MessageRow({
 
   return (
     <div
-      className={`msg-row group my-0.5 flex items-end gap-[9px] animate-[pop_.16s_cubic-bezier(.2,.8,.2,1)] ${isOwn ? "justify-end" : ""}`}
+      className={`msg-row my-0.5 flex items-end gap-[9px] animate-[pop_.16s_cubic-bezier(.2,.8,.2,1)] ${isOwn ? "justify-end" : ""}`}
       style={{ position: "relative" }}
     >
       {!isOwn && (
@@ -580,70 +723,6 @@ function MessageRow({
             size={30}
             square={isRoom}
           />
-        </div>
-      )}
-
-      {isOwn && !m.isDeleted && (withinEdit || withinDelete) && (
-        <div ref={wrapRef} className="relative -mr-[4px] flex-none self-center">
-          <button
-            ref={btnRef}
-            className={`rounded-full text-muted transition-opacity duration-150 ease-app cursor-pointer ${
-              canHover
-                ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-                : tapReveal
-                  ? "opacity-100 pointer-events-auto"
-                  : "opacity-0 pointer-events-none"
-            }`}
-            onClick={toggleMenu}
-            aria-label="Message actions"
-          >
-            <MoreIcon className="h-5 w-5" />
-          </button>
-          {/* why: the menu is anchored to the per-message wrapper (not the chat
-              viewport) so it stays beside this message while scrolling; the
-              open direction is chosen dynamically by toggleMenu(). */}
-          {menu && (
-            <div
-              className="absolute z-[90] min-w-[190px] rounded-[14px] border border-border bg-surface p-1.5 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
-              style={
-                menuDir === "left"
-                  ? {
-                      right: "calc(100% + 8px)",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                    }
-                  : {
-                      left: "calc(100% + 8px)",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                    }
-              }
-              onClick={(e) => e.stopPropagation()}
-            >
-              {withinEdit && (
-                <button
-                  className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
-                  onClick={() => {
-                    setMenu(false);
-                    onEdit();
-                  }}
-                >
-                  <EditIcon className="h-4 w-4 flex-none" /> Edit
-                </button>
-              )}
-              {withinDelete && (
-                <button
-                  className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
-                  onClick={() => {
-                    setMenu(false);
-                    onDelete();
-                  }}
-                >
-                  <TrashIcon className="h-4 w-4 flex-none" /> Delete
-                </button>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -672,7 +751,7 @@ function MessageRow({
           </div>
         ) : (
           <div
-            className={`bubble rounded-[18px] px-[13px] py-[9px] text-[14.5px] leading-[1.45] break-words break-anywhere ${
+            className={`bubble group/msg relative rounded-[18px] px-[13px] py-[9px] text-[14.5px] leading-[1.45] break-words break-anywhere ${
               isOwn
                 ? "rounded-br-[6px] rounded-bl-[18px] border-transparent bg-accent-btn text-accent-on"
                 : "rounded-bl-[6px] rounded-br-[18px] border border-border bg-surface-2"
@@ -683,6 +762,86 @@ function MessageRow({
                 : undefined
             }
           >
+            {isOwn && (withinEdit || withinDelete) && (
+              <div
+                ref={wrapRef}
+                className={`absolute ${
+                  canHover || tapReveal ? "" : "pointer-events-none"
+                }`}
+                style={{
+                  right: "100%",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                }}
+              >
+                {/* why: the action button and menu are DOM children of the
+                    bubble so hovering them counts as hovering the bubble —
+                    the named group group/msg only reacts to THIS bubble, not
+                    the dashboard root's plain `group` class. The button is
+                    positioned outside the bubble's box (its right edge sits
+                    5px to the left of the bubble, keeping the old flex gap)
+                    so the reveal area stays contiguous with the bubble. */}
+                <button
+                  ref={btnRef}
+                  className={`mr-[5px] rounded-full text-muted transition-opacity duration-150 ease-app cursor-pointer ${
+                    canHover
+                      ? "opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto"
+                      : tapReveal
+                        ? "opacity-100 pointer-events-auto"
+                        : "opacity-0 pointer-events-none"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleMenu();
+                  }}
+                  aria-label="Message actions"
+                >
+                  <MoreIcon className="h-5 w-5" />
+                </button>
+                {menu && (
+                  <div
+                    className="absolute z-[90] min-w-[190px] rounded-[14px] border border-border bg-surface p-1.5 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
+                    style={
+                      menuDir === "left"
+                        ? {
+                            right: "calc(100% + 8px)",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                          }
+                        : {
+                            left: "calc(100% + 8px)",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                          }
+                    }
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {withinEdit && (
+                      <button
+                        className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
+                        onClick={() => {
+                          setMenu(false);
+                          onEdit();
+                        }}
+                      >
+                        <EditIcon className="h-4 w-4 flex-none" /> Edit
+                      </button>
+                    )}
+                    {withinDelete && (
+                      <button
+                        className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
+                        onClick={() => {
+                          setMenu(false);
+                          onDelete();
+                        }}
+                      >
+                        <TrashIcon className="h-4 w-4 flex-none" /> Delete
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {m.content && <span>{m.content}</span>}
             {m.attachments && m.attachments.length > 0 && (
               <div
