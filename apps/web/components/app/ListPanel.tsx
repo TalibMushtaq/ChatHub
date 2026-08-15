@@ -16,6 +16,7 @@ import {
   UserIcon,
   LockIcon,
   MoreIcon,
+  BellIcon,
 } from "./icons";
 import { iconBtn, searchBox, searchInput } from "./styles";
 
@@ -327,6 +328,12 @@ function SettingsMenu() {
       sub: "Online & typing visibility",
       icon: <LockIcon />,
       modal: "privacy",
+    },
+    {
+      label: "Notifications",
+      sub: "Message sounds",
+      icon: <BellIcon />,
+      modal: "notifications",
     },
     {
       label: "Recovery codes",

@@ -46,6 +46,7 @@ import {
   SmileyIcon,
 } from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
+import { useNotificationSound } from "./useNotificationSound";
 import { btnPrimary, iconBtn } from "./styles";
 
 type AnyMsg = {
@@ -85,6 +86,9 @@ export default function AppShell() {
   const [listLoading, setListLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { theme, toggle: toggleTheme } = useTheme();
+  // Notification sounds: `play` is stable so the once-registered socket
+  // handlers can capture it without going stale (it reads refs internally).
+  const { play: playNotificationSound } = useNotificationSound();
 
   // Refs mirror state so the once-registered socket handlers never see stale closures.
   const activeRef = useRef<ActiveConv | null>(null);
@@ -342,7 +346,13 @@ export default function AppShell() {
           [`dm:${a.id}`]: upsert(prev[`dm:${a.id}`] ?? [], norm),
         }));
         bumpDmList(a.id, norm, mine);
-        if (!mine) markReadNow();
+        if (!mine) {
+          // Socket-delivered message from the other side: play the DM tone.
+          // History loads go through loadMessages(), never this path, and the
+          // hook dedupes by message id so re-renders can't replay it.
+          playNotificationSound(msg.id, "dm");
+          markReadNow();
+        }
       } else if (a.kind === "room" && msg.chatRoomId === a.id) {
         const norm = normalize(a, msg, mine);
         setMsgsBoth((prev) => ({
@@ -350,7 +360,10 @@ export default function AppShell() {
           [`room:${a.id}`]: upsert(prev[`room:${a.id}`] ?? [], norm),
         }));
         bumpRoomList(a.id, norm, mine);
-        if (!mine) markReadNow();
+        if (!mine) {
+          playNotificationSound(msg.id, "room");
+          markReadNow();
+        }
       }
     }
 
@@ -589,7 +602,9 @@ export default function AppShell() {
       }
       typingTimersRef.current = {};
     };
-  }, []);
+    // `playNotificationSound` is stable (its own useCallback has [] deps and
+    // reads refs internally), so listing it here never re-runs this effect.
+  }, [playNotificationSound]);
 
   // ---------------------------------------------------------------------------
   // Presence heartbeat

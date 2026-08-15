@@ -219,6 +219,7 @@ export type ModalName =
   | "profile"
   | "status"
   | "privacy"
+  | "notifications"
   | "account"
   | "recovery"
   | "confirm";

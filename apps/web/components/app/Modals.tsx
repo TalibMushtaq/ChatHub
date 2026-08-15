@@ -27,6 +27,7 @@ import {
   TrashIcon,
 } from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
+import { useNotificationSound } from "./useNotificationSound";
 import {
   btn,
   btnPrimary,
@@ -64,6 +65,7 @@ const TITLES: Record<ModalEntry["name"], string> = {
   profile: "Profile",
   status: "Status",
   privacy: "Privacy",
+  notifications: "Notifications",
   account: "My account",
   recovery: "Recovery codes",
   confirm: "Confirm",
@@ -166,6 +168,8 @@ function Body(entry: ModalEntry) {
       return <StatusModal />;
     case "privacy":
       return <PrivacyModal />;
+    case "notifications":
+      return <NotificationsModal />;
     case "account":
       return <AccountModal />;
     case "recovery":
@@ -1323,6 +1327,29 @@ function PrivacyModal() {
         >
           {saving ? "Saving…" : "Save privacy"}
         </button>
+      </div>
+    </>
+  );
+}
+
+function NotificationsModal() {
+  // Preference is persisted immediately (no save step) so it applies the
+  // moment it flips — playback reads the same hook's enabledRef.
+  const { soundEnabled, setSoundEnabled } = useNotificationSound();
+  return (
+    <>
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        Control how ChatHubby alerts you about new activity.
+      </p>
+      <div className={rowItem}>
+        <div className={rowGrow}>
+          <div className={rowT1}>Message sounds</div>
+          <div className={rowT2}>
+            Play a sound when a new message arrives. Direct messages and rooms
+            each have their own tone.
+          </div>
+        </div>
+        <Toggle on={soundEnabled} onChange={setSoundEnabled} />
       </div>
     </>
   );
