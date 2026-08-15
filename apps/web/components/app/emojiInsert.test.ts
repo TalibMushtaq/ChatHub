@@ -75,43 +75,105 @@ describe("insertEmojiAtCursor", () => {
 });
 
 describe("cssVarRgb & cssVarResolved (jsdom)", () => {
-  it("parses rgb() from getComputedStyle into bare r, g, b triplet", () => {
+  const originalCreateElement = document.createElement.bind(document);
+
+  function rgbToHex(r: number, g: number, b: number): string {
+    return (
+      "#" +
+      [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("")
+    );
+  }
+
+  function normalizeColor(value: string): string {
+    const m = value.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (m) return rgbToHex(+m[1]!, +m[2]!, +m[3]!);
+    if (value.startsWith("oklch")) return "#e5e3de";
+    return "#000000";
+  }
+
+  function makeFakeCanvas() {
+    let stored = "#000000";
+    return {
+      getContext: () => ({
+        get fillStyle() {
+          return stored;
+        },
+        set fillStyle(v: string) {
+          stored = normalizeColor(v);
+        },
+      }),
+    };
+  }
+
+  beforeEach(() => {
     vi.spyOn(window, "getComputedStyle").mockImplementation(
       () =>
         ({
           color: "rgb(255, 200, 150)",
         }) as unknown as CSSStyleDeclaration,
     );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("normalizes rgb() through canvas to hex triplet", () => {
+    const fake = makeFakeCanvas();
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas") return fake as unknown as HTMLCanvasElement;
+      return originalCreateElement(tag);
+    });
     expect(cssVarRgb("--color-surface")).toBe("255, 200, 150");
   });
 
-  it("parses rgba() from getComputedStyle, dropping alpha", () => {
+  it("normalizes rgba() through canvas, dropping alpha", () => {
     vi.spyOn(window, "getComputedStyle").mockImplementation(
       () =>
         ({
           color: "rgba(40, 50, 60, 0.5)",
         }) as unknown as CSSStyleDeclaration,
     );
+    const fake = makeFakeCanvas();
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas") return fake as unknown as HTMLCanvasElement;
+      return originalCreateElement(tag);
+    });
     expect(cssVarRgb("--color-border-strong")).toBe("40, 50, 60");
   });
 
-  it("returns resolved color string from cssVarResolved", () => {
-    vi.spyOn(window, "getComputedStyle").mockImplementation(
-      () =>
-        ({
-          color: "rgb(100, 120, 140)",
-        }) as unknown as CSSStyleDeclaration,
-    );
-    expect(cssVarResolved("--color-border-strong")).toBe("rgb(100, 120, 140)");
+  it("returns hex color string from cssVarResolved", () => {
+    const fake = makeFakeCanvas();
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas") return fake as unknown as HTMLCanvasElement;
+      return originalCreateElement(tag);
+    });
+    expect(cssVarResolved("--color-border-strong")).toBe("#ffc896");
   });
 
-  it("falls back to 0, 0, 0 when getComputedStyle returns unparseable value", () => {
+  it("falls back to 0, 0, 0 when canvas context is unavailable", () => {
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas")
+        return { getContext: () => null } as unknown as HTMLCanvasElement;
+      return originalCreateElement(tag);
+    });
+    expect(cssVarRgb("--color-bogus")).toBe("0, 0, 0");
+  });
+
+  it("normalizes oklch() through canvas to hex", () => {
     vi.spyOn(window, "getComputedStyle").mockImplementation(
       () =>
         ({
-          color: "invalid",
+          color: "oklch(0.9 0.01 92)",
         }) as unknown as CSSStyleDeclaration,
     );
-    expect(cssVarRgb("--color-bogus")).toBe("0, 0, 0");
+    const fake = makeFakeCanvas();
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas") return fake as unknown as HTMLCanvasElement;
+      return originalCreateElement(tag);
+    });
+    const result = cssVarRgb("--color-surface");
+    expect(result).toMatch(/^\d+, \d+, \d+$/);
+    expect(result).not.toBe("0, 0, 0");
   });
 });
