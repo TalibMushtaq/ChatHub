@@ -47,6 +47,12 @@ import {
 } from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
 import { useNotificationSound } from "./useNotificationSound";
+import {
+  ensureNotificationsInitialized,
+  notifyIncomingMessage,
+  setActiveConversation,
+  clearActiveConversation,
+} from "./notifications";
 import { btnPrimary, iconBtn } from "./styles";
 
 type AnyMsg = {
@@ -105,6 +111,11 @@ export default function AppShell() {
   // Track whether we pushed a synthetic history entry for the mobile thread
   // view so that the hardware back button can close it.
   const threadHistoryRef = useRef(false);
+  // Latest deep-link handler for the service worker's navigate messages; the
+  // listener is registered once, so it must read through a ref.
+  const openConvFromLinkRef = useRef<(kind: "dm" | "room", id: string) => void>(
+    () => {},
+  );
 
   function setMsgsBoth(
     fn: (prev: Record<string, Message[]>) => Record<string, Message[]>,
@@ -179,6 +190,15 @@ export default function AppShell() {
         onUser: live((me) => {
           userRef.current = me;
           setUser(me);
+          // Notification-click deep link (?conv=<kind>:<id>) — open the
+          // conversation once auth has resolved.
+          const target = parseConvParam();
+          if (target) {
+            if (typeof window !== "undefined") {
+              history.replaceState({}, "", "/dashboard");
+            }
+            openConvFromLinkRef.current(target.kind, target.id);
+          }
         }),
         onLists: live((dm, rooms) => {
           setDmList(dm);
@@ -194,6 +214,32 @@ export default function AppShell() {
     );
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Web Push / service worker (registered once)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    void ensureNotificationsInitialized();
+
+    const onSwMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (!msg || typeof msg !== "object") return;
+      if (msg.type === "chathubby:navigate" && msg.conversationId) {
+        const kind: "dm" | "room" = msg.kind === "room" ? "room" : "dm";
+        openConvFromLinkRef.current(kind, msg.conversationId);
+      }
+    };
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", onSwMessage);
+    }
+
+    return () => {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", onSwMessage);
+      }
     };
   }, []);
 
@@ -351,6 +397,16 @@ export default function AppShell() {
           // History loads go through loadMessages(), never this path, and the
           // hook dedupes by message id so re-renders can't replay it.
           playNotificationSound(msg.id, "dm");
+          // Desktop notification: a no-op when the tab is visible or a push
+          // subscription owns display (see notifications.ts).
+          notifyIncomingMessage({
+            kind: "dm",
+            conversationId: a.id,
+            messageId: msg.id,
+            senderName: norm.User?.displayName ?? norm.User?.username ?? "Someone",
+            messageType: msg.messageType,
+            content: msg.content,
+          });
           markReadNow();
         }
       } else if (a.kind === "room" && msg.chatRoomId === a.id) {
@@ -362,6 +418,15 @@ export default function AppShell() {
         bumpRoomList(a.id, norm, mine);
         if (!mine) {
           playNotificationSound(msg.id, "room");
+          notifyIncomingMessage({
+            kind: "room",
+            conversationId: a.id,
+            messageId: msg.id,
+            senderName: norm.User?.displayName ?? norm.User?.username ?? "Someone",
+            roomName: a.name,
+            messageType: msg.messageType,
+            content: msg.content,
+          });
           markReadNow();
         }
       }
@@ -661,6 +726,48 @@ export default function AppShell() {
   // ---------------------------------------------------------------------------
   // Conversation lifecycle
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Deep links (notification clicks): open a conversation by kind + id.
+  // ---------------------------------------------------------------------------
+  function parseConvParam(): { kind: "dm" | "room"; id: string } | null {
+    if (typeof window === "undefined") return null;
+    const raw = new URLSearchParams(window.location.search).get("conv");
+    if (!raw) return null;
+    const sep = raw.indexOf(":");
+    if (sep <= 0) return null;
+    const kind = raw.slice(0, sep);
+    const id = raw.slice(sep + 1);
+    if ((kind !== "dm" && kind !== "room") || !id) return null;
+    return { kind, id };
+  }
+
+  async function openDmFromLink(directChatId: string) {
+    // The thread header needs the other user's profile; resolve it from the
+    // inbox when possible, else open with a minimal placeholder.
+    let otherUser: ActiveConv["otherUser"] = { id: directChatId };
+    try {
+      const inbox = await ChatAPI.getDmInbox();
+      const entry = inbox.items.find((e) => e.directChatId === directChatId);
+      if (entry) {
+        otherUser = {
+          id: entry.otherUser.id,
+          username: entry.otherUser.username,
+          displayName: entry.otherUser.displayName,
+          avatar: entry.otherUser.avatar ?? null,
+        };
+      }
+    } catch {
+      // best-effort: open with the minimal profile
+    }
+    openConv({ kind: "dm", id: directChatId, otherUser });
+  }
+
+  function openConvFromLink(kind: "dm" | "room", id: string) {
+    if (kind === "dm") void openDmFromLink(id);
+    else openConv({ kind: "room", id });
+  }
+  openConvFromLinkRef.current = openConvFromLink;
+
   function joinSocket(c: ActiveConv) {
     const key = `${c.kind}:${c.id}`;
     if (joinedRef.current.has(key)) return;
@@ -718,6 +825,9 @@ export default function AppShell() {
     activeRef.current = c;
     setActive(c);
     setFmenu(false);
+    // Tell the service worker what's on screen so it can suppress redundant
+    // OS notifications for the active conversation.
+    setActiveConversation(c.kind, c.id);
     joinSocket(c);
     if (c.kind === "room") {
       ChatAPI.getRoomMembers(c.id)
@@ -765,6 +875,7 @@ export default function AppShell() {
     if (a) leaveSocket(a);
     activeRef.current = null;
     setActive(null);
+    clearActiveConversation();
     threadHistoryRef.current = false;
   }
 

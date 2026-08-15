@@ -34,6 +34,7 @@ export default function socketAuth(
       select: {
         id: true,
         username: true,
+        displayName: true,
         status: true,
         customStatus: true,
         showOnlineStatus: true,

@@ -189,6 +189,7 @@ model User {
   recoveryCodes                       RecoveryCode[]
   directChatReadReceipts              DirectChatReadReceipt[]
   chatRoomReadReceipts                ChatRoomReadReceipt[]
+  pushSubscriptions                   PushSubscription[]
 
 }
 
@@ -283,6 +284,23 @@ model RecoveryCode {
 
   @@unique([userId, codeId])
   @@index([userId, used])
+}
+
+// A browser's Web Push subscription, registered via POST /api/push/subscribe.
+// The endpoint is globally unique (browsers generate one per origin+user) and
+// is used to deliver OS notifications when the user is not looking at the app.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Tracks the last message each user has read in a direct conversation.

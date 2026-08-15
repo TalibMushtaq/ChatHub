@@ -18,7 +18,11 @@
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
     "AWS_S3_BUCKET_NAME",
-    "AWS_S3_ENDPOINT"
+    "AWS_S3_ENDPOINT",
+    "VAPID_PUBLIC_KEY",
+    "VAPID_PRIVATE_KEY",
+    "VAPID_SUBJECT",
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY"
   ],
   "tasks": {
     "build": {

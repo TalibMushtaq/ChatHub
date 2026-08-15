@@ -8,6 +8,7 @@ type AuthUser = Pick<
   User,
   | "id"
   | "username"
+  | "displayName"
   | "status"
   | "customStatus"
   | "showOnlineStatus"

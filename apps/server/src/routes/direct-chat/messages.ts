@@ -11,6 +11,7 @@ import { unwrapParsed } from "../../lib/validate";
 import type { S3Service } from "../../services/S3Service";
 import { getOptionalS3Service, getRequiredS3Service } from "../../lib/s3";
 import { deleteMessageAttachments } from "../../services/attachment/deleteMessageAttachments";
+import { pushNewMessage } from "../../services/push/push";
 import { MessageType } from "@prisma/client";
 import {
   sendMessageSchema,
@@ -79,6 +80,19 @@ router.post(
       .to(`directChat:${directChatId}`)
       .emit("inbox:update", { directChatId });
     req.io.to(`directChat:${directChatId}`).emit("message:new", result);
+
+    // Fire-and-forget OS notification to the other participant via Web Push.
+    // A push failure must never fail a message the sender already saw deliver.
+    void pushNewMessage({
+      kind: "dm",
+      conversationId: directChatId,
+      messageId: result.id,
+      senderId,
+      senderName: req.user.displayName ?? req.user.username,
+      messageType: body.messageType as MessageType,
+      content: body.content,
+    });
+
     res.status(201).json({ ok: true, result });
   }),
 );

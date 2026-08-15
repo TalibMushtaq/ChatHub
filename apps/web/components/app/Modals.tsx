@@ -28,6 +28,7 @@ import {
 } from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
 import { useNotificationSound } from "./useNotificationSound";
+import { useNotifications } from "./useNotifications";
 import {
   btn,
   btnPrimary,
@@ -1333,9 +1334,43 @@ function PrivacyModal() {
 }
 
 function NotificationsModal() {
-  // Preference is persisted immediately (no save step) so it applies the
-  // moment it flips — playback reads the same hook's enabledRef.
+  // Preferences are persisted immediately (no save step) so they apply the
+  // moment they flip — playback reads the sound hook's enabledRef, and the
+  // notifications singleton emits its own state changes.
   const { soundEnabled, setSoundEnabled } = useNotificationSound();
+  const { toast } = useShell();
+  const {
+    supported,
+    checking,
+    prefEnabled,
+    permission,
+    enable,
+    disable,
+  } = useNotifications();
+
+  async function toggleDesktop(on: boolean) {
+    if (!on) {
+      await disable();
+      toast("Desktop notifications off", "info");
+      return;
+    }
+    const result = await enable();
+    if (result.ok) {
+      toast("Desktop notifications on", "success");
+      return;
+    }
+    toast(
+      result.reason === "denied"
+        ? "Notifications are blocked — allow them for this site in your browser"
+        : result.reason === "unconfigured"
+          ? "Desktop notifications aren't configured on this server"
+          : "Couldn't enable desktop notifications",
+      "error",
+    );
+  }
+
+  const permissionDenied = permission === "denied";
+
   return (
     <>
       <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
@@ -1351,6 +1386,25 @@ function NotificationsModal() {
         </div>
         <Toggle on={soundEnabled} onChange={setSoundEnabled} />
       </div>
+      <div className={rowItem}>
+        <div className={rowGrow}>
+          <div className={rowT1}>Desktop notifications</div>
+          <div className={rowT2}>
+            Show an OS notification for new messages, even when ChatHubby
+            isn&apos;t open. {permissionDenied && "Blocked by your browser."}
+          </div>
+        </div>
+        <Toggle
+          on={prefEnabled}
+          onChange={(v) => void toggleDesktop(v)}
+          disabled={checking || (!supported && !prefEnabled)}
+        />
+      </div>
+      {!supported && (
+        <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+          Desktop notifications need a secure connection (HTTPS or localhost).
+        </p>
+      )}
     </>
   );
 }
@@ -1358,9 +1412,11 @@ function NotificationsModal() {
 function Toggle({
   on,
   onChange,
+  disabled,
 }: {
   on: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -1368,7 +1424,8 @@ function Toggle({
       role="switch"
       aria-checked={on}
       aria-label={on ? "On" : "Off"}
-      className={`relative h-6 w-11 flex-none cursor-pointer rounded-full transition-colors duration-150 ease-app ${on ? "bg-accent-btn" : "bg-surface-3"}`}
+      disabled={disabled}
+      className={`relative h-6 w-11 flex-none rounded-full transition-colors duration-150 ease-app ${on ? "bg-accent-btn" : "bg-surface-3"} ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
       onClick={() => onChange(!on)}
     >
       <span

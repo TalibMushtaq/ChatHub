@@ -80,6 +80,23 @@ export const ChatAPI = {
     await api.post("/auth/logout");
   },
 
+  // ---------------------------------------------------------------------------
+  // Web Push
+  // ---------------------------------------------------------------------------
+
+  /** Register (or refresh) the browser's push subscription with the server. */
+  async subscribePush(payload: {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+  }): Promise<void> {
+    await api.post("/push/subscribe", payload);
+  },
+
+  /** Remove the browser's push subscription from the server. */
+  async unsubscribePush(endpoint: string): Promise<void> {
+    await api.delete("/push/subscribe", { data: { endpoint } });
+  },
+
   async regenerateRecoveryCodes(currentPassword: string): Promise<string[]> {
     // The server never returns codes in a response body — it issues a
     // one-time token that must be exchanged via POST /auth/recovery-codes/show.

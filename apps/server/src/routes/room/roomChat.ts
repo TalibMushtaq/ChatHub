@@ -19,6 +19,7 @@ import { createLogger } from "../../lib/logger";
 import { getOptionalS3Service, getRequiredS3Service } from "../../lib/s3";
 import { deleteMessageAttachments } from "../../services/attachment/deleteMessageAttachments";
 import { onAck } from "../../lib/socketAck";
+import { pushNewMessage } from "../../services/push/push";
 import { messageWithAttachmentsSelect } from "../../constants/room";
 
 const log = createLogger("roomChat");
@@ -233,6 +234,20 @@ export function registerRoomChat(io: Server, socket: Socket) {
       }
 
       io.to(`room:${data.chatRoomId}`).emit("chatroom:message", message);
+
+      // Fire-and-forget OS notifications to the other room members via Web
+      // Push. A push failure must never fail a message the sender already saw
+      // deliver. SYSTEM messages are filtered inside pushNewMessage.
+      void pushNewMessage({
+        kind: "room",
+        conversationId: data.chatRoomId,
+        messageId: message.id,
+        senderId: userId,
+        senderName: user.displayName ?? user.username,
+        messageType: message.messageType,
+        content: message.content,
+      });
+
       ack({ ok: true, message });
     },
   );
