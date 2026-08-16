@@ -18,7 +18,14 @@ import {
   MoreIcon,
   BellIcon,
 } from "./icons";
-import { iconBtn, searchBox, searchInput, btnSm, btnGhost, btnPrimary } from "./styles";
+import {
+  iconBtn,
+  searchBox,
+  searchInput,
+  btnSm,
+  btnGhost,
+  btnPrimary,
+} from "./styles";
 
 function lastText(content: string | null, messageType: string): string {
   if (messageType === "IMAGE") return "Photo";
@@ -303,7 +310,11 @@ function FriendRequestCards() {
           key={r.id}
           className="fr-card flex w-full items-center gap-[11px] rounded-[14px] border border-accent-soft bg-accent-wash/40 p-2.5"
         >
-          <AppAvatar name={displayName(r.sender)} src={r.sender.avatar} size={44} />
+          <AppAvatar
+            name={displayName(r.sender)}
+            src={r.sender.avatar}
+            size={44}
+          />
           <div className="mid min-w-0 flex-1">
             <div className="line1">
               <span className="name truncate text-[14.5px] font-extrabold">
@@ -431,7 +442,10 @@ function SearchResultAction({
 
   if (u.relationship === "FRIENDS") {
     return (
-      <button className={`${btnGhost} ${btnSm} flex-none`} onClick={() => onPick(u)}>
+      <button
+        className={`${btnGhost} ${btnSm} flex-none`}
+        onClick={() => onPick(u)}
+      >
         Message
       </button>
     );

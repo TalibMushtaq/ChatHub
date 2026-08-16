@@ -33,9 +33,13 @@ export async function acceptFriendRequest(
   // (same normalized-ordering rule as DirectChat) — this is what makes the
   // unique constraint reject a duplicate regardless of who initiated.
   const userAId =
-    request.senderId < request.recipientId ? request.senderId : request.recipientId;
+    request.senderId < request.recipientId
+      ? request.senderId
+      : request.recipientId;
   const userBId =
-    request.senderId < request.recipientId ? request.recipientId : request.senderId;
+    request.senderId < request.recipientId
+      ? request.recipientId
+      : request.senderId;
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -79,7 +83,11 @@ export async function acceptFriendRequest(
         select: friendRequestSelect,
       });
       if (!accepted) {
-        throw new ApiError("friend request not found", 404, "REQUEST_NOT_FOUND");
+        throw new ApiError(
+          "friend request not found",
+          404,
+          "REQUEST_NOT_FOUND",
+        );
       }
       return accepted;
     }

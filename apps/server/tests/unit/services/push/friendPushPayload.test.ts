@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  buildFriendRequestPushPayload,
-} from "../../../../src/services/push/payload";
+import { buildFriendRequestPushPayload } from "../../../../src/services/push/payload";
 
 describe("buildFriendRequestPushPayload", () => {
   it("builds a message-shaped payload with the sender as title", () => {
@@ -25,7 +23,9 @@ describe("buildFriendRequestPushPayload", () => {
   });
 
   it("uses event-specific copy for every event", () => {
-    const cases: Array<[Parameters<typeof buildFriendRequestPushPayload>[0]["event"], string]> = [
+    const cases: Array<
+      [Parameters<typeof buildFriendRequestPushPayload>[0]["event"], string]
+    > = [
       ["new", "sent you a friend request"],
       ["accepted", "accepted your friend request"],
       ["declined", "declined your friend request"],

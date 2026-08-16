@@ -238,16 +238,12 @@ export default function AppShell() {
       );
     } else if (event === "declined") {
       setResults((prev) =>
-        prev.map((u) =>
-          u.id === fromId ? { ...u, relationship: "NONE" } : u,
-        ),
+        prev.map((u) => (u.id === fromId ? { ...u, relationship: "NONE" } : u)),
       );
     } else if (event === "blocked") {
       // Drop any pending request card from the blocker.
       setFriendRequestsBoth((prev) =>
-        prev.filter(
-          (r) => r.sender.id !== fromId && r.recipient.id !== fromId,
-        ),
+        prev.filter((r) => r.sender.id !== fromId && r.recipient.id !== fromId),
       );
       setResults((prev) =>
         prev.map((u) =>
@@ -292,9 +288,7 @@ export default function AppShell() {
   async function acceptFriendRequest(requestId: string) {
     try {
       const req = await ChatAPI.acceptFriendRequest(requestId);
-      setFriendRequestsBoth((prev) =>
-        prev.filter((r) => r.id !== requestId),
-      );
+      setFriendRequestsBoth((prev) => prev.filter((r) => r.id !== requestId));
       setResults((prev) =>
         prev.map((u) =>
           u.id === req.sender.id ? { ...u, relationship: "FRIENDS" } : u,
@@ -326,9 +320,14 @@ export default function AppShell() {
       setFriendRequestsBoth((prev) =>
         prev.filter((r) => r.sender.id !== userId && r.recipient.id !== userId),
       );
-      setBlockedUsers((prev) => [blocked, ...prev.filter((b) => b.id !== userId)]);
+      setBlockedUsers((prev) => [
+        blocked,
+        ...prev.filter((b) => b.id !== userId),
+      ]);
       setResults((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, relationship: "BLOCKED" } : u)),
+        prev.map((u) =>
+          u.id === userId ? { ...u, relationship: "BLOCKED" } : u,
+        ),
       );
       toast(`Blocked ${blocked.displayName ?? blocked.username}`, "success");
     } catch (err) {
@@ -445,11 +444,7 @@ export default function AppShell() {
       // client only plays the tone and applies the inbox/chip update. The
       // pipeline dedupes by request id against the socket path.
       if (msg.type === "chathubby:incoming-friend-request") {
-        const event = msg.event as
-          | "new"
-          | "accepted"
-          | "declined"
-          | "blocked";
+        const event = msg.event as "new" | "accepted" | "declined" | "blocked";
         applyFriendRequestEventRef.current(
           {
             event,

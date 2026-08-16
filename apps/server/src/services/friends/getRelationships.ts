@@ -14,7 +14,9 @@ export async function getRelationships(
   userIds: string[],
 ): Promise<Map<string, Relationship>> {
   const uniqueIds = [...new Set(userIds)];
-  const map = new Map<string, Relationship>(uniqueIds.map((id) => [id, "NONE"]));
+  const map = new Map<string, Relationship>(
+    uniqueIds.map((id) => [id, "NONE"]),
+  );
   if (uniqueIds.length === 0) return map;
 
   const pairFilter = (left: string, right: string) => [

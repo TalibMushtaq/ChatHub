@@ -39,11 +39,11 @@ describe("getRelationship", () => {
     prismaMock.friendship.findFirst.mockResolvedValue(null);
     prismaMock.friendRequest.findFirst.mockResolvedValue(null);
     prismaMock.friendRequest.findFirst.mockResolvedValueOnce(null); // sent
-    prismaMock.friendRequest.findFirst.mockResolvedValueOnce({ id: "r1" } as any); // received
+    prismaMock.friendRequest.findFirst.mockResolvedValueOnce({
+      id: "r1",
+    } as any); // received
 
-    await expect(getRelationship("u1", "u2")).resolves.toBe(
-      "REQUEST_RECEIVED",
-    );
+    await expect(getRelationship("u1", "u2")).resolves.toBe("REQUEST_RECEIVED");
   });
 
   it("returns NONE when no relationship exists", async () => {

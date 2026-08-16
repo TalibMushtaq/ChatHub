@@ -1398,7 +1398,11 @@ function PrivacyModal() {
                 key={b.id}
                 className="flex items-center gap-[10px] rounded-[12px] p-1.5 hover:bg-surface-2"
               >
-                <AppAvatar name={b.displayName ?? b.username} src={b.avatar} size={34} />
+                <AppAvatar
+                  name={b.displayName ?? b.username}
+                  src={b.avatar}
+                  size={34}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-bold">
                     {displayName(b)}

@@ -38,7 +38,10 @@ describe("GET /search/users/search", () => {
     resetPrismaMock();
     vi.clearAllMocks();
     vi.mocked(getRelationships).mockResolvedValue(
-      new Map([["u2", "FRIENDS"], ["u3", "NONE"]]),
+      new Map([
+        ["u2", "FRIENDS"],
+        ["u3", "NONE"],
+      ]),
     );
   });
 

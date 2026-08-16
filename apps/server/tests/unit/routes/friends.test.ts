@@ -80,9 +80,7 @@ describe("POST /friends/requests", () => {
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.friendship.findFirst.mockResolvedValue(null);
     prismaMock.friendRequest.findFirst.mockResolvedValue(null);
-    prismaMock.friendRequest.create.mockResolvedValue(
-      requestPayload() as any,
-    );
+    prismaMock.friendRequest.create.mockResolvedValue(requestPayload() as any);
 
     const res = await supertest(createTestApp())
       .post("/friends/requests")
@@ -94,7 +92,12 @@ describe("POST /friends/requests", () => {
 
     // The sender id always comes from the session, never the body.
     expect(prismaMock.friendRequest.create).toHaveBeenCalledWith({
-      data: { senderId: "u1", recipientId: "u2", pairKey: "u1|u2", status: "PENDING" },
+      data: {
+        senderId: "u1",
+        recipientId: "u2",
+        pairKey: "u1|u2",
+        status: "PENDING",
+      },
       select: expect.any(Object),
     });
     expect(mocks.io.to).toHaveBeenCalledWith("user:u2");

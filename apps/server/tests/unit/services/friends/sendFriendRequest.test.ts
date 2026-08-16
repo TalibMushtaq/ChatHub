@@ -48,7 +48,9 @@ describe("sendFriendRequest", () => {
   });
 
   it("throws 403 when either side has blocked the other", async () => {
-    prismaMock.user.findUnique.mockResolvedValue(createUser({ id: "u2" }) as any);
+    prismaMock.user.findUnique.mockResolvedValue(
+      createUser({ id: "u2" }) as any,
+    );
     // u2 blocked u1 → request is refused in both directions.
     prismaMock.userBlock.findFirst.mockResolvedValue({ id: "b1" } as any);
 
@@ -59,7 +61,9 @@ describe("sendFriendRequest", () => {
   });
 
   it("throws 409 when the pair is already friends", async () => {
-    prismaMock.user.findUnique.mockResolvedValue(createUser({ id: "u2" }) as any);
+    prismaMock.user.findUnique.mockResolvedValue(
+      createUser({ id: "u2" }) as any,
+    );
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.friendship.findFirst.mockResolvedValue({ id: "f1" } as any);
 
@@ -70,7 +74,9 @@ describe("sendFriendRequest", () => {
   });
 
   it("throws 409 when a PENDING request already exists", async () => {
-    prismaMock.user.findUnique.mockResolvedValue(createUser({ id: "u2" }) as any);
+    prismaMock.user.findUnique.mockResolvedValue(
+      createUser({ id: "u2" }) as any,
+    );
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.friendship.findFirst.mockResolvedValue(null);
     prismaMock.friendRequest.findFirst.mockResolvedValue({
@@ -84,25 +90,32 @@ describe("sendFriendRequest", () => {
   });
 
   it("creates a PENDING request with a normalized pairKey", async () => {
-    prismaMock.user.findUnique.mockResolvedValue(createUser({ id: "u2" }) as any);
+    prismaMock.user.findUnique.mockResolvedValue(
+      createUser({ id: "u2" }) as any,
+    );
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.friendship.findFirst.mockResolvedValue(null);
     prismaMock.friendRequest.findFirst.mockResolvedValue(null);
-    prismaMock.friendRequest.create.mockResolvedValue(
-      pendingRequest() as any,
-    );
+    prismaMock.friendRequest.create.mockResolvedValue(pendingRequest() as any);
 
     const result = await sendFriendRequest("u1", "u2");
 
     expect(prismaMock.friendRequest.create).toHaveBeenCalledWith({
-      data: { senderId: "u1", recipientId: "u2", pairKey: "u1|u2", status: "PENDING" },
+      data: {
+        senderId: "u1",
+        recipientId: "u2",
+        pairKey: "u1|u2",
+        status: "PENDING",
+      },
       select: expect.any(Object),
     });
     expect(result.status).toBe("PENDING");
   });
 
   it("normalizes the pairKey regardless of sender/recipient order", async () => {
-    prismaMock.user.findUnique.mockResolvedValue(createUser({ id: "u1" }) as any);
+    prismaMock.user.findUnique.mockResolvedValue(
+      createUser({ id: "u1" }) as any,
+    );
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.friendship.findFirst.mockResolvedValue(null);
     prismaMock.friendRequest.findFirst.mockResolvedValue(null);
@@ -118,7 +131,9 @@ describe("sendFriendRequest", () => {
   });
 
   it("maps the mutual-request race (P2002) to a 409", async () => {
-    prismaMock.user.findUnique.mockResolvedValue(createUser({ id: "u2" }) as any);
+    prismaMock.user.findUnique.mockResolvedValue(
+      createUser({ id: "u2" }) as any,
+    );
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.friendship.findFirst.mockResolvedValue(null);
     prismaMock.friendRequest.findFirst.mockResolvedValue(null);
@@ -136,7 +151,9 @@ describe("sendFriendRequest", () => {
   });
 
   it("rethrows unexpected Prisma errors", async () => {
-    prismaMock.user.findUnique.mockResolvedValue(createUser({ id: "u2" }) as any);
+    prismaMock.user.findUnique.mockResolvedValue(
+      createUser({ id: "u2" }) as any,
+    );
     prismaMock.userBlock.findFirst.mockResolvedValue(null);
     prismaMock.friendship.findFirst.mockResolvedValue(null);
     prismaMock.friendRequest.findFirst.mockResolvedValue(null);
