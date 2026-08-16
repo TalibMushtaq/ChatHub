@@ -86,6 +86,7 @@ export async function pushNewMessage(
         kind: input.kind,
         conversationId: input.conversationId,
         messageId: input.messageId,
+        senderId: input.senderId,
         senderName: input.senderName,
         roomName: recipients.roomName ?? null,
         messageType: input.messageType,

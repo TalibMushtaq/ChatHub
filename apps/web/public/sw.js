@@ -88,15 +88,28 @@ self.addEventListener("push", (event) => {
           (client) =>
             client.visibilityState === "visible" && isViewing(client, data),
         );
-        if (redundant) return;
+        if (!redundant) {
+          self.registration.showNotification(payload.title, {
+            body: payload.body,
+            icon: payload.icon,
+            badge: payload.badge,
+            tag: payload.tag,
+            data,
+          });
+        }
 
-        return self.registration.showNotification(payload.title, {
-          body: payload.body,
-          icon: payload.icon,
-          badge: payload.badge,
-          tag: payload.tag,
-          data,
-        });
+        // Ask clients that are NOT already showing this conversation (their
+        // socket renders the message live, so they already sounded off) to
+        // play the custom tone. The worker itself never touches Audio — with
+        // no open client the OS notification sound is the only one.
+        for (const client of clients) {
+          if (!isViewing(client, data)) {
+            client.postMessage({
+              type: "chathubby:incoming-message",
+              ...data,
+            });
+          }
+        }
       }),
   );
 });

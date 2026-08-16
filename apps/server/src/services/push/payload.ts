@@ -34,13 +34,17 @@ export function notificationBody(input: {
 /**
  * The exact payload the service worker hands to showNotification().
  *
- * `data` carries the navigation target; `tag` is unique per message so a
- * burst of notifications stacks instead of silently replacing each other.
+ * `data` carries the navigation target plus everything a live client needs to
+ * reconstruct the notification and play the right tone after the worker
+ * forwards it (the worker spreads `data` back to the client). `tag` is unique
+ * per message so a burst of notifications stacks instead of silently replacing
+ * each other.
  */
 export function buildPushPayload(input: {
   kind: "dm" | "room";
   conversationId: string;
   messageId: string;
+  senderId: string;
   senderName: string;
   roomName?: string | null;
   messageType: MessageType | null;
@@ -51,7 +55,16 @@ export function buildPushPayload(input: {
   icon: string;
   badge: string;
   tag: string;
-  data: { kind: "dm" | "room"; conversationId: string; messageId: string };
+  data: {
+    kind: "dm" | "room";
+    conversationId: string;
+    messageId: string;
+    senderId: string;
+    senderName: string;
+    roomName: string | null;
+    messageType: MessageType | null;
+    content: string | null;
+  };
 } {
   const title =
     input.kind === "room"
@@ -71,6 +84,11 @@ export function buildPushPayload(input: {
       kind: input.kind,
       conversationId: input.conversationId,
       messageId: input.messageId,
+      senderId: input.senderId,
+      senderName: input.senderName,
+      roomName: input.roomName ?? null,
+      messageType: input.messageType,
+      content: input.content ?? null,
     },
   };
 }

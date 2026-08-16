@@ -40,6 +40,7 @@ describe("buildPushPayload", () => {
       kind: "room",
       conversationId: "r1",
       messageId: "m1",
+      senderId: "u1",
       senderName: "Bob",
       roomName: "Games",
       messageType: "TEXT",
@@ -53,6 +54,11 @@ describe("buildPushPayload", () => {
       kind: "room",
       conversationId: "r1",
       messageId: "m1",
+      senderId: "u1",
+      senderName: "Bob",
+      roomName: "Games",
+      messageType: "TEXT",
+      content: "hello",
     });
     expect(p.icon).toBe("/chathubby-v2.webp");
   });
@@ -62,6 +68,7 @@ describe("buildPushPayload", () => {
       kind: "dm",
       conversationId: "d1",
       messageId: "m2",
+      senderId: "u2",
       senderName: "Alice",
       messageType: "IMAGE",
       content: null,

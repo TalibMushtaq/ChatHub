@@ -2,20 +2,22 @@
 
 // Client-side notification manager for ChatHubby.
 //
-// Owns the *desktop* notification surface (permission + Web Push subscription
-// + service worker registration) as a singleton so the settings modal and the
-// socket message path share one source of truth, mirroring how
-// useNotificationSound centralizes sounds. The notification preference
-// (chathubby:desktopNotifications) is deliberately independent of the sound
-// preference (chathubby:notificationSounds) and of the browser permission.
+// Owns the *push* surface (permission + Web Push subscription + service worker
+// registration) as a singleton. Decisions about what an incoming message
+// produces (sound vs desktop notification vs both) live in
+// incomingNotifications.ts; this module supplies it with push state and the
+// in-page Notification fallback never fires here directly. The notification
+// preference (chathubby:desktopNotifications) is deliberately independent of
+// the sound preference (chathubby:notificationSounds) and of the browser
+// permission.
 //
 // Notification routing when a new message arrives:
 // - A push subscription is active (pushReady) -> the service worker owns
 //   display (it suppresses when a visible tab is viewing the conversation,
-//   and shows an OS notification otherwise).
+//   shows an OS notification otherwise, and asks the client to play the sound).
 // - No push subscription -> the socket only delivers messages for the ACTIVE
-//   conversation, so notifyIncomingMessage shows an in-page Notification only
-//   when the tab is hidden (visible = the user is looking at it).
+//   conversation, so the in-page Notification fallback in
+//   incomingNotifications.ts fires only when the tab is hidden.
 
 import { ChatAPI } from "./api";
 import type { ConvKind } from "./state";
@@ -23,11 +25,6 @@ import type { ConvKind } from "./state";
 export const NOTIFICATION_PREF_KEY = "chathubby:desktopNotifications";
 
 const SW_URL = "/sw.js";
-
-// Message ids that already produced a client-side notification; guards
-// against duplicate socket delivery and re-renders (mirrors the sound hook).
-const notifiedIds = new Set<string>();
-const NOTIFIED_LIMIT = 200;
 
 // Latest active push subscription, resolved during init. `pushReady` is the
 // combined flag the message path checks.
@@ -77,6 +74,11 @@ function writePref(on: boolean) {
   } catch {
     // localStorage unavailable (private mode) — the pref just won't persist.
   }
+}
+
+/** Whether the user opted into desktop notifications (read by the pipeline). */
+export function notificationPrefEnabled(): boolean {
+  return readPref();
 }
 
 export function notificationPermission():
@@ -254,72 +256,6 @@ export async function unsubscribeFromPush(): Promise<void> {
   activeSubscription = null;
   writePref(false);
   emit();
-}
-
-// ---------------------------------------------------------------------------
-// Incoming message
-// ---------------------------------------------------------------------------
-
-/**
- * Handle a socket-delivered incoming message. Fires only in the hidden-tab +
- * no-push-subscription case; with an active push the service worker owns
- * display, and a visible tab is already rendering the message live.
- */
-export function notifyIncomingMessage(input: {
-  kind: ConvKind;
-  conversationId: string;
-  messageId: string;
-  senderName: string;
-  roomName?: string | null;
-  messageType?: string;
-  content?: string | null;
-}) {
-  if (!notificationsSupported()) return;
-  if (!readPref()) return;
-  if (isPushReady()) return;
-  if (notifiedIds.has(input.messageId)) return;
-  if (
-    typeof document !== "undefined" &&
-    document.visibilityState === "visible"
-  ) {
-    return;
-  }
-
-  notifiedIds.add(input.messageId);
-  while (notifiedIds.size > NOTIFIED_LIMIT) {
-    const oldest = notifiedIds.values().next().value;
-    if (oldest !== undefined) notifiedIds.delete(oldest);
-  }
-
-  const title =
-    input.kind === "room"
-      ? `${input.senderName} in #${input.roomName ?? "room"}`
-      : input.senderName;
-  const body =
-    input.messageType && input.messageType !== "TEXT"
-      ? "[Message]"
-      : (input.content ?? "[Message]").trim() || "[Message]";
-
-  try {
-    const n = new Notification(title, {
-      body,
-      icon: "/chathubby-v2.webp",
-      badge: "/chathubby-v2.webp",
-      tag: `chathubby:${input.messageId}`,
-      data: {
-        kind: input.kind,
-        conversationId: input.conversationId,
-        messageId: input.messageId,
-      },
-    });
-    n.onclick = () => {
-      window.focus();
-      window.location.href = `/dashboard?conv=${input.kind}:${input.conversationId}`;
-    };
-  } catch {
-    // Notification constructors can throw when the OS refuses; never break
-    // message processing because of it.
-  }
 }
 
 // ---------------------------------------------------------------------------

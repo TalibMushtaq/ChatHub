@@ -46,10 +46,12 @@ import {
   SmileyIcon,
 } from "./icons";
 import { useTheme } from "../../app/lib/useTheme";
-import { useNotificationSound } from "./useNotificationSound";
+import {
+  handleIncomingMessageNotification,
+  setNotificationUserId,
+} from "./incomingNotifications";
 import {
   ensureNotificationsInitialized,
-  notifyIncomingMessage,
   setActiveConversation,
   clearActiveConversation,
 } from "./notifications";
@@ -92,9 +94,6 @@ export default function AppShell() {
   const [listLoading, setListLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { theme, toggle: toggleTheme } = useTheme();
-  // Notification sounds: `play` is stable so the once-registered socket
-  // handlers can capture it without going stale (it reads refs internally).
-  const { play: playNotificationSound } = useNotificationSound();
 
   // Refs mirror state so the once-registered socket handlers never see stale closures.
   const activeRef = useRef<ActiveConv | null>(null);
@@ -216,6 +215,13 @@ export default function AppShell() {
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Notification pipeline context (current user for self-message rejection)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    setNotificationUserId(user?.id ?? null);
+  }, [user?.id]);
+
+  // ---------------------------------------------------------------------------
   // Web Push / service worker (registered once)
   // ---------------------------------------------------------------------------
   useEffect(() => {
@@ -227,6 +233,23 @@ export default function AppShell() {
       if (msg.type === "chathubby:navigate" && msg.conversationId) {
         const kind: "dm" | "room" = msg.kind === "room" ? "room" : "dm";
         openConvFromLinkRef.current(kind, msg.conversationId);
+        return;
+      }
+      // A push landed while this client is open: the service worker already
+      // showed (or suppressed) the OS notification, so this client only plays
+      // the custom tone. `seenIds` dedupes against the socket path.
+      if (msg.type === "chathubby:incoming-message") {
+        handleIncomingMessageNotification({
+          source: "push",
+          kind: msg.kind === "room" ? "room" : "dm",
+          conversationId: msg.conversationId,
+          messageId: msg.messageId,
+          senderId: msg.senderId ?? null,
+          senderName: msg.senderName ?? "Someone",
+          roomName: msg.roomName ?? null,
+          messageType: msg.messageType ?? null,
+          content: msg.content ?? null,
+        });
       }
     };
 
@@ -391,16 +414,16 @@ export default function AppShell() {
         }));
         bumpDmList(a.id, norm, mine);
         if (!mine) {
-          // Socket-delivered message from the other side: play the DM tone.
-          // History loads go through loadMessages(), never this path, and the
-          // hook dedupes by message id so re-renders can't replay it.
-          playNotificationSound(msg.id, "dm");
-          // Desktop notification: a no-op when the tab is visible or a push
-          // subscription owns display (see notifications.ts).
-          notifyIncomingMessage({
+          // Feed the socket-delivered message into the shared notification
+          // pipeline (sound + possible in-page Notification). History loads go
+          // through loadMessages(), never this path, and the pipeline dedupes
+          // by message id so re-renders or a parallel push can't replay it.
+          handleIncomingMessageNotification({
+            source: "socket",
             kind: "dm",
             conversationId: a.id,
             messageId: msg.id,
+            senderId: msg.senderId,
             senderName:
               norm.User?.displayName ?? norm.User?.username ?? "Someone",
             messageType: msg.messageType,
@@ -416,11 +439,12 @@ export default function AppShell() {
         }));
         bumpRoomList(a.id, norm, mine);
         if (!mine) {
-          playNotificationSound(msg.id, "room");
-          notifyIncomingMessage({
+          handleIncomingMessageNotification({
+            source: "socket",
             kind: "room",
             conversationId: a.id,
             messageId: msg.id,
+            senderId: msg.senderId,
             senderName:
               norm.User?.displayName ?? norm.User?.username ?? "Someone",
             roomName: a.name,
@@ -667,9 +691,10 @@ export default function AppShell() {
       }
       typingTimersRef.current = {};
     };
-    // `playNotificationSound` is stable (its own useCallback has [] deps and
-    // reads refs internally), so listing it here never re-runs this effect.
-  }, [playNotificationSound]);
+    // The socket handlers only reference refs and the module-level
+    // notification pipeline (handleIncomingMessageNotification), so this
+    // effect registers exactly once for the component's lifetime.
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Presence heartbeat
