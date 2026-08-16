@@ -1,3 +1,23 @@
+## [2026-08-16] - Merge Account Settings Into Profile
+
+**What changed:** Removed the separate "Account" entry from the profile dropdown (avatar menu in `apps/web/components/app/AppShell.tsx`) and the standalone `AccountModal`, folding its actions (theme toggle and sign out) into `ProfileModal` in `apps/web/components/app/Modals.tsx`. The merged modal now renders the profile editor (avatar, display name, bio, gender, DOB) with an account section below (switch light/dark, sign out). Dropped `"account"` from the `ModalName` union (`types.ts`), its switch case, and the "My Account" row in `SettingsMenu` (`ListPanel.tsx`), which is replaced by a single "Profile" row whose subtitle now reads "Your public info & account".
+
+**Why:** Requested UX change — "My Account" duplicated what the profile modal already covered (avatar, name, email) and sat in the same dropdown as Profile; merging gives one entry and one modal for identity + account settings.
+
+**Impact:** `apps/web` only. No API, schema, or test changes; web typecheck and lint clean.
+
+**Follow-ups:** None.
+
+## [2026-08-16] - Move Settings Entry to Profile Menu
+
+**What changed:** Removed the "Settings" nav item from the desktop sidebar rail (`apps/web/components/app/AppShell.tsx`) and added a "Settings" button to the profile dropdown (opened by clicking the avatar at the bottom of the rail) that switches to the existing `settings` tab, which continues to render `SettingsMenu` in the list column. The mobile bottom-nav Settings button is unchanged so mobile users (who have no profile avatar) keep access to settings.
+
+**Why:** Requested UX change — the settings entry belongs with the user's profile controls rather than cluttering the primary navigation.
+
+**Impact:** `apps/web` only. No behavior change to the settings tab or its modals; web typecheck and lint clean.
+
+**Follow-ups:** None.
+
 ## [2026-08-16] - Unify Incoming Message Notification & Sound Pipeline
 
 **What changed:** Consolidated the two independent incoming-message flows (socket-driven sounds in `useNotificationSound.ts`/`AppShell.tsx` + Web Push/in-page notifications in `notifications.ts`) into one decision point. New `apps/web/components/app/incomingNotifications.ts` exports `handleIncomingMessageNotification({ source: "socket" | "push", kind, conversationId, messageId, senderId, senderName, roomName, messageType, content })`: it rejects self-sent messages, dedupes by `messageId` via a shared module-level `seenIds` set (bounded 200), plays the DM/group sound, then decides on the desktop notification. `AppShell.tsx` `onNew` now calls the handler for `!mine` socket messages (both `message:new` and `chatroom:message`) and its service-worker message listener feeds `chathubby:incoming-message` posts through with `source: "push"`; it also registers the current user id via `setNotificationUserId`. `notifications.ts` lost `notifyIncomingMessage`/`notifiedIds` (display + dedupe absorbed by the pipeline) and gained `notificationPrefEnabled()`. `useNotificationSound.ts` moved its engine (audio elements, pref, per-message guard) to module scope with `playNotificationSound`/`isNotificationSoundEnabled`/`setNotificationSoundEnabled`; the `useNotificationSound` hook is kept as the settings modal's reactive surface. `sw.js` push handler now posts `chathubby:incoming-message` to every window client that is NOT viewing the pushed conversation (still OS-notification-suppression logic unchanged; no Audio in the worker). `apps/server/src/services/push/payload.ts` `buildPushPayload` now requires and forwards `senderId` and carries `senderName`, `roomName`, `messageType`, `content` in `data` (title/body/tag presentation unchanged); `push.ts` passes `senderId`. Payload test updated.

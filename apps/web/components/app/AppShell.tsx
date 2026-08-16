@@ -1275,12 +1275,6 @@ export default function AppShell() {
                 <SearchIcon className="h-[21px] w-[21px]" />,
                 0,
               )}
-              {navItem(
-                "settings",
-                "Settings",
-                <GearIcon className="h-[21px] w-[21px]" />,
-                0,
-              )}
             </div>
             <div className="me flex flex-col items-center gap-1.5">
               <button
@@ -1332,10 +1326,10 @@ export default function AppShell() {
                     className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
                     onClick={() => {
                       setFmenu(false);
-                      openModal("account");
+                      setTab("settings");
                     }}
                   >
-                    <GearIcon className="h-4 w-4 flex-none" /> Account
+                    <GearIcon className="h-4 w-4 flex-none" /> Settings
                   </button>
                   <button
                     className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"

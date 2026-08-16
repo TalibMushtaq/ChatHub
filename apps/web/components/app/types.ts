@@ -220,7 +220,6 @@ export type ModalName =
   | "status"
   | "privacy"
   | "notifications"
-  | "account"
   | "recovery"
   | "confirm";
 

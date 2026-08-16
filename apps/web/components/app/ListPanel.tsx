@@ -12,7 +12,6 @@ import {
   MailIcon,
   LinkIcon,
   RefreshIcon,
-  GearIcon,
   UserIcon,
   LockIcon,
   MoreIcon,
@@ -312,14 +311,8 @@ function SettingsMenu() {
   const { openModal } = useShell();
   const items = [
     {
-      label: "My Account",
-      sub: "Email, sign out, theme",
-      icon: <GearIcon />,
-      modal: "account",
-    },
-    {
       label: "Profile",
-      sub: "Your public info",
+      sub: "Your public info & account",
       icon: <UserIcon />,
       modal: "profile",
     },

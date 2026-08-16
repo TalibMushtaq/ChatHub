@@ -73,7 +73,6 @@ const TITLES: Record<ModalEntry["name"], string> = {
   status: "Status",
   privacy: "Privacy",
   notifications: "Notifications",
-  account: "My account",
   recovery: "Recovery codes",
   confirm: "Confirm",
 };
@@ -177,8 +176,6 @@ function Body(entry: ModalEntry) {
       return <PrivacyModal />;
     case "notifications":
       return <NotificationsModal />;
-    case "account":
-      return <AccountModal />;
     case "recovery":
       return <RecoveryModal />;
     case "confirm": {
@@ -1021,6 +1018,7 @@ function formatDateInput(iso: string | null | undefined): string {
 
 function ProfileModal() {
   const { user, presence, toast, refreshUser } = useShell();
+  const { theme, toggle } = useTheme();
 
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [bio, setBio] = useState(user.bio ?? "");
@@ -1193,6 +1191,31 @@ function ProfileModal() {
           {saving ? "Saving…" : "Save profile"}
         </button>
       </form>
+
+      {/* Account settings live with the profile so the profile menu has a
+          single entry instead of separate Profile and Account items. */}
+      <div className="mactions grid gap-2.5 border-t border-border pt-4">
+        <button
+          className={`${btnGhost} ${btnBlock}`}
+          onClick={() => {
+            toggle();
+            toast(theme === "dark" ? "Light mode" : "Dark mode", "info");
+          }}
+        >
+          {theme === "dark" ? <SunIcon /> : <MoonIcon />} Switch to{" "}
+          {theme === "dark" ? "light" : "dark"} mode
+        </button>
+        <button
+          className={`${btnDanger} ${btnBlock}`}
+          onClick={() =>
+            void ChatAPI.logout().finally(
+              () => (window.location.href = "/auth"),
+            )
+          }
+        >
+          <LogoutIcon /> Sign out
+        </button>
+      </div>
     </div>
   );
 }
@@ -1432,110 +1455,6 @@ function Toggle({
         className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ease-app ${on ? "translate-x-5" : ""}`}
       />
     </button>
-  );
-}
-
-function AccountModal() {
-  const { user, presence, toast, refreshUser } = useShell();
-  const { theme, toggle } = useTheme();
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-  const [pendingAvatarKey, setPendingAvatarKey] = useState<string | null>(null);
-  const [savingAvatar, setSavingAvatar] = useState(false);
-
-  async function saveAvatar() {
-    if (!pendingAvatarKey) return;
-    setSavingAvatar(true);
-    try {
-      await ChatAPI.updateMyAvatar(pendingAvatarKey);
-      await refreshUser();
-      toast("Avatar updated", "success");
-      setShowAvatarPicker(false);
-      setPendingAvatarKey(null);
-    } catch (err) {
-      toast(getErrorMessage(err, "Failed to update avatar"), "error");
-    } finally {
-      setSavingAvatar(false);
-    }
-  }
-
-  return (
-    <>
-      <div className={rowItem}>
-        <AppAvatar
-          name={user.displayName ?? user.username}
-          src={user.avatar}
-          size={40}
-          presence={presence[user.id]}
-        />
-        <div className={rowGrow}>
-          <div className={rowT1}>{displayName(user)}</div>
-          <div className={rowT2}>{user.email}</div>
-        </div>
-      </div>
-
-      {showAvatarPicker ? (
-        <div className="mt-3">
-          <p className="mb-2 text-[12.5px] font-semibold text-muted">
-            {user.avatar
-              ? "Selecting a default avatar will replace your current one."
-              : "Choose a default avatar:"}
-          </p>
-          <AvatarSelector
-            source="user"
-            selected={pendingAvatarKey ?? user.avatar}
-            onSelect={setPendingAvatarKey}
-          />
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              className={`${btnGhost} ${btnSm}`}
-              onClick={() => {
-                setShowAvatarPicker(false);
-                setPendingAvatarKey(null);
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              className={`${btnPrimary} ${btnSm}`}
-              disabled={savingAvatar || !pendingAvatarKey}
-              onClick={() => void saveAvatar()}
-            >
-              {savingAvatar ? "Saving…" : "Save avatar"}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          className={`${btnGhost} ${btnBlock} mt-3`}
-          onClick={() => setShowAvatarPicker(true)}
-        >
-          Change avatar
-        </button>
-      )}
-
-      <div className="mactions mt-4 grid gap-2.5">
-        <button
-          className={`${btnGhost} ${btnBlock}`}
-          onClick={() => {
-            toggle();
-            toast(theme === "dark" ? "Light mode" : "Dark mode", "info");
-          }}
-        >
-          {theme === "dark" ? <SunIcon /> : <MoonIcon />} Switch to{" "}
-          {theme === "dark" ? "light" : "dark"} mode
-        </button>
-        <button
-          className={`${btnDanger} ${btnBlock}`}
-          onClick={() =>
-            void ChatAPI.logout().finally(
-              () => (window.location.href = "/auth"),
-            )
-          }
-        >
-          <LogoutIcon /> Sign out
-        </button>
-      </div>
-    </>
   );
 }
 
