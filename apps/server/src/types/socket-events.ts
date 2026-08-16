@@ -1,4 +1,5 @@
 import type { SocketData } from "socket.io";
+import type { FriendRequestStatus } from "@repo/validators";
 
 export interface ClientToServerEvents {
   "directChat:join": (payload: { directChatId: string }) => void;
@@ -66,6 +67,10 @@ export interface ServerToClientEvents {
     status: string | null;
     customStatus: string | null;
   }) => void;
+  "friend-request:new": (payload: FriendRequestPayload) => void;
+  "friend-request:accepted": (payload: FriendRequestAcceptedPayload) => void;
+  "friend-request:declined": (payload: FriendRequestDeclinedPayload) => void;
+  "friend-request:blocked": (payload: FriendRequestBlockedPayload) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -112,4 +117,39 @@ export type MessageDeletedPayload = {
   messageId: string;
   directChatId: string;
   deletedAt: Date;
+};
+
+export type FriendUserPayload = {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatar: string | null;
+};
+
+export type FriendRequestPayload = {
+  id: string;
+  status: FriendRequestStatus;
+  createdAt: Date;
+  sender: FriendUserPayload;
+  recipient: FriendUserPayload;
+};
+
+// Sent to the request's sender once the recipient accepts: `friend` is the
+// recipient's summary, so the sender can render the new friendship and clear
+// their "request sent" chip. `requestId` lets a stale/cached card be removed.
+export type FriendRequestAcceptedPayload = {
+  requestId: string;
+  friend: FriendUserPayload;
+};
+
+// Sent to the request's sender on decline; `userId` is the recipient who declined.
+export type FriendRequestDeclinedPayload = {
+  requestId: string;
+  userId: string;
+};
+
+// Sent to the blocked user when someone blocks them, so their client can flip
+// the relationship to BLOCKED and drop any pending request card from the blocker.
+export type FriendRequestBlockedPayload = {
+  blockedBy: FriendUserPayload;
 };

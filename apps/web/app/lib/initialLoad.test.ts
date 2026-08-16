@@ -7,6 +7,7 @@ import {
 import type {
   AppUser,
   DMInboxEntry,
+  FriendRequest,
   RoomInboxEntry,
 } from "../../components/app/types";
 
@@ -63,6 +64,16 @@ const roomItems: RoomInboxEntry[] = [
   },
 ];
 
+const friendRequests: FriendRequest[] = [
+  {
+    id: "fr1",
+    status: "PENDING",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    sender: { id: "u3", username: "carol", displayName: null, avatar: null },
+    recipient: { id: "u1", username: "ada", displayName: null, avatar: null },
+  },
+];
+
 function callbacks(): {
   cb: InitialLoadCallbacks;
   calls: Record<string, unknown[]>;
@@ -91,6 +102,9 @@ function api(overrides: Partial<InitialLoadApi> = {}): InitialLoadApi {
     getMe: vi.fn().mockResolvedValue(user),
     getDmInbox: vi.fn().mockResolvedValue({ items: dmItems, nextCursor: null }),
     getRooms: vi.fn().mockResolvedValue({ items: roomItems, nextCursor: null }),
+    getFriendRequests: vi
+      .fn()
+      .mockResolvedValue({ items: friendRequests, nextCursor: null }),
     ...overrides,
   };
 }
@@ -102,7 +116,7 @@ describe("loadInitialState", () => {
     await loadInitialState(api(), cb);
 
     expect(calls.onUser).toEqual([user]);
-    expect(calls.onLists).toEqual([dmItems, roomItems]);
+    expect(calls.onLists).toEqual([dmItems, roomItems, friendRequests]);
     expect(calls.onDone).toEqual([]);
     expect(calls.onUnauthorized).toBeUndefined();
     expect(calls.onLoadError).toBeUndefined();
@@ -179,6 +193,20 @@ describe("loadInitialState", () => {
 
     await loadInitialState(
       api({ getRooms: vi.fn().mockRejectedValue(new Error("boom")) }),
+      cb,
+    );
+
+    expect(calls.onUser).toEqual([user]);
+    expect(calls.onLists).toBeUndefined();
+    expect(calls.onListError).toEqual(["Couldn't load your conversations"]);
+    expect(calls.onDone).toEqual([]);
+  });
+
+  it("still surfaces the user when friend requests fail, only reporting the list error", async () => {
+    const { cb, calls } = callbacks();
+
+    await loadInitialState(
+      api({ getFriendRequests: vi.fn().mockRejectedValue(new Error("boom")) }),
       cb,
     );
 

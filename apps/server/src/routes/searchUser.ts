@@ -6,6 +6,7 @@ import { createRateLimiter, setRateLimitHeaders } from "../lib/rateLimiter";
 import { ApiError } from "../lib/ApiError";
 import { createLogger } from "../lib/logger";
 import { searchUsersQuerySchema, userIdParamSchema } from "@repo/validators";
+import { getRelationships } from "../services/friends/getRelationships";
 
 const log = createLogger("searchUser");
 const router = Router();
@@ -71,6 +72,17 @@ router.get(
       orderBy: { username: "asc" },
     });
 
+    // Annotate each result with the actor's relationship to that user using a
+    // single batch query (4 IN queries total) instead of 4 queries per user.
+    const relationships = await getRelationships(
+      actorId,
+      users.map((u) => u.id),
+    );
+    const usersWithRelationship = users.map((u) => ({
+      ...u,
+      relationship: relationships.get(u.id) ?? "NONE",
+    }));
+
     // Structured logging gives ops visibility into search latency and volume
     // without leaking result payloads into the logs.
     log.info("User search executed", {
@@ -82,7 +94,7 @@ router.get(
 
     res.status(200).json({
       ok: true,
-      users,
+      users: usersWithRelationship,
       nextCursor:
         users.length === limit ? users[users.length - 1]?.id : undefined,
     });

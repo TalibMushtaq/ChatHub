@@ -1,10 +1,11 @@
 "use client";
 
 // List column: title row, search box, and conversation rows for the active tab.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useShell } from "./state";
 import { ChatAPI, getErrorMessage } from "./api";
 import { displayName, fmtList } from "./helpers";
+import type { SearchUser } from "./types";
 import AppAvatar from "./AppAvatar";
 import {
   PlusIcon,
@@ -17,7 +18,7 @@ import {
   MoreIcon,
   BellIcon,
 } from "./icons";
-import { iconBtn, searchBox, searchInput } from "./styles";
+import { iconBtn, searchBox, searchInput, btnSm, btnGhost, btnPrimary } from "./styles";
 
 function lastText(content: string | null, messageType: string): string {
   if (messageType === "IMAGE") return "Photo";
@@ -118,61 +119,66 @@ export default function ListPanel() {
               <SearchResults onPick={startDmWith} />
             ) : listLoading ? (
               <Skeletons />
-            ) : dmList.length === 0 ? (
-              <Empty
-                text="No messages yet"
-                sub="Tap + to start a conversation."
-              />
             ) : (
-              dmList.map((e) => (
-                <button
-                  key={e.directChatId}
-                  className={`conv flex w-full cursor-pointer items-center gap-[11px] rounded-[14px] p-2.5 text-left transition-colors duration-150 ease-app hover:bg-surface-2 ${active && active.kind === "dm" && active.id === e.directChatId ? "bg-accent-soft" : ""}`}
-                  onClick={() =>
-                    openConv({
-                      kind: "dm",
-                      id: e.directChatId,
-                      otherUser: e.otherUser,
-                    })
-                  }
-                >
-                  <AppAvatar
-                    name={displayName(e.otherUser)}
-                    src={e.otherUser.avatar}
-                    size={44}
-                    presence={presence[e.otherUser.id]}
+              <>
+                <FriendRequestCards />
+                {dmList.length === 0 ? (
+                  <Empty
+                    text="No messages yet"
+                    sub="Tap + to start a conversation."
                   />
-                  <div className="mid min-w-0 flex-1">
-                    <div className="line1 flex items-baseline justify-between gap-2">
-                      <span className="name truncate text-[14.5px] font-extrabold">
-                        {displayName(e.otherUser)}
-                      </span>
-                      {e.lastMessage && (
-                        <span className="time flex-none text-[11px] font-semibold text-muted">
-                          {fmtList(e.lastMessage.createdAt)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="line2 mt-0.5 flex items-center justify-between gap-2">
-                      <span className="preview truncate text-[13px] text-muted">
-                        {e.lastMessage?.isDeleted
-                          ? "Message deleted"
-                          : e.lastMessage
-                            ? lastText(
-                                e.lastMessage.content,
-                                e.lastMessage.messageType,
-                              )
-                            : "Say hi 👋"}
-                      </span>
-                      {e.unreadCount > 0 && (
-                        <span className="unread inline-flex h-5 min-w-5 flex-none items-center justify-center rounded-full bg-accent-btn px-1.5 text-[11px] font-extrabold text-accent-on">
-                          {e.unreadCount > 9 ? "9+" : e.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))
+                ) : (
+                  dmList.map((e) => (
+                    <button
+                      key={e.directChatId}
+                      className={`conv flex w-full cursor-pointer items-center gap-[11px] rounded-[14px] p-2.5 text-left transition-colors duration-150 ease-app hover:bg-surface-2 ${active && active.kind === "dm" && active.id === e.directChatId ? "bg-accent-soft" : ""}`}
+                      onClick={() =>
+                        openConv({
+                          kind: "dm",
+                          id: e.directChatId,
+                          otherUser: e.otherUser,
+                        })
+                      }
+                    >
+                      <AppAvatar
+                        name={displayName(e.otherUser)}
+                        src={e.otherUser.avatar}
+                        size={44}
+                        presence={presence[e.otherUser.id]}
+                      />
+                      <div className="mid min-w-0 flex-1">
+                        <div className="line1 flex items-baseline justify-between gap-2">
+                          <span className="name truncate text-[14.5px] font-extrabold">
+                            {displayName(e.otherUser)}
+                          </span>
+                          {e.lastMessage && (
+                            <span className="time flex-none text-[11px] font-semibold text-muted">
+                              {fmtList(e.lastMessage.createdAt)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="line2 mt-0.5 flex items-center justify-between gap-2">
+                          <span className="preview truncate text-[13px] text-muted">
+                            {e.lastMessage?.isDeleted
+                              ? "Message deleted"
+                              : e.lastMessage
+                                ? lastText(
+                                    e.lastMessage.content,
+                                    e.lastMessage.messageType,
+                                  )
+                                : "Say hi 👋"}
+                          </span>
+                          {e.unreadCount > 0 && (
+                            <span className="unread inline-flex h-5 min-w-5 flex-none items-center justify-center rounded-full bg-accent-btn px-1.5 text-[11px] font-extrabold text-accent-on">
+                              {e.unreadCount > 9 ? "9+" : e.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </>
             )}
           </>
         )}
@@ -266,6 +272,80 @@ export default function ListPanel() {
   );
 }
 
+// Pending incoming friend requests rendered as system rows at the top of the
+// DM list (the "inbox" surface). Accept/decline resolve immediately server-side
+// and remove the row; block also clears any reverse request and is reversible
+// from Settings > Privacy.
+function FriendRequestCards() {
+  const {
+    friendRequests,
+    acceptFriendRequest,
+    declineFriendRequest,
+    blockUser,
+  } = useShell();
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  if (friendRequests.length === 0) return null;
+
+  async function run(id: string, fn: () => Promise<void>) {
+    setBusyId(id);
+    try {
+      await fn();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="fr-cards mb-1">
+      {friendRequests.map((r) => (
+        <div
+          key={r.id}
+          className="fr-card flex w-full items-center gap-[11px] rounded-[14px] border border-accent-soft bg-accent-wash/40 p-2.5"
+        >
+          <AppAvatar name={displayName(r.sender)} src={r.sender.avatar} size={44} />
+          <div className="mid min-w-0 flex-1">
+            <div className="line1">
+              <span className="name truncate text-[14.5px] font-extrabold">
+                {displayName(r.sender)}
+              </span>
+            </div>
+            <div className="line2 mt-0.5">
+              <span className="preview truncate text-[13px] text-muted">
+                @{r.sender.username} wants to be your friend
+              </span>
+            </div>
+          </div>
+          <div className="fr-actions flex flex-none items-center gap-1.5">
+            <button
+              className={`${btnPrimary} ${btnSm}`}
+              disabled={busyId === r.id}
+              onClick={() => void run(r.id, () => acceptFriendRequest(r.id))}
+            >
+              Accept
+            </button>
+            <button
+              className={`${btnGhost} ${btnSm}`}
+              disabled={busyId === r.id}
+              onClick={() => void run(r.id, () => declineFriendRequest(r.id))}
+            >
+              Decline
+            </button>
+            <button
+              className="ml-0.5 cursor-pointer rounded-lg p-1.5 text-[11.5px] font-bold text-muted transition-colors duration-150 ease-app hover:bg-surface-2 hover:text-danger"
+              disabled={busyId === r.id}
+              onClick={() => void run(r.id, () => blockUser(r.sender.id))}
+              title="Block this user"
+            >
+              Block
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SearchResults({
   onPick,
 }: {
@@ -275,35 +355,132 @@ function SearchResults({
     displayName?: string | null;
   }) => void;
 }) {
-  const { results } = useShell();
+  const { results, toast } = useShell();
+  const [busyId, setBusyId] = useState<string | null>(null);
+
   if (results.length === 0) return <Empty text="No users found" />;
+
+  async function run(id: string, fn: () => Promise<void>) {
+    setBusyId(id);
+    try {
+      await fn();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <>
       {results.map((u) => (
-        <button
+        <div
           key={u.id}
-          className="conv flex w-full cursor-pointer items-center gap-[11px] rounded-[14px] p-2.5 text-left transition-colors duration-150 ease-app hover:bg-surface-2"
-          onClick={() => onPick(u)}
+          className="conv flex w-full items-center gap-[11px] rounded-[14px] p-2.5 text-left transition-colors duration-150 ease-app hover:bg-surface-2"
         >
-          <AppAvatar name={u.displayName ?? u.username} size={44} />
-          <div className="mid min-w-0 flex-1">
-            <div className="line1 flex items-baseline justify-between gap-2">
-              <span className="name truncate text-[14.5px] font-extrabold">
-                {displayName(u)}
-              </span>
+          <button
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-[11px] text-left"
+            onClick={() => {
+              // Blocked users can't be messaged from search; everything else
+              // keeps the existing "start a DM" behavior.
+              if (u.relationship === "BLOCKED") {
+                toast(`You blocked ${displayName(u)}`, "info");
+                return;
+              }
+              onPick(u);
+            }}
+          >
+            <AppAvatar name={u.displayName ?? u.username} size={44} />
+            <div className="mid min-w-0 flex-1">
+              <div className="line1 flex items-baseline justify-between gap-2">
+                <span className="name truncate text-[14.5px] font-extrabold">
+                  {displayName(u)}
+                </span>
+              </div>
+              <div className="line2 mt-0.5 flex items-center justify-between gap-2">
+                <span className="preview truncate text-[13px] text-muted">
+                  @{u.username}
+                </span>
+              </div>
             </div>
-            <div className="line2 mt-0.5 flex items-center justify-between gap-2">
-              <span className="preview truncate text-[13px] text-muted">
-                @{u.username}
-              </span>
-            </div>
-          </div>
-          <span className="time flex-none text-[11px] font-semibold text-muted">
-            new
-          </span>
-        </button>
+          </button>
+          <SearchResultAction
+            u={u}
+            busy={busyId === u.id}
+            onBusy={(fn) => run(u.id, fn)}
+            onPick={onPick}
+          />
+        </div>
       ))}
     </>
+  );
+}
+
+// Relationship-aware trailing action for a search row. The chip state is always
+// server-derived (search returns `relationship`; socket events update it live).
+function SearchResultAction({
+  u,
+  busy,
+  onBusy,
+  onPick,
+}: {
+  u: SearchUser;
+  busy: boolean;
+  onBusy: (fn: () => Promise<void>) => void;
+  onPick: (user: SearchUser) => void;
+}) {
+  const { sendFriendRequest, acceptFriendRequest } = useShell();
+
+  if (u.relationship === "FRIENDS") {
+    return (
+      <button className={`${btnGhost} ${btnSm} flex-none`} onClick={() => onPick(u)}>
+        Message
+      </button>
+    );
+  }
+  if (u.relationship === "REQUEST_SENT") {
+    return (
+      <span className="flex-none rounded-full bg-surface-2 px-3 py-1 text-[11.5px] font-bold text-muted">
+        Sent
+      </span>
+    );
+  }
+  if (u.relationship === "REQUEST_RECEIVED") {
+    return (
+      <button
+        className={`${btnPrimary} ${btnSm} flex-none`}
+        disabled={busy}
+        onClick={() =>
+          onBusy(async () => {
+            // The server needs the request id to accept; the search row only
+            // carries the sender id, so re-fetch requests to find it.
+            const { items } = await ChatAPI.getFriendRequests();
+            const match = items.find(
+              (r) => r.sender.id === u.id && r.status === "PENDING",
+            );
+            if (!match) throw new Error("Request already handled");
+            await acceptFriendRequest(match.id);
+          })
+        }
+      >
+        Accept
+      </button>
+    );
+  }
+  if (u.relationship === "BLOCKED") {
+    return (
+      <span className="flex-none rounded-full bg-surface-2 px-3 py-1 text-[11.5px] font-bold text-muted">
+        Blocked
+      </span>
+    );
+  }
+  // NONE
+  return (
+    <button
+      className={`${btnGhost} ${btnSm} flex-none`}
+      disabled={busy}
+      onClick={() => onBusy(() => sendFriendRequest(u.id))}
+    >
+      Add friend
+    </button>
   );
 }
 

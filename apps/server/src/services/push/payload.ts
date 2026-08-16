@@ -92,3 +92,60 @@ export function buildPushPayload(input: {
     },
   };
 }
+
+// Friend-request push copy, keyed by the event that triggered the notification.
+// `fromId` is the other party (the one who acted) and `fromName` their display
+// name — used as the title, mirroring how message pushes use the sender name.
+const FRIEND_REQUEST_BODY: Record<
+  "new" | "accepted" | "declined" | "blocked",
+  string
+> = {
+  new: "sent you a friend request",
+  accepted: "accepted your friend request",
+  declined: "declined your friend request",
+  blocked: "blocked you",
+};
+
+/**
+ * Pure payload builder for friend-request Web Push notifications — no I/O, so
+ * it is trivially unit-testable and shared by all four friend events.
+ *
+ * The `tag` is unique per request so a burst of friend events stacks instead of
+ * silently replacing each other (same rule as message pushes, which key on
+ * message id). `data.kind` is "friend-request" so the service worker and the
+ * live-client handler can route it to the friend pipeline rather than messages.
+ */
+export function buildFriendRequestPushPayload(input: {
+  event: "new" | "accepted" | "declined" | "blocked";
+  requestId: string;
+  fromId: string;
+  fromName: string;
+}): {
+  title: string;
+  body: string;
+  icon: string;
+  badge: string;
+  tag: string;
+  data: {
+    kind: "friend-request";
+    event: "new" | "accepted" | "declined" | "blocked";
+    requestId: string;
+    fromId: string;
+    fromName: string;
+  };
+} {
+  return {
+    title: input.fromName,
+    body: FRIEND_REQUEST_BODY[input.event],
+    icon: "/chathubby-v2.webp",
+    badge: "/chathubby-v2.webp",
+    tag: `chathubby:friend-request:${input.requestId}`,
+    data: {
+      kind: "friend-request",
+      event: input.event,
+      requestId: input.requestId,
+      fromId: input.fromId,
+      fromName: input.fromName,
+    },
+  };
+}

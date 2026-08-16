@@ -30,6 +30,7 @@
 
 ## Completed ✓
 
+- [x] Friend Request + Blocking system (FriendRequest/Friendship/UserBlock models + enum, `/api/friends/requests` CRUD + accept/decline, `/api/users/:userId/block` + `/api/users/blocked`, socket events `friend-request:new/accepted/declined/blocked`, Web Push kind `friend-request`, search `relationship` field, web inbox cards + search actions + blocked list in Privacy, 566 server tests + 45 web tests)
 - [x] Add proper setError in signup form
 - [x] Auth middleware: session check + fetch user from DB + attach `req.user`
 - [x] Prisma DM schema: `DirectChat` + `Message` with unique pair handling

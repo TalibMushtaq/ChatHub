@@ -24,6 +24,8 @@ import type {
   ReadReceipt,
   SearchUser,
   UserStatus,
+  FriendRequest,
+  BlockedUser,
 } from "./types";
 
 export interface Paginated<T> {
@@ -289,6 +291,54 @@ export const ChatAPI = {
       params: { query, limit: 20 },
     });
     return data.users;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Friends (requests)
+  // ---------------------------------------------------------------------------
+
+  /** Send a friend request to another user. Returns the created request. */
+  async sendFriendRequest(userId: string): Promise<FriendRequest> {
+    const { data } = await api.post("/friends/requests", { userId });
+    return data.request;
+  },
+
+  /** Incoming PENDING friend requests (for the inbox system cards). */
+  async getFriendRequests(): Promise<Paginated<FriendRequest>> {
+    const { data } = await api.get("/friends/requests");
+    return { items: data.requests, nextCursor: data.nextCursor };
+  },
+
+  /** Accept an incoming friend request. Returns the accepted request. */
+  async acceptFriendRequest(requestId: string): Promise<FriendRequest> {
+    const { data } = await api.post(`/friends/requests/${requestId}/accept`);
+    return data.request;
+  },
+
+  /** Decline an incoming friend request. */
+  async declineFriendRequest(requestId: string): Promise<void> {
+    await api.post(`/friends/requests/${requestId}/decline`);
+  },
+
+  // ---------------------------------------------------------------------------
+  // Blocks
+  // ---------------------------------------------------------------------------
+
+  /** Block a user (idempotent). Returns the blocked user's summary. */
+  async blockUser(userId: string): Promise<BlockedUser> {
+    const { data } = await api.post(`/users/${userId}/block`);
+    return data.blockedUser;
+  },
+
+  /** Unblock a user (idempotent). */
+  async unblockUser(userId: string): Promise<void> {
+    await api.delete(`/users/${userId}/block`);
+  },
+
+  /** The current user's blocked-users list. */
+  async getBlockedUsers(): Promise<Paginated<BlockedUser>> {
+    const { data } = await api.get("/users/blocked");
+    return { items: data.blockedUsers, nextCursor: data.nextCursor };
   },
 
   // ---------------------------------------------------------------------------

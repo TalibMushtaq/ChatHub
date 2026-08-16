@@ -1302,7 +1302,15 @@ function StatusModal() {
 }
 
 function PrivacyModal() {
-  const { user, refreshUser, toast, clearModals } = useShell();
+  const {
+    user,
+    refreshUser,
+    toast,
+    clearModals,
+    blockedUsers,
+    refreshBlockedUsers,
+    unblockUser,
+  } = useShell();
   const [showOnlineStatus, setShowOnlineStatus] = useState(
     user.showOnlineStatus,
   );
@@ -1310,6 +1318,14 @@ function PrivacyModal() {
     user.showTypingStatus,
   );
   const [saving, setSaving] = useState(false);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
+
+  // Blocked users load lazily: the shell doesn't fetch them at startup, only
+  // when this modal opens (and after each block/unblock elsewhere).
+  useEffect(() => {
+    void refreshBlockedUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function save() {
     setSaving(true);
@@ -1322,6 +1338,15 @@ function PrivacyModal() {
       toast(getErrorMessage(err, "Failed to save privacy settings"), "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function unblock(userId: string) {
+    setUnblockingId(userId);
+    try {
+      await unblockUser(userId);
+    } finally {
+      setUnblockingId(null);
     }
   }
 
@@ -1357,6 +1382,42 @@ function PrivacyModal() {
         >
           {saving ? "Saving…" : "Save privacy"}
         </button>
+      </div>
+
+      <div className="mt-6 border-t border-border pt-4">
+        <div className="mb-2 text-[13.5px] font-extrabold">Blocked users</div>
+        {blockedUsers.length === 0 ? (
+          <p className="text-[12.5px] text-muted">
+            Nobody is blocked. Blocking a user stops them from sending you
+            friend requests and keeps your chats private.
+          </p>
+        ) : (
+          <div className="flex max-h-[190px] flex-col gap-1.5 overflow-y-auto">
+            {blockedUsers.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-center gap-[10px] rounded-[12px] p-1.5 hover:bg-surface-2"
+              >
+                <AppAvatar name={b.displayName ?? b.username} src={b.avatar} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13.5px] font-bold">
+                    {displayName(b)}
+                  </div>
+                  <div className="truncate text-[11.5px] text-muted">
+                    @{b.username}
+                  </div>
+                </div>
+                <button
+                  className={`${btnGhost} ${btnSm} flex-none`}
+                  disabled={unblockingId === b.id}
+                  onClick={() => void unblock(b.id)}
+                >
+                  Unblock
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

@@ -70,12 +70,19 @@ self.addEventListener("push", (event) => {
   }
 
   const data = (payload && payload.data) || {};
-  const messageId = data.messageId;
+  const isFriendRequest = data.kind === "friend-request";
 
-  if (messageId) {
+  // Messages dedupe by message id; friend-request events share the request id
+  // but live in a different id space, so namespace the key to avoid colliding
+  // with a message id.
+  const dedupeKey = isFriendRequest
+    ? `friend-request:${data.requestId}`
+    : data.messageId;
+
+  if (dedupeKey) {
     // Duplicate delivery (socket echo + push) — swallow the second copy.
-    if (recentMessageIds.has(messageId)) return;
-    rememberMessage(messageId);
+    if (recentMessageIds.has(dedupeKey)) return;
+    rememberMessage(dedupeKey);
   }
 
   event.waitUntil(
@@ -83,11 +90,14 @@ self.addEventListener("push", (event) => {
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clients) => {
         // A visible tab already showing this conversation renders the message
-        // live, so an OS notification would be redundant.
-        const redundant = clients.some(
-          (client) =>
-            client.visibilityState === "visible" && isViewing(client, data),
-        );
+        // live, so an OS notification would be redundant. Friend requests have
+        // no conversation to be viewing, so they always show.
+        const redundant =
+          !isFriendRequest &&
+          clients.some(
+            (client) =>
+              client.visibilityState === "visible" && isViewing(client, data),
+          );
         if (!redundant) {
           self.registration.showNotification(payload.title, {
             body: payload.body,
@@ -98,12 +108,18 @@ self.addEventListener("push", (event) => {
           });
         }
 
-        // Ask clients that are NOT already showing this conversation (their
-        // socket renders the message live, so they already sounded off) to
-        // play the custom tone. The worker itself never touches Audio — with
-        // no open client the OS notification sound is the only one.
+        // Ask clients to apply the event: messages that are NOT already
+        // showing the conversation play the tone and may update the timeline;
+        // friend-request events update the inbox cards / relationship chips.
+        // The client dedupes by request id, so a parallel socket delivery
+        // can't double-fire.
         for (const client of clients) {
-          if (!isViewing(client, data)) {
+          if (isFriendRequest) {
+            client.postMessage({
+              type: "chathubby:incoming-friend-request",
+              ...data,
+            });
+          } else if (!isViewing(client, data)) {
             client.postMessage({
               type: "chathubby:incoming-message",
               ...data,

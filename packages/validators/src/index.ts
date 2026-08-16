@@ -38,6 +38,16 @@ export {
   markReadSchema,
 } from "./room";
 export {
+  RELATIONSHIP_VALUES,
+  FRIEND_REQUEST_STATUSES,
+  sendFriendRequestSchema,
+  friendRequestIdParamSchema,
+  blockUserIdParamSchema,
+  getFriendRequestsQuerySchema,
+  getBlockedUsersQuerySchema,
+} from "./friends";
+export type { Relationship, FriendRequestStatus } from "./friends";
+export {
   presignSchema,
   attachmentIdParamSchema,
   messageAttachmentSchema,

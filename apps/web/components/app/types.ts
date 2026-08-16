@@ -2,6 +2,8 @@
 // the server actually returns (see routes/services) so the client never
 // invents fields that don't exist.
 
+import type { Relationship, FriendRequestStatus } from "@repo/validators";
+
 export type Gender =
   "MALE" | "FEMALE" | "NON_BINARY" | "OTHER" | "PREFER_NOT_TO_SAY";
 
@@ -43,6 +45,29 @@ export interface SearchUser {
   id: string;
   username: string;
   displayName: string | null;
+  /** How the current user relates to this search result (server-derived). */
+  relationship: Relationship;
+}
+
+/** A user as shown in friend requests, friendships, and blocks. */
+export interface FriendUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatar?: string | null;
+}
+
+export interface FriendRequest {
+  id: string;
+  status: FriendRequestStatus;
+  createdAt: string;
+  sender: FriendUser;
+  recipient: FriendUser;
+}
+
+/** A blocked user entry from GET /api/users/blocked. */
+export interface BlockedUser extends FriendUser {
+  blockedAt: string;
 }
 
 export interface Attachment {

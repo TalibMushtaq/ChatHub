@@ -19,6 +19,8 @@ import authRoutes from "./routes/auth";
 import dmRoutes from "./routes/direct-chat";
 import room from "./routes/room/room";
 import searchUser from "./routes/searchUser";
+import friendsRoutes from "./routes/friends";
+import userBlockRoutes from "./routes/users";
 import attachmentRoutes from "./routes/attachments";
 import defaultsRouter from "./routes/defaults";
 import avatarRoutes from "./routes/avatars";
@@ -91,6 +93,8 @@ app.use("/api/attachments", attachmentRoutes);
 app.use("/api/defaults", defaultsRouter);
 app.use("/api/avatars", avatarRoutes);
 app.use("/api/search", searchUser);
+app.use("/api/friends", friendsRoutes);
+app.use("/api/users", userBlockRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/health", healthRoute);
 // Error handler must be mounted after all routes so it can catch

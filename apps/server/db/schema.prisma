@@ -46,6 +46,12 @@ enum Gender {
   PREFER_NOT_TO_SAY
 }
 
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
 model ChatRoom {
   id             String                 @id @default(cuid())
   name           String
@@ -150,6 +156,61 @@ model DirectChat {
   @@index([user2Id])
 }
 
+// A friend request between two users. Direction matters: `sender` asked to add
+// `recipient`. `pairKey` is the lexicographically-ordered
+// `{senderId}|{recipientId}` string so a single partial unique index
+// (added in the migration, on `pairKey` WHERE status = 'PENDING') can prevent
+// two PENDING requests between the same pair in EITHER direction at the DB
+// level — Prisma's DSL cannot express a partial unique index.
+model FriendRequest {
+  id          String              @id @default(cuid())
+  senderId    String
+  recipientId String
+  pairKey     String
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  sender     User @relation("FriendRequestsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient  User @relation("FriendRequestsReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, status])
+  @@index([senderId, status])
+  @@index([pairKey])
+}
+
+// A confirmed friendship. Symmetric: `userAId` < `userBId` is enforced by the
+// service layer at insert time (same normalized-ordering pattern as
+// DirectChat.user1Id/user2Id), so the @@unique below prevents a duplicate row
+// regardless of who initiated the friendship.
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA User @relation("FriendshipsUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("FriendshipsUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+}
+
+// A user (blocker) suppressing another user (blocked). Both directions are
+// checked wherever blocking matters (friend requests, DMs, etc.).
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("UserBlocksCreated", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("UserBlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
 model User {
   id                                  String           @id
   email                               String           @unique
@@ -191,6 +252,12 @@ model User {
   chatRoomReadReceipts                ChatRoomReadReceipt[]
   pushSubscriptions                   PushSubscription[]
 
+  friendRequestsSent                  FriendRequest[]  @relation("FriendRequestsSent")
+  friendRequestsReceived              FriendRequest[]  @relation("FriendRequestsReceived")
+  friendshipsA                        Friendship[]     @relation("FriendshipsUserA")
+  friendshipsB                        Friendship[]     @relation("FriendshipsUserB")
+  userBlocksCreated                   UserBlock[]      @relation("UserBlocksCreated")
+  userBlocksReceived                  UserBlock[]      @relation("UserBlocksReceived")
 }
 
 model Session {

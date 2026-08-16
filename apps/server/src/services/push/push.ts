@@ -2,7 +2,7 @@ import webpush from "web-push";
 import { prisma } from "../../../db/prisma";
 import { isWebPushConfigured } from "../../lib/webPush";
 import { createLogger } from "../../lib/logger";
-import { buildPushPayload } from "./payload";
+import { buildPushPayload, buildFriendRequestPushPayload } from "./payload";
 import type { MessageType } from "@prisma/client";
 
 const log = createLogger("push");
@@ -120,6 +120,67 @@ export async function pushNewMessage(
     log.error("pushNewMessage failed", err, {
       kind: input.kind,
       conversationId: input.conversationId,
+    });
+  }
+}
+
+/**
+ * Fire-and-forget Web Push for a friend-request lifecycle event
+ * (new/accepted/declined/blocked). Mirror of pushNewMessage: deliberately never
+ * throws — a push failure must never fail the friend action the user already
+ * saw succeed — and each subscription is sent in its own try/catch so one dead
+ * subscription can't block the rest.
+ */
+export async function pushFriendRequestEvent(input: {
+  event: "new" | "accepted" | "declined" | "blocked";
+  requestId: string;
+  fromId: string;
+  fromName: string;
+  toUserId: string;
+}): Promise<void> {
+  if (!isWebPushConfigured()) return;
+
+  try {
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: { userId: input.toUserId },
+    });
+    if (subscriptions.length === 0) return;
+
+    const payload = JSON.stringify(
+      buildFriendRequestPushPayload({
+        event: input.event,
+        requestId: input.requestId,
+        fromId: input.fromId,
+        fromName: input.fromName,
+      }),
+    );
+
+    await Promise.all(
+      subscriptions.map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
+            payload,
+          );
+        } catch (err) {
+          if (isGoneSubscription(err)) {
+            // Best-effort prune: a missing row on the next send is fine.
+            await prisma.pushSubscription
+              .deleteMany({ where: { endpoint: sub.endpoint } })
+              .catch(() => {});
+          } else {
+            log.warn("web push send failed", { endpoint: sub.endpoint });
+          }
+        }
+      }),
+    );
+  } catch (err) {
+    log.error("pushFriendRequestEvent failed", err, {
+      event: input.event,
+      requestId: input.requestId,
     });
   }
 }

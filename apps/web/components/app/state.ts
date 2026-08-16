@@ -5,7 +5,9 @@
 import { createContext, useContext } from "react";
 import type {
   AppUser,
+  BlockedUser,
   DMInboxEntry,
+  FriendRequest,
   JoinLink,
   JoinRequest,
   Invitation,
@@ -20,6 +22,7 @@ import type {
   ToastType,
   TypingUser,
 } from "./types";
+import type { Relationship } from "@repo/validators";
 
 export type ConvKind = "dm" | "room";
 
@@ -71,6 +74,10 @@ export interface ShellCtx {
   listLoading: boolean;
   mStack: ModalEntry[];
   toasts: ToastItem[];
+  /** Pending incoming friend requests (inbox system cards). */
+  friendRequests: FriendRequest[];
+  /** Users blocked by the current user (settings > privacy). */
+  blockedUsers: BlockedUser[];
   setTab: (t: Tab) => void;
   setQ: (q: string) => void;
   search: (q: string) => Promise<void>;
@@ -98,6 +105,22 @@ export interface ShellCtx {
   deactivateLink: (roomId: string, linkId: string) => Promise<void>;
   /** The active room's inbox entry (name, role, member count) or null. */
   roomInfo: () => RoomInboxEntry | null;
+  /** Re-fetch the pending friend requests (e.g. after opening the dm list). */
+  refreshFriendRequests: () => Promise<void>;
+  /** Send a friend request to another user; flips the chip to REQUEST_SENT. */
+  sendFriendRequest: (userId: string) => Promise<void>;
+  /** Accept an incoming friend request; removes its inbox card. */
+  acceptFriendRequest: (requestId: string) => Promise<void>;
+  /** Decline an incoming friend request; removes its inbox card. */
+  declineFriendRequest: (requestId: string) => Promise<void>;
+  /** Block a user (idempotent); clears any request card involving them. */
+  blockUser: (userId: string) => Promise<void>;
+  /** Unblock a user (idempotent). */
+  unblockUser: (userId: string) => Promise<void>;
+  /** Re-fetch the blocked-users list (e.g. when opening Settings > Privacy). */
+  refreshBlockedUsers: () => Promise<void>;
+  /** Locally flip a search result's relationship chip (socket-driven). */
+  updateRelationship: (userId: string, relationship: Relationship) => void;
 }
 
 export const ShellContext = createContext<ShellCtx | null>(null);

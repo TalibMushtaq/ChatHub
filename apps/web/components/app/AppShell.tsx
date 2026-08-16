@@ -17,7 +17,9 @@ import {
 } from "./state";
 import type {
   AppUser,
+  BlockedUser,
   DMInboxEntry,
+  FriendRequest,
   Invitation,
   Message,
   PresenceInfo,
@@ -29,6 +31,7 @@ import type {
   ToastType,
   TypingUser,
 } from "./types";
+import type { Relationship } from "@repo/validators";
 import AppAvatar from "./AppAvatar";
 import ListPanel from "./ListPanel";
 import ThreadPanel from "./ThreadPanel";
@@ -48,7 +51,9 @@ import {
 import { useTheme } from "../../app/lib/useTheme";
 import {
   handleIncomingMessageNotification,
+  handleIncomingFriendRequestNotification,
   setNotificationUserId,
+  type NotificationSource,
 } from "./incomingNotifications";
 import {
   ensureNotificationsInitialized,
@@ -93,6 +98,8 @@ export default function AppShell() {
   const [fmenu, setFmenu] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const { theme, toggle: toggleTheme } = useTheme();
 
   // Refs mirror state so the once-registered socket handlers never see stale closures.
@@ -105,6 +112,7 @@ export default function AppShell() {
   const readReceiptsRef = useRef<Record<string, ReadReceipt[]>>({});
   const typingRef = useRef<Record<string, TypingUser[]>>({});
   const presenceRef = useRef<Record<string, PresenceInfo>>({});
+  const friendRequestsRef = useRef<FriendRequest[]>([]);
   // conversation key -> userId -> pending "stopped typing" removal timer.
   const typingTimersRef = useRef<Record<string, Record<string, number>>>({});
   // Track whether we pushed a synthetic history entry for the mobile thread
@@ -115,6 +123,20 @@ export default function AppShell() {
   const openConvFromLinkRef = useRef<(kind: "dm" | "room", id: string) => void>(
     () => {},
   );
+  // Latest friend-request event applier, shared by the once-registered socket
+  // and service-worker handlers (same ref pattern as openConvFromLinkRef).
+  const applyFriendRequestEventRef = useRef<
+    (
+      input: {
+        event: "new" | "accepted" | "declined" | "blocked";
+        requestId: string;
+        fromId: string;
+        fromName: string;
+        payload?: FriendRequest;
+      },
+      source: NotificationSource,
+    ) => void
+  >(() => {});
 
   function setMsgsBoth(
     fn: (prev: Record<string, Message[]>) => Record<string, Message[]>,
@@ -146,6 +168,12 @@ export default function AppShell() {
     presenceRef.current = fn(presenceRef.current);
     setPresence(presenceRef.current);
   }
+  function setFriendRequestsBoth(
+    fn: (prev: FriendRequest[]) => FriendRequest[],
+  ) {
+    friendRequestsRef.current = fn(friendRequestsRef.current);
+    setFriendRequests(friendRequestsRef.current);
+  }
 
   // ---------------------------------------------------------------------------
   // Toasts & modals
@@ -162,6 +190,181 @@ export default function AppShell() {
     setMStack((prev) => [...prev, { name, payload }]);
   const popModal = () => setMStack((prev) => prev.slice(0, -1));
   const clearModals = () => setMStack([]);
+
+  // ---------------------------------------------------------------------------
+  // Friends & blocks
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Apply a friend-request lifecycle event that targets THIS user. Shared by
+   * the socket path (full request payloads) and the service-worker push path
+   * (fromId/fromName only). Only touches refs + stable setters + the module
+   * notification pipeline, so it is safe to capture in once-registered effects.
+   */
+  function applyFriendRequestEvent(
+    input: {
+      event: "new" | "accepted" | "declined" | "blocked";
+      requestId: string;
+      fromId: string;
+      fromName: string;
+      payload?: FriendRequest;
+    },
+    source: NotificationSource = "socket",
+  ) {
+    const { event, requestId, fromId, fromName, payload } = input;
+
+    if (event === "new") {
+      if (payload) {
+        setFriendRequestsBoth((prev) =>
+          prev.some((r) => r.id === payload.id) ? prev : [payload, ...prev],
+        );
+      } else {
+        // Push path only carries the sender summary — refresh so the inbox
+        // card appears even if the socket event was missed.
+        void ChatAPI.getFriendRequests()
+          .then(({ items }) => setFriendRequestsBoth(() => items))
+          .catch(() => {});
+      }
+      setResults((prev) =>
+        prev.map((u) =>
+          u.id === fromId ? { ...u, relationship: "REQUEST_RECEIVED" } : u,
+        ),
+      );
+    } else if (event === "accepted") {
+      setResults((prev) =>
+        prev.map((u) =>
+          u.id === fromId ? { ...u, relationship: "FRIENDS" } : u,
+        ),
+      );
+    } else if (event === "declined") {
+      setResults((prev) =>
+        prev.map((u) =>
+          u.id === fromId ? { ...u, relationship: "NONE" } : u,
+        ),
+      );
+    } else if (event === "blocked") {
+      // Drop any pending request card from the blocker.
+      setFriendRequestsBoth((prev) =>
+        prev.filter(
+          (r) => r.sender.id !== fromId && r.recipient.id !== fromId,
+        ),
+      );
+      setResults((prev) =>
+        prev.map((u) =>
+          u.id === fromId ? { ...u, relationship: "BLOCKED" } : u,
+        ),
+      );
+    }
+
+    handleIncomingFriendRequestNotification({
+      source,
+      event,
+      requestId,
+      fromId,
+      fromName,
+    });
+  }
+
+  async function refreshFriendRequests() {
+    try {
+      const { items } = await ChatAPI.getFriendRequests();
+      setFriendRequestsBoth(() => items);
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't load friend requests"), "error");
+    }
+  }
+
+  async function sendFriendRequest(userId: string) {
+    try {
+      await ChatAPI.sendFriendRequest(userId);
+      setResults((prev) =>
+        prev.map((u) =>
+          u.id === userId ? { ...u, relationship: "REQUEST_SENT" } : u,
+        ),
+      );
+      toast("Friend request sent", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't send the request"), "error");
+      throw err;
+    }
+  }
+
+  async function acceptFriendRequest(requestId: string) {
+    try {
+      const req = await ChatAPI.acceptFriendRequest(requestId);
+      setFriendRequestsBoth((prev) =>
+        prev.filter((r) => r.id !== requestId),
+      );
+      setResults((prev) =>
+        prev.map((u) =>
+          u.id === req.sender.id ? { ...u, relationship: "FRIENDS" } : u,
+        ),
+      );
+      toast(
+        `${req.sender.displayName ?? req.sender.username} is now your friend`,
+        "success",
+      );
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't accept the request"), "error");
+      throw err;
+    }
+  }
+
+  async function declineFriendRequest(requestId: string) {
+    try {
+      await ChatAPI.declineFriendRequest(requestId);
+      setFriendRequestsBoth((prev) => prev.filter((r) => r.id !== requestId));
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't decline the request"), "error");
+      throw err;
+    }
+  }
+
+  async function blockUser(userId: string) {
+    try {
+      const blocked = await ChatAPI.blockUser(userId);
+      setFriendRequestsBoth((prev) =>
+        prev.filter((r) => r.sender.id !== userId && r.recipient.id !== userId),
+      );
+      setBlockedUsers((prev) => [blocked, ...prev.filter((b) => b.id !== userId)]);
+      setResults((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, relationship: "BLOCKED" } : u)),
+      );
+      toast(`Blocked ${blocked.displayName ?? blocked.username}`, "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't block the user"), "error");
+      throw err;
+    }
+  }
+
+  async function unblockUser(userId: string) {
+    try {
+      await ChatAPI.unblockUser(userId);
+      setBlockedUsers((prev) => prev.filter((b) => b.id !== userId));
+      setResults((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, relationship: "NONE" } : u)),
+      );
+      toast("User unblocked", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't unblock the user"), "error");
+      throw err;
+    }
+  }
+
+  async function refreshBlockedUsers() {
+    try {
+      const { items } = await ChatAPI.getBlockedUsers();
+      setBlockedUsers(items);
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't load blocked users"), "error");
+    }
+  }
+
+  function updateRelationship(userId: string, relationship: Relationship) {
+    setResults((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, relationship } : u)),
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Initial load
@@ -182,6 +385,7 @@ export default function AppShell() {
         getMe: () => ChatAPI.getMe(),
         getDmInbox: () => ChatAPI.getDmInbox(),
         getRooms: () => ChatAPI.getRooms(),
+        getFriendRequests: () => ChatAPI.getFriendRequests(),
       },
       {
         onUser: live((me) => {
@@ -197,9 +401,10 @@ export default function AppShell() {
             openConvFromLinkRef.current(target.kind, target.id);
           }
         }),
-        onLists: live((dm, rooms) => {
+        onLists: live((dm, rooms, friendRequests) => {
           setDmList(dm);
           setRoomList(rooms);
+          setFriendRequestsBoth(() => friendRequests);
         }),
         onUnauthorized: () => {
           window.location.href = "/auth";
@@ -234,6 +439,26 @@ export default function AppShell() {
         const kind: "dm" | "room" = msg.kind === "room" ? "room" : "dm";
         openConvFromLinkRef.current(kind, msg.conversationId);
         return;
+      }
+      // A friend-request push landed while this client is open: the service
+      // worker already showed (or suppressed) the OS notification, so this
+      // client only plays the tone and applies the inbox/chip update. The
+      // pipeline dedupes by request id against the socket path.
+      if (msg.type === "chathubby:incoming-friend-request") {
+        const event = msg.event as
+          | "new"
+          | "accepted"
+          | "declined"
+          | "blocked";
+        applyFriendRequestEventRef.current(
+          {
+            event,
+            requestId: msg.requestId,
+            fromId: msg.fromId,
+            fromName: msg.fromName ?? "Someone",
+          },
+          "push",
+        );
       }
       // A push landed while this client is open: the service worker already
       // showed (or suppressed) the OS notification, so this client only plays
@@ -660,6 +885,55 @@ export default function AppShell() {
     }
     socket.on("presence:changed", onPresenceChanged);
 
+    // Friend-request lifecycle: the server emits to the relevant user's room.
+    // The applier dedupes and updates inbox cards + relationship chips; for
+    // "new" the full request arrives so the card renders without a refetch.
+    socket.on("friend-request:new", (payload) => {
+      applyFriendRequestEventRef.current(
+        {
+          event: "new",
+          requestId: payload.id,
+          fromId: payload.sender.id,
+          fromName: payload.sender.displayName ?? payload.sender.username,
+          payload,
+        },
+        "socket",
+      );
+    });
+    socket.on("friend-request:accepted", (payload) => {
+      applyFriendRequestEventRef.current(
+        {
+          event: "accepted",
+          requestId: payload.requestId,
+          fromId: payload.friend.id,
+          fromName: payload.friend.displayName ?? payload.friend.username,
+        },
+        "socket",
+      );
+    });
+    socket.on("friend-request:declined", (payload) => {
+      applyFriendRequestEventRef.current(
+        {
+          event: "declined",
+          requestId: payload.requestId,
+          fromId: payload.userId,
+          fromName: payload.userId,
+        },
+        "socket",
+      );
+    });
+    socket.on("friend-request:blocked", (payload) => {
+      applyFriendRequestEventRef.current(
+        {
+          event: "blocked",
+          requestId: payload.blockedBy.id,
+          fromId: payload.blockedBy.id,
+          fromName: payload.blockedBy.displayName ?? payload.blockedBy.username,
+        },
+        "socket",
+      );
+    });
+
     // Re-join the active conversation after a reconnect (the server drops rooms).
     socket.on("connect", () => {
       joinedRef.current.clear();
@@ -683,6 +957,10 @@ export default function AppShell() {
       socket.off("directChat:typing");
       socket.off("chatroom:typing");
       socket.off("presence:changed", onPresenceChanged);
+      socket.off("friend-request:new");
+      socket.off("friend-request:accepted");
+      socket.off("friend-request:declined");
+      socket.off("friend-request:blocked");
       socket.off("connect");
       socket.off("disconnect");
       // Clear pending typing indicators on unmount (app teardown only).
@@ -792,6 +1070,7 @@ export default function AppShell() {
     else openConv({ kind: "room", id });
   }
   openConvFromLinkRef.current = openConvFromLink;
+  applyFriendRequestEventRef.current = applyFriendRequestEvent;
 
   function joinSocket(c: ActiveConv) {
     const key = `${c.kind}:${c.id}`;
@@ -1213,6 +1492,8 @@ export default function AppShell() {
     listLoading,
     mStack,
     toasts,
+    friendRequests,
+    blockedUsers,
     setTab,
     setQ,
     search,
@@ -1237,6 +1518,14 @@ export default function AppShell() {
     deactivateLink: (roomId: string, linkId: string) =>
       ChatAPI.deactivateJoinLink(roomId, linkId),
     roomInfo,
+    refreshFriendRequests,
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest,
+    blockUser,
+    unblockUser,
+    refreshBlockedUsers,
+    updateRelationship,
   };
 
   return (
