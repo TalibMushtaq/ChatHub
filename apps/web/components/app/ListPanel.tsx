@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useShell } from "./state";
 import { ChatAPI, getErrorMessage } from "./api";
-import { displayName, fmtList } from "./helpers";
+import { displayName, fmtList, lastText } from "./helpers";
 import type { SearchUser } from "./types";
 import AppAvatar from "./AppAvatar";
 import { AvatarLink, NameLink } from "./UserLinks";
@@ -27,14 +27,6 @@ import {
   btnGhost,
   btnPrimary,
 } from "./styles";
-
-function lastText(content: string | null, messageType: string): string {
-  if (messageType === "IMAGE") return "Photo";
-  if (messageType === "VIDEO") return "Video";
-  if (messageType === "AUDIO") return "Audio";
-  if (messageType === "VOICE") return "Voice message";
-  return content ?? "";
-}
 
 export default function ListPanel() {
   const {
@@ -178,10 +170,7 @@ export default function ListPanel() {
                             {e.lastMessage?.isDeleted
                               ? "Message deleted"
                               : e.lastMessage
-                                ? lastText(
-                                    e.lastMessage.content,
-                                    e.lastMessage.messageType,
-                                  )
+                                ? lastText(e.lastMessage)
                                 : "Say hi 👋"}
                           </span>
                           {e.unreadCount > 0 && (
@@ -250,10 +239,7 @@ export default function ListPanel() {
                           {r.lastMessage?.isDeleted
                             ? "Message deleted"
                             : r.lastMessage
-                              ? lastText(
-                                  r.lastMessage.content,
-                                  r.lastMessage.messageType,
-                                )
+                              ? lastText(r.lastMessage)
                               : `${r.memberCount} member${r.memberCount === 1 ? "" : "s"}`}
                         </span>
                         {r.unreadCount > 0 && (

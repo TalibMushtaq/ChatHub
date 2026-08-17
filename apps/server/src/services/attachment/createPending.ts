@@ -7,6 +7,7 @@ import {
   S3_PREFIX_ROOM,
   S3_PREFIX_DM,
   S3_PREFIX_VOICE,
+  MAX_VOICE_DURATION_SECONDS,
 } from "../../constants/attachment";
 import { ApiError } from "../../lib/ApiError";
 
@@ -22,6 +23,12 @@ import { ApiError } from "../../lib/ApiError";
  *
  * Extension is derived from the validated MIME type, never from the
  * original filename.
+ *
+ * Voice recordings additionally persist their duration (seconds) and the
+ * precomputed waveform samples the recorder captured, so playback can render
+ * the waveform without decoding the file. The duration cap is enforced here
+ * too (not just at the validator) because this is the last place the raw
+ * request fields are trusted before they become DB rows.
  */
 export async function createPendingAttachment(
   s3Service: S3Service,
@@ -31,10 +38,28 @@ export async function createPendingAttachment(
   filename: string,
   mimeType: string,
   size: number,
+  voice?: { durationSeconds: number; waveformPeaks?: number[] },
 ) {
   const ext = MIME_TYPE_EXTENSIONS[mimeType];
   if (!ext) {
     throw new ApiError("Unsupported MIME type", 400, "INVALID_MIME_TYPE");
+  }
+
+  if (context === "voice") {
+    if (voice?.durationSeconds == null) {
+      throw new ApiError(
+        "Voice recordings require a duration",
+        400,
+        "VOICE_DURATION_REQUIRED",
+      );
+    }
+    if (voice.durationSeconds > MAX_VOICE_DURATION_SECONDS) {
+      throw new ApiError(
+        `Voice recordings cannot exceed ${MAX_VOICE_DURATION_SECONDS} seconds`,
+        400,
+        "VOICE_DURATION_TOO_LONG",
+      );
+    }
   }
 
   const uuid = crypto.randomUUID();
@@ -67,6 +92,8 @@ export async function createPendingAttachment(
       filename,
       mimeType,
       size,
+      duration: voice?.durationSeconds ?? null,
+      waveformPeaks: voice?.waveformPeaks ?? undefined,
       status: "PENDING",
     },
     select: {
@@ -75,6 +102,8 @@ export async function createPendingAttachment(
       filename: true,
       mimeType: true,
       size: true,
+      duration: true,
+      waveformPeaks: true,
       status: true,
       createdAt: true,
     },

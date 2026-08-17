@@ -56,6 +56,9 @@ export {
   MAX_FILE_SIZE,
   MAX_ATTACHMENTS_PER_MESSAGE,
   ALL_ALLOWED_MIME_TYPES,
+  ALLOWED_VOICE_MIME_TYPES,
+  MAX_VOICE_DURATION_SECONDS,
+  MAX_WAVEFORM_PEAKS,
 } from "./attachment";
 export {
   avatarPresignSchema,

@@ -97,6 +97,10 @@ export async function getAttachmentWithAccessCheck(
       size: attachment.size,
       width: attachment.width,
       height: attachment.height,
+      // Playback metadata for voice recordings (same fields the message
+      // payloads carry, so the download response stays self-consistent).
+      duration: attachment.duration,
+      waveformPeaks: attachment.waveformPeaks,
       thumbnailKey: attachment.thumbnailKey,
     },
     downloadUrl,

@@ -40,6 +40,14 @@ router.post(
       parsed.filename,
       parsed.mimeType,
       parsed.size,
+      // Voice recordings ship their duration + waveform so playback metadata
+      // is persisted at presign time (the blob itself is never re-decoded).
+      parsed.context === "voice"
+        ? {
+            durationSeconds: parsed.durationSeconds!,
+            waveformPeaks: parsed.waveformPeaks,
+          }
+        : undefined,
     );
 
     res.status(201).json({

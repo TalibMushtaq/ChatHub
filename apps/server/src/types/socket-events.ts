@@ -90,6 +90,10 @@ export type AttachmentPayload = {
   size: number;
   width?: number | null;
   height?: number | null;
+  /** Voice-message duration in seconds (audio attachments only). */
+  duration?: number | null;
+  /** Precomputed amplitude samples (0..1) for the voice waveform. */
+  waveformPeaks?: number[] | null;
   thumbnailKey?: string | null;
 };
 

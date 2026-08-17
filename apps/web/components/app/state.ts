@@ -92,6 +92,13 @@ export interface ShellCtx {
   clearModals: () => void;
   toast: (text: string, type?: ToastType) => void;
   sendMessage: (content: string, files: File[]) => Promise<void>;
+  /** Upload + send a voice recording (optional text caption alongside). */
+  sendVoiceMessage: (
+    blob: Blob,
+    durationSeconds: number,
+    waveformPeaks: number[],
+    caption?: string,
+  ) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   /** Drop a client-only (pending/failed) message from the timeline. */

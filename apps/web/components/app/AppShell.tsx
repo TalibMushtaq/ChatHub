@@ -8,6 +8,7 @@ import { getErrorMessage } from "../../app/lib/errors";
 import { loadInitialState } from "../../app/lib/initialLoad";
 import { mergePresence } from "./helpers";
 import { ChatAPI, RoomSocket } from "./api";
+import { uploadVoiceAttachment } from "../../app/lib/attachments";
 import {
   ShellContext,
   convKey,
@@ -1331,6 +1332,130 @@ export default function AppShell() {
     }
   }
 
+  /**
+   * Upload + send a voice recording. Mirrors sendMessage's optimistic flow:
+   * a pending VOICE bubble renders immediately, the recording is uploaded via
+   * the voice presign path, then the message is sent through the same DM REST
+   * or room-socket pipeline as any other attachment message.
+   */
+  async function sendVoiceMessage(
+    blob: Blob,
+    durationSeconds: number,
+    waveformPeaks: number[],
+    caption?: string,
+  ): Promise<void> {
+    const a = activeRef.current;
+    if (!a) return;
+    const me = userRef.current!;
+    const key = convKey(a.kind, a.id);
+    const text = caption?.trim() ?? "";
+
+    const tempId = `temp-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    const temp: Message = {
+      id: tempId,
+      content: text || null,
+      messageType: "VOICE",
+      createdAt: new Date().toISOString(),
+      isDeleted: false,
+      attachments: [],
+      pending: true,
+      User: {
+        id: me.id,
+        username: me.username,
+        displayName: me.displayName,
+        avatar: me.avatar,
+      },
+      ...(a.kind === "room" ? { chatRoomId: a.id, senderId: me.id } : {}),
+    };
+    setMsgsBoth((prev) => ({
+      ...prev,
+      [key]: [...(prev[key] ?? []), temp],
+    }));
+
+    try {
+      const attachmentId = await uploadVoiceAttachment(
+        a.kind,
+        a.id,
+        blob,
+        durationSeconds,
+        waveformPeaks,
+      );
+
+      let msg: Message | null = null;
+      const body = {
+        content: text || undefined,
+        messageType: "VOICE",
+        attachmentIds: [attachmentId],
+      };
+      if (a.kind === "dm") {
+        msg = await ChatAPI.sendDmMessage(a.id, body);
+      } else {
+        const res = await RoomSocket.send(a.id, body);
+        msg = res.message ?? null;
+      }
+
+      if (msg) {
+        const norm = {
+          ...msg,
+          User: {
+            id: me.id,
+            username: me.username,
+            displayName: me.displayName,
+            avatar: me.avatar,
+          },
+        };
+        setMsgsBoth((prev) => {
+          const list = (prev[key] ?? []).filter((m) => m.id !== tempId);
+          const idx = list.findIndex((m) => m.id === msg.id);
+          const next =
+            idx >= 0
+              ? list.map((m) => (m.id === msg.id ? norm : m))
+              : [...list, norm];
+          return { ...prev, [key]: next };
+        });
+        const stub = {
+          id: msg.id,
+          content: msg.content,
+          messageType: msg.messageType,
+          createdAt: msg.createdAt,
+          isDeleted: false,
+        };
+        if (a.kind === "dm") {
+          setDmList((prev) => {
+            const entry = prev.find((e) => e.directChatId === a.id);
+            if (!entry) return prev;
+            return [
+              { ...entry, lastMessage: stub },
+              ...prev.filter((e) => e.directChatId !== a.id),
+            ];
+          });
+        } else {
+          setRoomList((prev) => {
+            const entry = prev.find((r) => r.roomId === a.id);
+            if (!entry) return prev;
+            return [
+              { ...entry, lastMessage: stub },
+              ...prev.filter((r) => r.roomId !== a.id),
+            ];
+          });
+        }
+      }
+    } catch (err) {
+      // Keep the bubble so the failure is visible; the recorder stays open
+      // (its onSend throws) and the user can retry or discard.
+      setMsgsBoth((prev) => ({
+        ...prev,
+        [key]: (prev[key] ?? []).map((m) =>
+          m.id === tempId ? { ...m, pending: false, failed: true } : m,
+        ),
+      }));
+      toast(getErrorMessage(err, "Failed to send voice message"), "error");
+      throw err;
+    }
+  }
+
   /** Drop a client-only (pending/failed) message from the timeline. */
   function removeLocalMessage(messageId: string) {
     const a = activeRef.current;
@@ -1512,6 +1637,7 @@ export default function AppShell() {
     clearModals,
     toast,
     sendMessage,
+    sendVoiceMessage,
     editMessage,
     deleteMessage,
     removeLocalMessage,

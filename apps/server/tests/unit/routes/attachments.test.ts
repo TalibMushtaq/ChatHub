@@ -156,6 +156,126 @@ describe("POST /attachments/presign", () => {
     expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);
   });
+
+  it("should create a voice attachment with duration and waveform", async () => {
+    prismaMock.directChat.findUnique.mockResolvedValue({
+      id: "dc1",
+      user1Id: "user-1",
+      user2Id: "user-2",
+    } as any);
+    prismaMock.attachment.create.mockResolvedValue({
+      id: "att-1",
+      s3Key: "attachments/voice/dc1/uuid.webm",
+      filename: "voice.webm",
+      mimeType: "audio/webm",
+      size: 2048,
+      duration: 12,
+      waveformPeaks: [0.1, 0.5, 0.9],
+      status: "PENDING",
+      createdAt: new Date(),
+    } as any);
+
+    const app = createTestApp();
+
+    const res = await supertest(app)
+      .post("/attachments/presign")
+      .send({
+        context: "voice",
+        contextId: "dc1",
+        filename: "voice.webm",
+        mimeType: "audio/webm",
+        size: 2048,
+        durationSeconds: 12,
+        waveformPeaks: [0.1, 0.5, 0.9],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.ok).toBe(true);
+    expect(prismaMock.attachment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          duration: 12,
+          waveformPeaks: [0.1, 0.5, 0.9],
+        }),
+      }),
+    );
+  });
+
+  it("should reject a voice attachment without a duration", async () => {
+    prismaMock.directChat.findUnique.mockResolvedValue({
+      id: "dc1",
+      user1Id: "user-1",
+      user2Id: "user-2",
+    } as any);
+
+    const app = createTestApp();
+
+    const res = await supertest(app).post("/attachments/presign").send({
+      context: "voice",
+      contextId: "dc1",
+      filename: "voice.webm",
+      mimeType: "audio/webm",
+      size: 2048,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(prismaMock.attachment.create).not.toHaveBeenCalled();
+  });
+
+  it("should reject a voice attachment over the duration cap", async () => {
+    prismaMock.directChat.findUnique.mockResolvedValue({
+      id: "dc1",
+      user1Id: "user-1",
+      user2Id: "user-2",
+    } as any);
+
+    const app = createTestApp();
+
+    const res = await supertest(app).post("/attachments/presign").send({
+      context: "voice",
+      contextId: "dc1",
+      filename: "voice.webm",
+      mimeType: "audio/webm",
+      size: 2048,
+      durationSeconds: 301,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+  });
+
+  it("should reject a voice attachment with a non-voice MIME type", async () => {
+    const app = createTestApp();
+
+    const res = await supertest(app).post("/attachments/presign").send({
+      context: "voice",
+      contextId: "dc1",
+      filename: "voice.png",
+      mimeType: "image/png",
+      size: 2048,
+      durationSeconds: 12,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+  });
+
+  it("should reject voice-only metadata on a non-voice presign", async () => {
+    const app = createTestApp();
+
+    const res = await supertest(app).post("/attachments/presign").send({
+      context: "dm",
+      contextId: "dc1",
+      filename: "photo.jpg",
+      mimeType: "image/jpeg",
+      size: 1024,
+      durationSeconds: 12,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+  });
 });
 
 describe("GET /attachments/:attachmentId", () => {

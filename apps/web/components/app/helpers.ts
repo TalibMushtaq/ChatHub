@@ -89,6 +89,17 @@ export function fmtBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** "mm:ss" (or "h:mm:ss" past the hour) — shared by list previews + player. */
+export function fmtDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
 /** Short label for a MIME type, used in attachment chips. */
 export function typeLabel(mime: string | undefined): string {
   if (!mime) return "file";
@@ -96,6 +107,32 @@ export function typeLabel(mime: string | undefined): string {
   if (mime.startsWith("video/")) return "video";
   if (mime.startsWith("audio/")) return "audio";
   return "file";
+}
+
+/**
+ * Conversation-list preview text for a last-message stub. Non-text media get
+ * a short label; voice messages include the recording's duration when the
+ * inbox carried it ("🎤 Voice message (0:12)").
+ */
+export function lastText(
+  lastMessage: {
+    content: string | null;
+    messageType: string;
+    attachments?: { duration?: number | null }[];
+  } | null,
+): string {
+  if (!lastMessage) return "";
+  const { content, messageType, attachments } = lastMessage;
+  if (messageType === "IMAGE") return "Photo";
+  if (messageType === "VIDEO") return "Video";
+  if (messageType === "AUDIO") return "Audio";
+  if (messageType === "VOICE") {
+    const duration = attachments?.[0]?.duration;
+    return duration
+      ? `🎤 Voice message (${fmtDuration(duration)})`
+      : "🎤 Voice message";
+  }
+  return content ?? "";
 }
 
 /**

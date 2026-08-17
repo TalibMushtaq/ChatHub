@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { ApiError } from "../../lib/ApiError";
 import { S3Service } from "../S3Service";
+import { MAX_VOICE_DURATION_SECONDS } from "../../constants/attachment";
 
 /**
  * Verify that all attachment IDs are valid for message creation.
@@ -47,6 +48,21 @@ export async function verifyAttachmentsForMessage(
         `Attachment ${att.id} does not belong to you`,
         403,
         "ATTACHMENT_OWNERSHIP",
+      );
+    }
+
+    // Defense in depth for voice: the cap was enforced at presign, but a
+    // crafted request could have stored an over-limit duration before this
+    // check existed, so reject it again at attach time. mimeType is always
+    // set on real rows; optional chaining keeps mock fixtures tolerant.
+    if (
+      att.mimeType?.startsWith("audio/") &&
+      (att.duration ?? 0) > MAX_VOICE_DURATION_SECONDS
+    ) {
+      throw new ApiError(
+        `Voice recording exceeds the ${MAX_VOICE_DURATION_SECONDS}s limit`,
+        400,
+        "VOICE_DURATION_TOO_LONG",
       );
     }
 

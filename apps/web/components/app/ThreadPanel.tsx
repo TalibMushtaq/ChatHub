@@ -36,9 +36,16 @@ import {
   TrashIcon,
   CheckIcon,
   DoubleCheckIcon,
+  MicIcon,
+  StopIcon,
   iconForMime,
 } from "./icons";
 import { iconBtn } from "./styles";
+import VoiceRecorder, {
+  type VoiceRecorderHandle,
+  type VoicePhase,
+} from "./VoiceRecorder";
+import VoiceMessagePlayer from "./VoiceMessagePlayer";
 
 const EDIT_WINDOW_MS = 5 * 60 * 1000;
 const DELETE_WINDOW_MS = 30 * 60 * 1000;
@@ -59,6 +66,7 @@ export default function ThreadPanel() {
     navigateBack,
     openModal,
     sendMessage,
+    sendVoiceMessage,
     editMessage,
     deleteMessage,
     removeLocalMessage,
@@ -76,6 +84,11 @@ export default function ThreadPanel() {
   const [editText, setEditText] = useState("");
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  // Voice recording lifecycle: `voiceOpen` mounts the recorder; `voicePhase`
+  // mirrors its internal state so the mic button can show record/stop.
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voicePhase, setVoicePhase] = useState<VoicePhase | null>(null);
+  const voiceRef = useRef<VoiceRecorderHandle | null>(null);
   // Measured fixed position for the desktop popover (flip/clamp against the
   // viewport). null until measured so the popover never flashes at (0, 0).
   const [pickerPos, setPickerPos] = useState<{
@@ -184,6 +197,10 @@ export default function ThreadPanel() {
     setEditing(null);
     setEditText("");
     setIsEmojiPickerOpen(false);
+    // A recording mid-flight across a conversation switch is always discarded
+    // — never send audio into the wrong thread.
+    setVoiceOpen(false);
+    setVoicePhase(null);
     stopTyping();
   }, [active?.id, stopTyping]);
 
@@ -314,6 +331,36 @@ export default function ThreadPanel() {
     } finally {
       setUploading(false);
       textareaRef.current?.focus();
+    }
+  }
+
+  // Tap-to-toggle recording: first tap mounts the recorder, a second tap
+  // (while capturing) stops it and reveals the review bar. Choosing this over
+  // press-and-hold keeps touch scrolling free of gesture conflicts.
+  function handleMicClick() {
+    if (voiceOpen) {
+      // Review/error phases own their cancel/send controls; only the capture
+      // phase maps a mic tap to "stop".
+      if (voicePhase === "recording") voiceRef.current?.stop();
+    } else {
+      setVoiceOpen(true);
+    }
+  }
+
+  async function sendVoice(
+    blob: Blob,
+    durationSeconds: number,
+    waveformPeaks: number[],
+  ) {
+    const caption = content.trim();
+    try {
+      await sendVoiceMessage(blob, durationSeconds, waveformPeaks, caption);
+      setVoiceOpen(false);
+      setVoicePhase(null);
+      setContent("");
+    } catch {
+      // error toast handled by sendVoiceMessage; the recorder stays open so
+      // the user can retry.
     }
   }
 
@@ -490,6 +537,17 @@ export default function ThreadPanel() {
         </div>
       ) : (
         <div className="composer border-t border-border bg-surface p-[10px_14px_calc(10px+env(safe-area-inset-bottom))]">
+          {voiceOpen && (
+            <VoiceRecorder
+              ref={voiceRef}
+              onPhaseChange={setVoicePhase}
+              onCancel={() => {
+                setVoiceOpen(false);
+                setVoicePhase(null);
+              }}
+              onSend={sendVoice}
+            />
+          )}
           {files.length > 0 && (
             <div className="upchips mb-2 flex flex-wrap gap-2">
               {files.map((f, i) => (
@@ -527,44 +585,73 @@ export default function ThreadPanel() {
               value={content}
               onChange={(e) => handleComposerChange(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey && !voiceOpen) {
                   e.preventDefault();
                   void handleSend();
                 }
               }}
               placeholder={`Message ${active.kind === "room" ? `#${active.name ?? "room"}` : other}…`}
             />
+            {/* While recording, declutter the row to textarea + mic so the
+                capture state reads unambiguously; send/attach return once the
+                review bar takes over. */}
+            {!voiceOpen && (
+              <button
+                className="c-btn flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color] duration-150 ease-app hover:bg-accent-soft hover:text-accent-solid"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach files"
+              >
+                <ClipIcon />
+              </button>
+            )}
+            {!voiceOpen && (
+              <button
+                ref={emojiBtnRef}
+                className={`c-btn flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color] duration-150 ease-app hover:bg-accent-soft hover:text-accent-solid ${
+                  isEmojiPickerOpen ? "bg-accent-soft text-accent-solid" : ""
+                }`}
+                onClick={() => setIsEmojiPickerOpen((v) => !v)}
+                aria-label="Add emoji"
+                aria-haspopup="dialog"
+                aria-expanded={isEmojiPickerOpen}
+              >
+                <SmileyIcon />
+              </button>
+            )}
             <button
-              className="c-btn flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color] duration-150 ease-app hover:bg-accent-soft hover:text-accent-solid"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Attach files"
-            >
-              <ClipIcon />
-            </button>
-            <button
-              ref={emojiBtnRef}
-              className={`c-btn flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color] duration-150 ease-app hover:bg-accent-soft hover:text-accent-solid ${
-                isEmojiPickerOpen ? "bg-accent-soft text-accent-solid" : ""
+              className={`c-btn flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full transition-colors duration-150 ease-app ${
+                voicePhase === "recording"
+                  ? "bg-danger text-white hover:bg-danger/80"
+                  : "text-muted hover:bg-accent-soft hover:text-accent-solid"
               }`}
-              onClick={() => setIsEmojiPickerOpen((v) => !v)}
-              aria-label="Add emoji"
-              aria-haspopup="dialog"
-              aria-expanded={isEmojiPickerOpen}
+              onClick={handleMicClick}
+              aria-label={
+                voicePhase === "recording"
+                  ? "Stop recording"
+                  : "Record a voice message"
+              }
+              aria-pressed={voicePhase === "recording"}
             >
-              <SmileyIcon />
-            </button>
-            <button
-              className="c-btn send flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full bg-accent-btn text-accent-on transition-colors duration-150 ease-app hover:bg-accent-hover hover:text-accent-on disabled:cursor-default disabled:opacity-45"
-              onClick={() => void handleSend()}
-              disabled={!canSend}
-              aria-label="Send"
-            >
-              {uploading ? (
-                <span style={{ fontSize: 12 }}>…</span>
+              {voicePhase === "recording" ? (
+                <StopIcon className="h-5 w-5" />
               ) : (
-                <SendIcon className="h-5 w-5" />
+                <MicIcon className="h-5 w-5" />
               )}
             </button>
+            {!voiceOpen && (
+              <button
+                className="c-btn send flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full bg-accent-btn text-accent-on transition-colors duration-150 ease-app hover:bg-accent-hover hover:text-accent-on disabled:cursor-default disabled:opacity-45"
+                onClick={() => void handleSend()}
+                disabled={!canSend}
+                aria-label="Send"
+              >
+                {uploading ? (
+                  <span style={{ fontSize: 12 }}>…</span>
+                ) : (
+                  <SendIcon className="h-5 w-5" />
+                )}
+              </button>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -872,20 +959,34 @@ function MessageRow({
                 )}
               </div>
             )}
-            {m.content && <span>{m.content}</span>}
-            {m.attachments && m.attachments.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                  marginTop: m.content ? 8 : 0,
-                }}
-              >
-                {m.attachments.map((att) => (
-                  <AttachmentCard key={att.id} att={att} isOwn={isOwn} />
-                ))}
-              </div>
+            {/* A pending voice message has no attachment yet (upload happens
+                before send) — show a placeholder instead of an empty bubble.
+                The real bubble swaps in with the player once the upload lands. */}
+            {m.pending && m.messageType === "VOICE" ? (
+              <span className="opacity-80">🎤 Voice message…</span>
+            ) : (
+              <>
+                {m.content && <span>{m.content}</span>}
+                {m.attachments && m.attachments.length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                      marginTop: m.content ? 8 : 0,
+                    }}
+                  >
+                    {m.attachments.map((att) => (
+                      <AttachmentCard
+                        key={att.id}
+                        att={att}
+                        isOwn={isOwn}
+                        messageType={m.messageType}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -896,7 +997,15 @@ function MessageRow({
   );
 }
 
-function AttachmentCard({ att, isOwn }: { att: Attachment; isOwn: boolean }) {
+function AttachmentCard({
+  att,
+  isOwn,
+  messageType,
+}: {
+  att: Attachment;
+  isOwn: boolean;
+  messageType?: string;
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [err, setErr] = useState(false);
 
@@ -963,6 +1072,29 @@ function AttachmentCard({ att, isOwn }: { att: Attachment; isOwn: boolean }) {
           />
         ) : (
           <div style={{ width: 200, height: 140 }} />
+        )}
+      </div>
+    );
+  }
+  // Voice messages use the compact custom player (waveform, scrub, global
+  // single-playback) instead of the native <audio controls> used for regular
+  // audio attachments.
+  if (messageType === "VOICE") {
+    return (
+      <div
+        className={`at mt-2 flex min-w-[240px] max-w-[300px] items-center rounded-xl border px-2.5 py-2 ${cardCls}`}
+      >
+        {url ? (
+          <VoiceMessagePlayer
+            attachmentId={att.id}
+            url={url}
+            durationSeconds={att.duration ?? 0}
+            waveformPeaks={att.waveformPeaks ?? null}
+          />
+        ) : (
+          <span className="text-[12.5px] font-semibold text-muted">
+            Loading voice message…
+          </span>
         )}
       </div>
     );

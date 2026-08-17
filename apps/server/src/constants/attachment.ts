@@ -10,6 +10,12 @@ export const MAX_FILE_SIZE = 100 * 1024 * 1024;
 /** Maximum number of attachments per message. */
 export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
+/** Maximum voice-message duration in seconds (5 minutes). */
+export const MAX_VOICE_DURATION_SECONDS = 300;
+
+/** Maximum number of precomputed waveform samples a voice attachment may carry. */
+export const MAX_WAVEFORM_PEAKS = 96;
+
 /** Presigned PUT URL expiry in seconds (5 minutes). */
 export const PRESIGN_PUT_EXPIRY_SECONDS = 300;
 
@@ -96,5 +102,10 @@ export const attachmentSummarySelect = {
   size: true,
   width: true,
   height: true,
+  // duration + waveformPeaks power the voice-message player; every message
+  // payload (history, send, socket broadcast) carries them so the client never
+  // needs a second lookup just to render a voice bubble.
+  duration: true,
+  waveformPeaks: true,
   thumbnailKey: true,
 } as const;

@@ -165,6 +165,57 @@ export const AudioIcon = (p: IconProps) => (
   </svg>
 );
 
+export const MicIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+    <path d="M12 19v3" />
+  </svg>
+);
+
+export const PlayIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="m6 3 14 9-14 9V3z" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const PauseIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect
+      x="6"
+      y="4"
+      width="4"
+      height="16"
+      rx="1"
+      fill="currentColor"
+      stroke="none"
+    />
+    <rect
+      x="14"
+      y="4"
+      width="4"
+      height="16"
+      rx="1"
+      fill="currentColor"
+      stroke="none"
+    />
+  </svg>
+);
+
+export const StopIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect
+      x="6"
+      y="6"
+      width="12"
+      height="12"
+      rx="2"
+      fill="currentColor"
+      stroke="none"
+    />
+  </svg>
+);
+
 export const FileIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />

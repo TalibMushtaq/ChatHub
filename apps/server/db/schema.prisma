@@ -129,6 +129,9 @@ model Attachment {
   width         Int?
   height        Int?
   duration      Int?
+  // Precomputed waveform amplitude samples (0..1) captured during recording
+  // so playback renders the waveform without decoding the audio file.
+  waveformPeaks Json?
   thumbnailKey  String?
   status        AttachmentStatus @default(PENDING)
   createdAt     DateTime         @default(now())

@@ -8,6 +8,8 @@ import { z } from "zod";
 
 export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+export const MAX_VOICE_DURATION_SECONDS = 300; // 5 minutes
+export const MAX_WAVEFORM_PEAKS = 96;
 
 export const ALLOWED_IMAGE_MIME_TYPES = [
   "image/jpeg",
@@ -32,7 +34,13 @@ export const ALLOWED_AUDIO_MIME_TYPES = [
   "audio/flac",
 ] as const;
 
-export const ALLOWED_VOICE_MIME_TYPES = ["audio/webm", "audio/ogg"] as const;
+// Voice recordings are produced by MediaRecorder: WebM/Opus everywhere,
+// MP4/AAC on Safari (which has no WebM muxer), Ogg for legacy fallbacks.
+export const ALLOWED_VOICE_MIME_TYPES = [
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp4",
+] as const;
 
 export const ALLOWED_FILE_MIME_TYPES = [
   ...ALLOWED_IMAGE_MIME_TYPES,
@@ -63,13 +71,47 @@ export const mimeTypeSchema = z.enum(
   ALL_ALLOWED_MIME_TYPES as [string, ...string[]],
 );
 
-export const presignSchema = z.object({
-  context: z.enum(["room", "dm", "voice"]),
-  contextId: z.string().min(1, "Context ID is required"),
-  filename: z.string().min(1).max(255),
-  mimeType: mimeTypeSchema,
-  size: z.number().int().positive().max(MAX_FILE_SIZE),
-});
+// Presigned upload metadata. Voice recordings additionally carry their
+// duration (seconds) and precomputed waveform samples so the server can
+// validate the cap without trusting the client's blob and the player can
+// render a waveform without decoding audio. Both are only meaningful for the
+// voice context — enforced by the refine below.
+export const presignSchema = z
+  .object({
+    context: z.enum(["room", "dm", "voice"]),
+    contextId: z.string().min(1, "Context ID is required"),
+    filename: z.string().min(1).max(255),
+    mimeType: mimeTypeSchema,
+    size: z.number().int().positive().max(MAX_FILE_SIZE),
+    durationSeconds: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_VOICE_DURATION_SECONDS)
+      .optional(),
+    waveformPeaks: z
+      .array(z.number().min(0).max(1))
+      .max(MAX_WAVEFORM_PEAKS)
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.context === "voice") {
+        // Voice uploads must state their duration so the server can enforce
+        // the recording cap; waveform peaks stay optional.
+        return (
+          data.durationSeconds != null &&
+          ALLOWED_VOICE_MIME_TYPES.includes(data.mimeType as never)
+        );
+      }
+      // Non-voice contexts must not smuggle voice-only metadata.
+      return data.durationSeconds == null && data.waveformPeaks == null;
+    },
+    {
+      message:
+        "Voice presign requires durationSeconds and a voice MIME type; other contexts must omit durationSeconds/waveformPeaks.",
+    },
+  );
 
 export const attachmentIdParamSchema = z.object({
   attachmentId: z.string().min(1),

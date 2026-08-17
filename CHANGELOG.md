@@ -1,3 +1,31 @@
+## [2026-08-17] - Voice Messages (Rooms + DMs)
+
+**What changed:** Added end-to-end voice messages, usable in both rooms and DMs, plugged into the existing attachment/message pipeline rather than a parallel system.
+
+Server (`apps/server`):
+
+- **Schema** (`db/schema.prisma`): `Attachment` gains `waveformPeaks Json?` (precomputed amplitude samples, 0..1, so playback renders a waveform without decoding audio). Migration `20260817000000_add_attachment_waveform_peaks` adds the column. Reuses the existing `MessageType.VOICE` enum and `Attachment.duration` (seconds) column.
+- **Upload** (`routes/attachments.ts` + `services/attachment/createPending.ts`): the existing `POST /attachments/presign` voice context now persists `durationSeconds` + `waveformPeaks` alongside the S3 record, with a server-side 5-minute cap enforced at presign and again in `verifyForMessage` at attach time (defense in depth).
+- **Validators** (`packages/validators/src/attachment.ts`): `ALLOWED_VOICE_MIME_TYPES` gains `audio/mp4` (Safari's MediaRecorder fallback); `presignSchema` accepts optional `durationSeconds` (1–300) + `waveformPeaks` (≤96 samples), required only for the `voice` context and forbidden on non-voice presigns.
+- **Payloads**: `attachmentSummarySelect` now carries `duration` + `waveformPeaks`, so every message payload (history, send response, socket broadcast) includes playback metadata. Fixed a latent bug in `constants/direct-chat.ts` where `messageWithAttachmentsSelect` omitted `messageType` — DM send responses and `message:new` broadcasts now carry it (required for the client to detect VOICE in DMs). `getWithAccessCheck` returns the same fields. Inbox/room list last-message stubs (`getInbox.ts`, `routes/room/room.ts`) include the first attachment's duration for list previews.
+- **Types**: `types/socket-events.ts` `AttachmentPayload` matches the new select shape.
+
+Web (`apps/web`):
+
+- **Recording** (`components/app/VoiceRecorder.tsx`, new): tap-to-toggle mic capture (start → stop → review) with MediaRecorder (`audio/webm;codecs=opus` via `pickAudioMime()`, falling back to `audio/mp4` on Safari), live AnalyserNode waveform + timer, 5-minute auto-stop with a last-10s countdown, inline error states for mic-permission denial / unsupported browsers, and cancel vs. send controls. Tapping the mic again stops the capture; touch scrolling never conflicts because there's no press-and-hold gesture.
+- **Upload** (`app/lib/attachments.ts`): `uploadVoiceAttachment()` presigns under the `voice` context, uploads the blob straight to S3, and sends duration + waveform peaks for persistence; `computeWaveformPeaks()` downsamples the analyser buffer.
+- **Send** (`AppShell.tsx` + `state.ts`): `sendVoiceMessage(blob, durationSeconds, waveformPeaks, caption?)` mirrors the text-send optimistic flow — a pending VOICE bubble renders immediately, then the message goes through the same DM REST or room-socket path with `messageType: "VOICE"` and one attachment (optional text caption rides along).
+- **Composer** (`ThreadPanel.tsx`): mic button in the compose bar (record/stop states, `aria-label`/`aria-pressed`); the recording bar replaces the attach/emoji/send cluster while capturing, and a pending voice bubble shows "🎤 Voice message…" until the upload lands.
+- **Playback** (`components/app/voicePlayback.ts`, new): a module-level singleton `Audio` element is the only player in the app, so starting one voice message automatically pauses any other (subscribed via `useSyncExternalStore`). `VoiceMessagePlayer.tsx` (new) renders the compact bubble — play/pause, scrubbable waveform (click + arrow-key seek, `role="slider"`), elapsed/total labels, loading and error+retry states. `AttachmentCard` routes VOICE attachments to the player (regular audio still uses native controls).
+- **Preview** (`components/app/helpers.ts`): `fmtDuration()` (mm:ss) and `lastText()` moved here; conversation lists now show "🎤 Voice message (0:12)" instead of "Voice message".
+- **Tests**: web `tests/attachments.test.ts` covers `fmtDuration`, `computeWaveformPeaks`, `pickAudioMime` (incl. Safari fallback), and `lastText` voice previews; server presign route + `createPendingAttachment` tests cover voice validation/persistence.
+
+**Why:** Feature request — users wanted async voice messages in every conversation type. The server already had the `VOICE` enum, voice S3 prefix, and a `duration` column; the work extends the existing presigned-upload + attachment-message pipeline instead of building a second system, and persists waveform peaks so playback needs no audio decoding.
+
+**Impact:** Server + web + validators + Prisma. New JSONB column (nullable, no backfill needed), one additive MIME type, and additive payload fields (`duration`, `waveformPeaks`, DM `messageType`) — existing text/image/file flows are unchanged. Server tests: 581 across 92 files; web tests: 62 across 7 files; both typechecks and the production web build pass. Run `prisma migrate dev` to apply the new migration.
+
+**Follow-ups:** Press-and-hold recording with slide-to-cancel (WhatsApp-style) was intentionally not built — tap-to-toggle avoids scroll-gesture conflicts on mobile; it can be layered on later. Waveform peaks are client-supplied metadata (shape-validated, not regenerated server-side); if that ever becomes a trust concern, a server-side decode step could replace them.
+
 ## [2026-08-17] - User Profile Card + Full-Screen Avatar Viewer
 
 **What changed:** Added a user profile card and a full-screen avatar viewer, both reusable from any surface that renders a user (chat message rows, DM thread header, DM/search/room-member/friend-request/blocked lists, New DM/Invite results).

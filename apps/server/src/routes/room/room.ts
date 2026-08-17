@@ -148,6 +148,9 @@ router.get(
               messageType: true,
               createdAt: true,
               isDeleted: true,
+              // Only the duration is needed so list previews can render a voice
+              // message as "🎤 Voice message (0:12)" without a second query.
+              attachments: { select: { duration: true } },
             },
           },
         },

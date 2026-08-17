@@ -48,8 +48,12 @@ export const messageWithUserSelect = {
 } as const;
 
 /** Message payload including its attachments — shared by send and replay paths. */
+// `messageType` is included so DM send responses and `message:new` broadcasts
+// carry the same field the room path already does; without it the client can't
+// tell a voice message from a text one (it defaults to TEXT in normalize()).
 export const messageWithAttachmentsSelect = {
   ...messageCreateSelect,
+  messageType: true,
   attachments: { select: attachmentSummarySelect },
 } as const;
 
