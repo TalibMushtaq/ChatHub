@@ -11,13 +11,6 @@
   - [ ] Add route + service
   - [ ] Update frontend dashboard components to use real data instead of hardcoded mocks
 
-- [ ] **Add DM inbox pagination (cursor / infinite scroll)**
-  - [ ] `GET /api/dm/inbox` currently returns ALL chats — add `cursor` + `limit` query params
-
-- [ ] **Add Room messages HTTP endpoint**
-  - [ ] Frontend `RoomMessages` calls `GET /room/:chatRoomId/messages` but no server handler exists
-  - [ ] Create endpoint with cursor pagination (similar to DM messages endpoint)
-
 ### Low Priority / Polish
 
 - [ ] Add `isEdited` flag to Message schema (instead of just checking `editedAt`)
@@ -30,6 +23,8 @@
 
 ## Completed ✓
 
+- [x] **Add DM inbox pagination** — `GET /api/dm/inbox` accepts `cursor` + `limit` query params and returns `nextCursor`
+- [x] **Add Room messages HTTP endpoint** — `GET /api/room/:chatRoomId/messages` with cursor pagination (same contract as DM messages, gated by room membership)
 - [x] Friend Request + Blocking system (FriendRequest/Friendship/UserBlock models + enum, `/api/friends/requests` CRUD + accept/decline, `/api/users/:userId/block` + `/api/users/blocked`, socket events `friend-request:new/accepted/declined/blocked`, Web Push kind `friend-request`, search `relationship` field, web inbox cards + search actions + blocked list in Privacy, 566 server tests + 45 web tests)
 - [x] Add proper setError in signup form
 - [x] Auth middleware: session check + fetch user from DB + attach `req.user`
