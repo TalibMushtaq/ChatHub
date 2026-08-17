@@ -73,6 +73,8 @@ const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>(
     const resultRef = useRef<{
       blob: Blob;
       durationSeconds: number;
+      /** Raw capture length in ms, kept for the too-short guard. */
+      durationMs: number;
       peaks: number[];
     } | null>(null);
 
@@ -155,9 +157,13 @@ const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>(
         };
         recorder.onstop = () => {
           const blob = new Blob(chunksRef.current, { type: mime });
-          const durationSeconds = (Date.now() - startTsRef.current) / 1000;
+          // Round to a whole second before sending: the server validates
+          // durationSeconds as an int and the DB stores an int, so a raw
+          // float (ms/1000) would be rejected with a Zod 400.
+          const durationMs = Date.now() - startTsRef.current;
+          const durationSeconds = Math.max(1, Math.round(durationMs / 1000));
           const peaks = peaksRef.current;
-          resultRef.current = { blob, durationSeconds, peaks };
+          resultRef.current = { blob, durationSeconds, durationMs, peaks };
           changePhase("review");
         };
         recorder.start(250);
@@ -208,8 +214,9 @@ const VoiceRecorder = forwardRef<VoiceRecorderHandle, VoiceRecorderProps>(
       if (!result) return;
       // A tap-tap (or nearly-empty capture) yields a sub-second blob the server
       // would reject on size alone; surface it here so the user can discard
-      // instead of hitting a confusing upload error.
-      if (result.durationSeconds < 1 || result.blob.size === 0) {
+      // instead of hitting a confusing upload error. Compare raw milliseconds
+      // because the rounded durationSeconds floors short clips to 1.
+      if (result.durationMs < 1000 || result.blob.size === 0) {
         setErrorMsg("Recording too short — try again.");
         changePhase("error");
         return;

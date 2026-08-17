@@ -60,6 +60,10 @@ export async function createPendingAttachment(
         "VOICE_DURATION_TOO_LONG",
       );
     }
+    // The DB column is an integer, so a float from a non-web client is
+    // normalized here rather than rejected — the presign validator already
+    // guarantees whole seconds for our web client.
+    voice = { ...voice, durationSeconds: Math.round(voice.durationSeconds) };
   }
 
   const uuid = crypto.randomUUID();

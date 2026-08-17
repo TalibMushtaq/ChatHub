@@ -1,3 +1,13 @@
+## [2026-08-17] - Fix voice presign float duration rejection
+
+**What changed:** Fixed a 400 `Invalid input: expected int, received number` on `POST /api/attachments/presign` for voice uploads. `apps/web/components/app/VoiceRecorder.tsx` computed `durationSeconds` as a raw float (`ms / 1000`), which the Zod `presignSchema` (`.int()` on `durationSeconds`) correctly rejects. The recorder now rounds to a whole second at `onstop` (and stores raw `durationMs` so the sub-second "too short" guard still works after rounding). Server-side, `apps/server/src/services/attachment/createPending.ts` now normalizes a float duration with `Math.round` before persisting to the `Int` column, so a non-web client can't store a fractional value; new unit test covers the float branch.
+
+**Why:** Bug fix — the voice recorder's real recordings (always fractional seconds) failed presign validation before upload.
+
+**Impact:** `apps/web` (VoiceRecorder) + `apps/server` (createPending) + one test. Verified live against `localhost:3100`: the reported float payload reproduces the exact Zod error, the rounded payload passes, the 300s cap is still enforced, and non-voice presigns still reject voice-only metadata. Server tests: 582 across 92 files; web lint and typecheck clean.
+
+**Follow-ups:** None.
+
 ## [2026-08-17] - Composer controls reorder
 
 **What changed:** In `apps/web/components/app/ThreadPanel.tsx`, the message composer row now reads `[attach] [emoji] [text input] [mic] [send]` — the file-attach and emoji buttons moved to the left of the text input instead of the right. Mic/send remain right-aligned, and the attach/emoji/send buttons still hide while a voice recording is active.

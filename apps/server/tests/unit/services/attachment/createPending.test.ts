@@ -74,6 +74,37 @@ describe("createPendingAttachment", () => {
     );
   });
 
+  it("should round a float duration to a whole second for storage", async () => {
+    prismaMock.attachment.create.mockResolvedValue({
+      id: "att-1",
+      s3Key: "attachments/voice/dc1/uuid.webm",
+      filename: "voice.webm",
+      mimeType: "audio/webm",
+      size: 1024,
+      duration: 12,
+      status: "PENDING",
+      createdAt: new Date(),
+    } as any);
+
+    await createPendingAttachment(
+      s3Service,
+      "u1",
+      "voice",
+      "dc1",
+      "voice.webm",
+      "audio/webm",
+      1024,
+      { durationSeconds: 12.47 },
+    );
+
+    // The Int column must never receive a float, even from a non-web client.
+    expect(prismaMock.attachment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ duration: 12 }),
+      }),
+    );
+  });
+
   it("should reject a voice attachment without a duration", async () => {
     await expect(
       createPendingAttachment(
