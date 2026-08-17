@@ -314,6 +314,16 @@ export default function AppShell() {
     }
   }
 
+  async function withdrawFriendRequest(requestId: string) {
+    try {
+      await ChatAPI.withdrawFriendRequest(requestId);
+      setFriendRequestsBoth((prev) => prev.filter((r) => r.id !== requestId));
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't cancel the request"), "error");
+      throw err;
+    }
+  }
+
   async function blockUser(userId: string) {
     try {
       const blocked = await ChatAPI.blockUser(userId);
@@ -1517,6 +1527,7 @@ export default function AppShell() {
     sendFriendRequest,
     acceptFriendRequest,
     declineFriendRequest,
+    withdrawFriendRequest,
     blockUser,
     unblockUser,
     refreshBlockedUsers,

@@ -259,3 +259,46 @@ describe("POST /friends/requests/:requestId/decline", () => {
     );
   });
 });
+
+describe("DELETE /friends/requests/:requestId", () => {
+  beforeEach(() => {
+    resetPrismaMock();
+    vi.clearAllMocks();
+  });
+
+  it("withdraws the sender's own PENDING request and tells the recipient", async () => {
+    prismaMock.friendRequest.findFirst.mockResolvedValue({
+      id: "fr1",
+      recipientId: "u2",
+    } as any);
+    prismaMock.friendRequest.deleteMany.mockResolvedValue({ count: 1 } as any);
+
+    const res = await supertest(createTestApp()).delete(
+      "/friends/requests/fr1",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.requestId).toBe("fr1");
+    expect(prismaMock.friendRequest.deleteMany).toHaveBeenCalledWith({
+      where: { id: "fr1", senderId: "u1", status: "PENDING" },
+    });
+    // The recipient hears about it via the existing declined event contract,
+    // so their client flips REQUEST_RECEIVED -> NONE and drops the card.
+    expect(mocks.io.to).toHaveBeenCalledWith("user:u2");
+    expect(mocks.io.to("user:u2").emit).toHaveBeenCalledWith(
+      "friend-request:declined",
+      expect.objectContaining({ requestId: "fr1", userId: "u1" }),
+    );
+  });
+
+  it("404s when the request is not the sender's or already handled", async () => {
+    prismaMock.friendRequest.findFirst.mockResolvedValue(null);
+
+    const res = await supertest(createTestApp()).delete(
+      "/friends/requests/fr1",
+    );
+
+    expect(res.status).toBe(404);
+    expect(mocks.io.to).not.toHaveBeenCalled();
+  });
+});

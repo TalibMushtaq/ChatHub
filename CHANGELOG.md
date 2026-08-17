@@ -1,4 +1,26 @@
-## [2026-08-16] - Friend Requests & User Blocking
+## [2026-08-17] - User Profile Card + Full-Screen Avatar Viewer
+
+**What changed:** Added a user profile card and a full-screen avatar viewer, both reusable from any surface that renders a user (chat message rows, DM thread header, DM/search/room-member/friend-request/blocked lists, New DM/Invite results).
+
+Server (`apps/server`):
+
+- `routes/searchUser.ts` — `GET /api/search/users/:id` now returns the full public profile for the profile card: `bio`, `gender`, `dateOfBirth`, `createdAt`, plus `relationship` (via the existing `getRelationship` service) and `friendRequestId` (the id of any PENDING request between the two users, from new service `services/friends/getPendingRequestId.ts`). `status`/`customStatus` are deliberately excluded — the live socket presence map is the authoritative, privacy-gated source for the online indicator.
+- `routes/friends.ts` — new `DELETE /api/friends/requests/:requestId` lets the sender withdraw their own PENDING request (new service `services/friends/withdrawFriendRequest.ts`, deletes the row, scoped to `senderId` + `PENDING`; 404/409 on not-found or already-handled). The recipient is told via the existing `friend-request:declined` event contract so their client flips REQUEST_RECEIVED → NONE and drops the inbox card.
+
+Web (`apps/web`):
+
+- `components/app/types.ts` — new `UserProfile` type; `ModalName` gains `"userProfile"` and `"avatarViewer"`.
+- `components/app/api.ts` — `ChatAPI.getUserProfile(userId)` and `ChatAPI.withdrawFriendRequest(requestId)`.
+- `components/app/Modals.tsx` — modal system upgrades: Escape closes the top modal, background scroll is locked while any modal is open, focus is trapped per frame and returned to the trigger when the stack empties, and `ModalFrame` gained a full-screen layout variant (dark backdrop, no card chrome) so the avatar viewer can stack on top of the profile card without closing it. New `UserProfileModal` (lazy profile fetch with loading/error+retry states, clickable avatar → viewer, presence dot from the shell's live presence map, bio/gender/join-date fields with empty states, and relationship-driven actions) and new `AvatarViewer` (full-screen centered `object-contain` image with `onError` fallback to the initials placeholder). The profile card's action set is derived by pure helper `components/app/profileActions.ts`.
+- `components/app/useUserActions.ts` + `components/app/UserLinks.tsx` — shared `openProfile`/`openAvatar` entry points and `AvatarLink`/`NameLink` components implementing the click hierarchy: avatar click always opens the viewer (with `stopPropagation` so it never bubbles to a parent handler), name click opens the card. `plain`/`stop` props keep the targets valid when nested inside a conversation-row button.
+- `components/app/AppShell.tsx` + `state.ts` — `withdrawFriendRequest` added to the shell context (removes the inbox card, consistent with the other friend actions).
+- Wired surfaces: `ThreadPanel` (DM header avatar/name, room message-row sender avatar/name), `ListPanel` (DM rows, friend-request cards, search rows — avatar/name now separate click targets while the rest of the row keeps start-a-DM), and `Modals` (room members, New DM/Invite results, blocked list).
+
+**Why:** Feature request — there was no way to view another user's profile or inspect an avatar up close; the only "profile" modal was the self-edit form. The card reuses the existing modal stack, avatar component, relationship enum, presence map, and styling rather than introducing parallel systems.
+
+**Impact:** Server + web + tests. Backend profile lookup returns five new fields; new DELETE endpoint. No schema changes. Existing conversation/row click behavior is preserved except search rows' avatar/name, which now open the viewer/card per the new hierarchy (the rest of the row still starts a DM). Modal system gains Escape-to-close, focus trap/return, and scroll-lock for ALL modals. Server tests: 574 across 93 files (new withdraw route/service + extended profile lookup tests); web tests: 51 across 7 files (new `profileActions` mapping tests); both typechecks and lints clean.
+
+**Follow-ups:** The `friend-request:declined` event is reused for withdrawals — if socket semantics ever need to distinguish "declined" from "withdrawn", add a dedicated `friend-request:withdrawn` event. The profile card's relationship state is local to the card; it re-derives on reopen.
 
 **What changed:** Added a friend request + blocking system on top of the existing DirectChat/Message architecture.
 

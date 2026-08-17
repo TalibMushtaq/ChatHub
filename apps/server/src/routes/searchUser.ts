@@ -7,6 +7,8 @@ import { ApiError } from "../lib/ApiError";
 import { createLogger } from "../lib/logger";
 import { searchUsersQuerySchema, userIdParamSchema } from "@repo/validators";
 import { getRelationships } from "../services/friends/getRelationships";
+import { getRelationship } from "../services/friends/getRelationship";
+import { getPendingRequestId } from "../services/friends/getPendingRequestId";
 
 const log = createLogger("searchUser");
 const router = Router();
@@ -125,9 +127,23 @@ router.get(
       return;
     }
 
+    // Full public profile for the profile card. `status`/`customStatus` are
+    // deliberately excluded: they are privacy-sensitive and the live presence
+    // map (socket `presence:changed`) is the authoritative, already-gated
+    // source for the online/status indicator. The relationship is derived here
+    // so the card can render friend/block actions without a second round-trip.
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, username: true, displayName: true, avatar: true },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatar: true,
+        bio: true,
+        gender: true,
+        dateOfBirth: true,
+        createdAt: true,
+      },
     });
 
     if (!user) {
@@ -136,7 +152,19 @@ router.get(
       throw new ApiError("User not found", 404, "USER_NOT_FOUND");
     }
 
-    res.status(200).json({ ok: true, user });
+    const relationship = await getRelationship(req.user.id, id);
+
+    // The card needs the pending request id to cancel/accept/decline; only
+    // fetched for relationships that have one to keep the hot path cheap.
+    const friendRequestId =
+      relationship === "REQUEST_SENT" || relationship === "REQUEST_RECEIVED"
+        ? await getPendingRequestId(req.user.id, id)
+        : null;
+
+    res.status(200).json({
+      ok: true,
+      user: { ...user, relationship, friendRequestId },
+    });
   }),
 );
 

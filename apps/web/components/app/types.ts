@@ -49,6 +49,29 @@ export interface SearchUser {
   relationship: Relationship;
 }
 
+/**
+ * A user's public profile as returned by GET /api/search/users/:id. Feeds the
+ * profile card; `status`/`customStatus` are intentionally absent (the live
+ * presence map is the authoritative, privacy-gated source for those).
+ */
+export interface UserProfile {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatar: string | null;
+  bio: string | null;
+  gender: Gender | null;
+  dateOfBirth: string | null;
+  createdAt: string;
+  /** How the current user relates to this user (server-derived). */
+  relationship: Relationship;
+  /**
+   * Id of any PENDING friend request between the current user and this user
+   * (either direction). Null unless relationship is REQUEST_SENT/REQUEST_RECEIVED.
+   */
+  friendRequestId: string | null;
+}
+
 /** A user as shown in friend requests, friendships, and blocks. */
 export interface FriendUser {
   id: string;
@@ -246,7 +269,9 @@ export type ModalName =
   | "privacy"
   | "notifications"
   | "recovery"
-  | "confirm";
+  | "confirm"
+  | "userProfile"
+  | "avatarViewer";
 
 export interface UploadItem {
   uid: string;

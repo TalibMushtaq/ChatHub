@@ -21,6 +21,7 @@ import {
 } from "./helpers";
 import type { Attachment, Message, ReadReceipt } from "./types";
 import AppAvatar from "./AppAvatar";
+import { AvatarLink, NameLink } from "./UserLinks";
 import EmojiPicker from "./EmojiPicker";
 import { insertEmojiAtCursor } from "./insertEmojiAtCursor";
 import { STATUS_LABELS } from "./statusTones";
@@ -371,19 +372,25 @@ export default function ThreadPanel() {
         >
           <BackIcon />
         </button>
-        <AppAvatar
-          name={other}
-          src={
-            active.kind === "room" ? active.avatar : active.otherUser?.avatar
-          }
-          size={40}
-          square={active.kind === "room"}
-          presence={otherPresence}
-        />
+        {active.kind === "dm" && active.otherUser ? (
+          <AvatarLink
+            userId={active.otherUser.id}
+            name={active.otherUser.displayName ?? active.otherUser.username}
+            avatar={active.otherUser.avatar}
+            size={40}
+            presence={otherPresence}
+          />
+        ) : (
+          <AppAvatar name={other} src={active.avatar} size={40} square />
+        )}
         <div className="titles min-w-0 flex-1">
           <div className="name truncate text-[15px] font-extrabold">
             {active.kind === "room" && "# "}
-            {other}
+            {active.kind === "dm" && active.otherUser ? (
+              <NameLink userId={active.otherUser.id} name={other} />
+            ) : (
+              other
+            )}
           </div>
           <div className="sub text-[12.5px] text-muted">
             {typers.length > 0 ? (
@@ -737,11 +744,12 @@ function MessageRow({
       className={`msg-row my-0.5 flex items-end gap-[9px] animate-[pop_.16s_cubic-bezier(.2,.8,.2,1)] ${isOwn ? "justify-end" : ""}`}
       style={{ position: "relative" }}
     >
-      {!isOwn && (
+      {!isOwn && m.User && (
         <div className="mb-0.5 flex-none">
-          <AppAvatar
-            name={displayName(m.User)}
-            src={m.User?.avatar}
+          <AvatarLink
+            userId={m.User.id}
+            name={m.User.displayName ?? m.User.username}
+            avatar={m.User.avatar}
             size={30}
             square={isRoom}
           />
@@ -757,7 +765,7 @@ function MessageRow({
         >
           {isRoom && !isOwn && firstOfSender && m.User && (
             <span className="who font-extrabold text-fg">
-              {displayName(m.User)}
+              <NameLink userId={m.User.id} name={displayName(m.User)} />
             </span>
           )}
           {isOwn && <span className="who font-extrabold text-fg">You</span>}

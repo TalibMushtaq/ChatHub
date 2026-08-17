@@ -6,15 +6,19 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useShell, type ModalEntry } from "./state";
 import { ChatAPI, getErrorMessage } from "./api";
-import { displayName, fmtList, fmtTime } from "./helpers";
+import { displayName, fmtList, fmtTime, avatarUrl } from "./helpers";
+import type { Relationship } from "@repo/validators";
 import type {
   Gender,
   Invitation,
   JoinLink,
   JoinRequest,
+  UserProfile,
   UserStatus,
 } from "./types";
+import { profileActionSet } from "./profileActions";
 import AppAvatar from "./AppAvatar";
+import { AvatarLink, NameLink } from "./UserLinks";
 import AvatarSelector from "./AvatarSelector";
 import { STATUS_OPTIONS, TONE_BG } from "./statusTones";
 import {
@@ -75,10 +79,62 @@ const TITLES: Record<ModalEntry["name"], string> = {
   notifications: "Notifications",
   recovery: "Recovery codes",
   confirm: "Confirm",
+  userProfile: "Profile",
+  avatarViewer: "Profile picture",
 };
 
 export default function Modals() {
-  const { mStack } = useShell();
+  const { mStack, popModal } = useShell();
+  // The element that opened the first modal; focus is returned to it when the
+  // stack empties so keyboard users land back where they started.
+  const triggerRef = useRef<Element | null>(null);
+
+  useEffect(() => {
+    if (mStack.length > 0 && !triggerRef.current) {
+      triggerRef.current = document.activeElement;
+    }
+  }, [mStack.length]);
+
+  // Escape closes the top-most modal. One listener here (not per frame) so the
+  // handler count never grows with the stack depth.
+  useEffect(() => {
+    if (mStack.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        popModal();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mStack.length, popModal]);
+
+  // Lock background scroll while any modal is open so the page behind a
+  // full-screen overlay (avatar viewer) can't scroll; restored on close.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    if (mStack.length > 0) document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mStack.length]);
+
+  // Keep focus on the top frame through pushes AND pops (e.g. closing the
+  // avatar viewer returns focus to the profile card beneath it).
+  useEffect(() => {
+    if (mStack.length === 0) return;
+    const frames = document.querySelectorAll<HTMLElement>("[data-modal-frame]");
+    frames[frames.length - 1]?.focus();
+  }, [mStack.length]);
+
+  // Return focus to whatever opened the modal once the stack is empty.
+  useEffect(() => {
+    if (mStack.length > 0) return;
+    const trigger = triggerRef.current;
+    triggerRef.current = null;
+    if (trigger instanceof HTMLElement) trigger.focus();
+  }, [mStack.length]);
+
   if (mStack.length === 0) return null;
   return (
     <>
@@ -104,11 +160,60 @@ function ModalFrame({
   total: number;
 }) {
   const { popModal, clearModals } = useShell();
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const body = Body(entry);
+
+  const isFullscreen = entry.name === "avatarViewer";
+
+  // Keep Tab cycling within the frame so users can't focus content behind a
+  // modal (especially the full-screen viewer's page underneath).
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== "Tab" || !frameRef.current) return;
+    const focusables = frameRef.current.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  // Full-screen overlay (avatar viewer): dark backdrop + centered content and
+  // no card chrome. The backdrop pops only THIS modal so a profile card open
+  // beneath it stays mounted and visible after the viewer closes.
+  if (isFullscreen) {
+    return (
+      <div
+        ref={frameRef}
+        data-modal-frame
+        tabIndex={-1}
+        className="modal-root fixed inset-0 z-[80] flex items-center justify-center"
+        style={{ zIndex: 80 + index }}
+        onKeyDown={onKeyDown}
+      >
+        <div
+          className="modal-back absolute inset-0 bg-[oklch(0_0_0/0.78)] animate-[fade_.2s_cubic-bezier(.2,.8,.2,1)]"
+          onClick={popModal}
+        />
+        {body}
+      </div>
+    );
+  }
+
   return (
     <div
+      ref={frameRef}
+      data-modal-frame
+      tabIndex={-1}
       className="modal-root fixed inset-0 z-[80] flex items-center justify-center"
       style={{ zIndex: 80 + index }}
+      onKeyDown={onKeyDown}
     >
       {/* Backdrop: clicking outside the modal dismisses the stack. */}
       <div
@@ -187,6 +292,18 @@ function Body(entry: ModalEntry) {
       };
       return <ConfirmModal p={p} />;
     }
+    case "userProfile": {
+      const p = entry.payload as { userId: string };
+      return <UserProfileModal userId={p.userId} />;
+    }
+    case "avatarViewer": {
+      const p = entry.payload as {
+        userId: string;
+        name?: string;
+        avatar?: string | null;
+      };
+      return <AvatarViewer name={p.name} avatar={p.avatar} />;
+    }
   }
 }
 
@@ -262,9 +379,15 @@ function NewDmModal() {
         ) : (
           results.map((u) => (
             <div key={u.id} className={rowItem}>
-              <AppAvatar name={u.displayName ?? u.username} size={38} />
+              <AvatarLink
+                userId={u.id}
+                name={u.displayName ?? u.username}
+                size={38}
+              />
               <div className={rowGrow}>
-                <div className={rowT1}>{displayName(u)}</div>
+                <div className={rowT1}>
+                  <NameLink userId={u.id} name={displayName(u)} />
+                </div>
                 <div className={rowT2}>@{u.username}</div>
               </div>
               <button
@@ -476,10 +599,15 @@ function RoomInfoModal() {
 
       {members.map((m) => (
         <div key={m.memberId} className={rowItem}>
-          <AppAvatar name={displayName(m.user)} src={m.user.avatar} size={38} />
+          <AvatarLink
+            userId={m.user.id}
+            name={displayName(m.user)}
+            avatar={m.user.avatar}
+            size={38}
+          />
           <div className={rowGrow}>
             <div className={rowT1}>
-              {displayName(m.user)}
+              <NameLink userId={m.user.id} name={displayName(m.user)} />
               {m.user.id === user.id && (
                 <span className={`${chipMember} ml-2`}>you</span>
               )}
@@ -605,9 +733,15 @@ function InviteModal({ roomId }: { roomId: string }) {
         ) : (
           results.map((u) => (
             <div key={u.id} className={rowItem}>
-              <AppAvatar name={u.displayName ?? u.username} size={38} />
+              <AvatarLink
+                userId={u.id}
+                name={u.displayName ?? u.username}
+                size={38}
+              />
               <div className={rowGrow}>
-                <div className={rowT1}>{displayName(u)}</div>
+                <div className={rowT1}>
+                  <NameLink userId={u.id} name={displayName(u)} />
+                </div>
                 <div className={rowT2}>@{u.username}</div>
               </div>
               <button
@@ -1398,14 +1532,19 @@ function PrivacyModal() {
                 key={b.id}
                 className="flex items-center gap-[10px] rounded-[12px] p-1.5 hover:bg-surface-2"
               >
-                <AppAvatar
+                <AvatarLink
+                  userId={b.id}
                   name={b.displayName ?? b.username}
-                  src={b.avatar}
+                  avatar={b.avatar}
                   size={34}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-bold">
-                    {displayName(b)}
+                    <NameLink
+                      userId={b.id}
+                      name={displayName(b)}
+                      className="text-[13.5px] font-bold"
+                    />
                   </div>
                   <div className="truncate text-[11.5px] text-muted">
                     @{b.username}
@@ -1657,6 +1796,347 @@ function ConfirmModal({
         >
           {p.danger ? "Delete" : "Confirm"}
         </button>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// User profile card
+// ---------------------------------------------------------------------------
+
+function UserProfileModal({ userId }: { userId: string }) {
+  const {
+    user: me,
+    presence,
+    openModal,
+    openConv,
+    clearModals,
+    toast,
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest,
+    withdrawFriendRequest,
+    blockUser,
+    unblockUser,
+  } = useShell();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Relationship is local so an in-card action (send/cancel/accept/block)
+  // re-renders the action row immediately without another network round-trip.
+  const [relationship, setRelationship] = useState<Relationship>("NONE");
+
+  // Extended profile data is fetched lazily — only when the card opens — so
+  // rendering avatars/names elsewhere never triggers a profile request.
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const p = await ChatAPI.getUserProfile(userId);
+      setProfile(p);
+      setRelationship(p.relationship);
+    } catch (err) {
+      setError(getErrorMessage(err, "Couldn't load this profile"));
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const isSelf = userId === me.id;
+  const actions = profileActionSet(relationship, isSelf);
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await fn();
+    } catch {
+      // The shell action methods toast the failure already; keep the card open.
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function message() {
+    setBusy(true);
+    try {
+      const chat = await ChatAPI.startDm(userId);
+      clearModals();
+      openConv({
+        kind: "dm",
+        id: chat.id,
+        otherUser: profile
+          ? {
+              id: profile.id,
+              username: profile.username,
+              displayName: profile.displayName,
+              avatar: profile.avatar,
+            }
+          : { id: userId },
+      });
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't start a chat"), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onFriend(kind: "add" | "cancel" | "accept" | "decline") {
+    if (!profile?.friendRequestId && kind !== "add") return;
+    await run(async () => {
+      switch (kind) {
+        case "add":
+          await sendFriendRequest(userId);
+          setRelationship("REQUEST_SENT");
+          break;
+        case "cancel":
+          await withdrawFriendRequest(profile!.friendRequestId!);
+          setRelationship("NONE");
+          break;
+        case "accept":
+          await acceptFriendRequest(profile!.friendRequestId!);
+          setRelationship("FRIENDS");
+          break;
+        case "decline":
+          await declineFriendRequest(profile!.friendRequestId!);
+          setRelationship("NONE");
+          break;
+      }
+    });
+  }
+
+  async function onBlock() {
+    await run(async () => {
+      if (actions.blockAction === "unblock") {
+        await unblockUser(userId);
+        setRelationship("NONE");
+      } else {
+        await blockUser(userId);
+        setRelationship("BLOCKED");
+      }
+    });
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10">
+        <p className="flex items-center gap-2 text-[13px] text-muted">
+          <RefreshIcon className="h-4 w-4 animate-spin" /> Loading profile…
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <p className="text-[13.5px] font-bold text-danger">{error}</p>
+        <button
+          className={`${btnGhost} ${btnSm} mt-4`}
+          onClick={() => void load()}
+        >
+          <RefreshIcon className="h-[17px] w-[17px]" /> Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!profile) return null;
+
+  const p = presence[userId];
+
+  return (
+    <div className="space-y-4">
+      {/* Header: avatar opens the full-screen viewer (never the card), and the
+          name opens... nothing (it IS the card). Actions below stopPropagation
+          so they never trigger the frame's backdrop close. */}
+      <div className="flex items-center gap-3.5">
+        <AvatarLink
+          userId={userId}
+          name={profile.displayName ?? profile.username}
+          avatar={profile.avatar}
+          size={64}
+          presence={p}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[17px] font-extrabold">
+            {profile.displayName ?? profile.username}
+          </div>
+          <div className="truncate text-[13px] text-muted">
+            @{profile.username}
+          </div>
+          {isSelf && (
+            <span className="mt-1 inline-block rounded-full bg-surface-2 px-2.5 py-[3px] text-[11px] font-extrabold tracking-[0.02em] text-muted">
+              This is you
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Bio — empty state when unset. */}
+      <div>
+        <div className="text-[12.5px] font-bold text-muted">Bio</div>
+        {profile.bio ? (
+          <p className="mt-1 text-[14px] leading-[1.5] break-words whitespace-pre-wrap">
+            {profile.bio}
+          </p>
+        ) : (
+          <p className="mt-1 text-[13px] text-muted">No bio yet.</p>
+        )}
+      </div>
+
+      {/* Only existing fields: gender, join date, manual status label. */}
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[12.5px] text-muted">
+        {profile.gender && (
+          <span>
+            <b className="font-bold text-fg">Gender:</b>{" "}
+            {GENDER_LABELS[profile.gender]}
+          </span>
+        )}
+        <span>
+          <b className="font-bold text-fg">Joined:</b>{" "}
+          {new Date(profile.createdAt).toLocaleDateString([], {
+            year: "numeric",
+            month: "short",
+          })}
+        </span>
+      </div>
+
+      {/* Relationship-driven actions. Invalid actions never render as dead
+          buttons: blocked hides Message, self hides everything. */}
+      <div className="mactions mt-4 grid gap-2.5 border-t border-border pt-4">
+        {actions.showMessage && (
+          <button
+            className={`${btnPrimary} ${btnBlock}`}
+            disabled={busy}
+            onClick={(e) => {
+              e.stopPropagation();
+              void message();
+            }}
+          >
+            Message
+          </button>
+        )}
+
+        {!isSelf && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {actions.friendControls.map((k) => (
+              <button
+                key={k}
+                className={`${btnSm} ${
+                  k === "decline"
+                    ? btnDanger
+                    : k === "cancel"
+                      ? btnGhost
+                      : btnPrimary
+                }`}
+                disabled={busy || !profile.friendRequestId}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onFriend(k);
+                }}
+              >
+                {k === "add" && "Add friend"}
+                {k === "cancel" && "Cancel request"}
+                {k === "accept" && "Accept"}
+                {k === "decline" && "Decline"}
+              </button>
+            ))}
+            {actions.friendLabels.map((label) => (
+              <span
+                key={label}
+                className="flex min-h-8 items-center justify-center rounded-[99px] bg-surface-2 px-[13px] py-[5px] text-[12.5px] font-bold text-muted"
+              >
+                {label} ✓
+              </span>
+            ))}
+          </div>
+        )}
+
+        {!isSelf && (
+          <button
+            className={`${btnSm} ${actions.blockAction === "unblock" ? btnGhost : btnGhost}`}
+            disabled={busy}
+            onClick={(e) => {
+              e.stopPropagation();
+              void onBlock();
+            }}
+          >
+            {actions.blockAction === "unblock" ? "Unblock" : "Block"}
+          </button>
+        )}
+
+        {isSelf && (
+          <button
+            className={`${btnGhost} ${btnBlock}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openModal("profile");
+            }}
+          >
+            Edit profile
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const GENDER_LABELS: Record<Exclude<Gender, "">, string> = {
+  MALE: "Male",
+  FEMALE: "Female",
+  NON_BINARY: "Non-binary",
+  OTHER: "Other",
+  PREFER_NOT_TO_SAY: "Prefer not to say",
+};
+
+// ---------------------------------------------------------------------------
+// Full-screen avatar viewer
+// ---------------------------------------------------------------------------
+
+function AvatarViewer({
+  name,
+  avatar,
+}: {
+  name?: string;
+  avatar?: string | null;
+}) {
+  const { popModal } = useShell();
+  const [failed, setFailed] = useState(false);
+  // Only one avatar resolution exists (single S3 key via the avatars proxy), so
+  // the viewer uses the same URL as everywhere else; a broken image falls back
+  // to the initials placeholder instead of leaving a dead <img>.
+  const src = failed ? null : avatarUrl(avatar);
+
+  return (
+    <>
+      <button
+        className={`${iconBtn} fixed right-4 top-4 z-10 h-10 w-10 rounded-full bg-surface text-fg`}
+        onClick={popModal}
+        aria-label="Close"
+      >
+        <CloseIcon />
+      </button>
+      <div
+        className="flex items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={name ?? "Profile picture"}
+            className="max-h-[calc(100dvh-96px)] max-w-full rounded-2xl object-contain shadow-2xl"
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <AppAvatar name={name} size={160} />
+        )}
       </div>
     </>
   );

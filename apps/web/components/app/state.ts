@@ -113,6 +113,8 @@ export interface ShellCtx {
   acceptFriendRequest: (requestId: string) => Promise<void>;
   /** Decline an incoming friend request; removes its inbox card. */
   declineFriendRequest: (requestId: string) => Promise<void>;
+  /** Withdraw a friend request the current user sent; removes its inbox card. */
+  withdrawFriendRequest: (requestId: string) => Promise<void>;
   /** Block a user (idempotent); clears any request card involving them. */
   blockUser: (userId: string) => Promise<void>;
   /** Unblock a user (idempotent). */

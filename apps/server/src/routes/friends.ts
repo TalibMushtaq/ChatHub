@@ -11,6 +11,7 @@ import {
 import { sendFriendRequest } from "../services/friends/sendFriendRequest";
 import { acceptFriendRequest } from "../services/friends/acceptFriendRequest";
 import { declineFriendRequest } from "../services/friends/declineFriendRequest";
+import { withdrawFriendRequest } from "../services/friends/withdrawFriendRequest";
 import { getPendingRequests } from "../services/friends/getPendingRequests";
 import { pushFriendRequestEvent } from "../services/push/push";
 import {
@@ -72,6 +73,32 @@ router.get(
       limit,
     });
     res.json({ ok: true, requests, nextCursor });
+  }),
+);
+
+// DELETE /api/friends/requests/:requestId — the sender withdraws their own
+// PENDING request. The recipient is told via the existing `declined` event
+// (same payload contract) so their client flips REQUEST_RECEIVED -> NONE and
+// drops the inbox card without needing a new socket event type.
+router.delete(
+  "/requests/:requestId",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const myId = req.user.id;
+
+    const { requestId } = unwrapParsed(
+      friendRequestIdParamSchema.safeParse(req.params),
+      { message: "requestId missing" },
+    );
+
+    const result = await withdrawFriendRequest(myId, requestId);
+
+    emitFriendRequestDeclined(req.io, result.recipientId, {
+      requestId: result.requestId,
+      userId: myId,
+    });
+
+    res.json({ ok: true, requestId: result.requestId });
   }),
 );
 

@@ -7,6 +7,7 @@ import { ChatAPI, getErrorMessage } from "./api";
 import { displayName, fmtList } from "./helpers";
 import type { SearchUser } from "./types";
 import AppAvatar from "./AppAvatar";
+import { AvatarLink, NameLink } from "./UserLinks";
 import {
   PlusIcon,
   SearchIcon,
@@ -147,16 +148,24 @@ export default function ListPanel() {
                         })
                       }
                     >
-                      <AppAvatar
-                        name={displayName(e.otherUser)}
-                        src={e.otherUser.avatar}
+                      <AvatarLink
+                        userId={e.otherUser.id}
+                        name={e.otherUser.displayName ?? e.otherUser.username}
+                        avatar={e.otherUser.avatar}
                         size={44}
                         presence={presence[e.otherUser.id]}
+                        stop
+                        plain
                       />
                       <div className="mid min-w-0 flex-1">
                         <div className="line1 flex items-baseline justify-between gap-2">
                           <span className="name truncate text-[14.5px] font-extrabold">
-                            {displayName(e.otherUser)}
+                            <NameLink
+                              userId={e.otherUser.id}
+                              name={displayName(e.otherUser)}
+                              stop
+                              plain
+                            />
                           </span>
                           {e.lastMessage && (
                             <span className="time flex-none text-[11px] font-semibold text-muted">
@@ -310,15 +319,16 @@ function FriendRequestCards() {
           key={r.id}
           className="fr-card flex w-full items-center gap-[11px] rounded-[14px] border border-accent-soft bg-accent-wash/40 p-2.5"
         >
-          <AppAvatar
-            name={displayName(r.sender)}
-            src={r.sender.avatar}
+          <AvatarLink
+            userId={r.sender.id}
+            name={r.sender.displayName ?? r.sender.username}
+            avatar={r.sender.avatar}
             size={44}
           />
           <div className="mid min-w-0 flex-1">
             <div className="line1">
               <span className="name truncate text-[14.5px] font-extrabold">
-                {displayName(r.sender)}
+                <NameLink userId={r.sender.id} name={displayName(r.sender)} />
               </span>
             </div>
             <div className="line2 mt-0.5">
@@ -387,11 +397,19 @@ function SearchResults({
           key={u.id}
           className="conv flex w-full items-center gap-[11px] rounded-[14px] p-2.5 text-left transition-colors duration-150 ease-app hover:bg-surface-2"
         >
+          <AvatarLink
+            userId={u.id}
+            name={u.displayName ?? u.username}
+            size={44}
+            stop
+            plain
+          />
+          {/* The avatar/name above are separate click targets; the rest of the
+              row keeps the existing start-a-DM behavior (blocked users get an
+              info toast instead). */}
           <button
             className="flex min-w-0 flex-1 cursor-pointer items-center gap-[11px] text-left"
             onClick={() => {
-              // Blocked users can't be messaged from search; everything else
-              // keeps the existing "start a DM" behavior.
               if (u.relationship === "BLOCKED") {
                 toast(`You blocked ${displayName(u)}`, "info");
                 return;
@@ -399,11 +417,10 @@ function SearchResults({
               onPick(u);
             }}
           >
-            <AppAvatar name={u.displayName ?? u.username} size={44} />
             <div className="mid min-w-0 flex-1">
               <div className="line1 flex items-baseline justify-between gap-2">
                 <span className="name truncate text-[14.5px] font-extrabold">
-                  {displayName(u)}
+                  <NameLink userId={u.id} name={displayName(u)} stop plain />
                 </span>
               </div>
               <div className="line2 mt-0.5 flex items-center justify-between gap-2">

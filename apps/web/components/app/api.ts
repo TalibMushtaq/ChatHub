@@ -26,6 +26,7 @@ import type {
   UserStatus,
   FriendRequest,
   BlockedUser,
+  UserProfile,
 } from "./types";
 
 export interface Paginated<T> {
@@ -293,6 +294,12 @@ export const ChatAPI = {
     return data.users;
   },
 
+  /** Full public profile of another user for the profile card. */
+  async getUserProfile(userId: string): Promise<UserProfile> {
+    const { data } = await api.get(`/search/users/${userId}`);
+    return data.user;
+  },
+
   // ---------------------------------------------------------------------------
   // Friends (requests)
   // ---------------------------------------------------------------------------
@@ -318,6 +325,11 @@ export const ChatAPI = {
   /** Decline an incoming friend request. */
   async declineFriendRequest(requestId: string): Promise<void> {
     await api.post(`/friends/requests/${requestId}/decline`);
+  },
+
+  /** Withdraw (cancel) a friend request the current user sent. */
+  async withdrawFriendRequest(requestId: string): Promise<void> {
+    await api.delete(`/friends/requests/${requestId}`);
   },
 
   // ---------------------------------------------------------------------------
