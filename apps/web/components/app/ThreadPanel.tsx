@@ -578,20 +578,6 @@ export default function ThreadPanel() {
             </div>
           )}
           <div className="composer-row flex items-end gap-2.5">
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              className="max-h-[150px] min-w-0 flex-1 resize-none rounded-[20px] border-[1.5px] border-border bg-bg px-[15px] py-[11px] text-[15px] leading-[1.4] transition-[border-color,box-shadow] duration-150 ease-app focus:border-accent-solid focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_45%,transparent)] focus:outline-none"
-              value={content}
-              onChange={(e) => handleComposerChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !voiceOpen) {
-                  e.preventDefault();
-                  void handleSend();
-                }
-              }}
-              placeholder={`Message ${active.kind === "room" ? `#${active.name ?? "room"}` : other}…`}
-            />
             {/* While recording, declutter the row to textarea + mic so the
                 capture state reads unambiguously; send/attach return once the
                 review bar takes over. */}
@@ -618,6 +604,20 @@ export default function ThreadPanel() {
                 <SmileyIcon />
               </button>
             )}
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              className="max-h-[150px] min-w-0 flex-1 resize-none rounded-[20px] border-[1.5px] border-border bg-bg px-[15px] py-[11px] text-[15px] leading-[1.4] transition-[border-color,box-shadow] duration-150 ease-app focus:border-accent-solid focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_45%,transparent)] focus:outline-none"
+              value={content}
+              onChange={(e) => handleComposerChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !voiceOpen) {
+                  e.preventDefault();
+                  void handleSend();
+                }
+              }}
+              placeholder={`Message ${active.kind === "room" ? `#${active.name ?? "room"}` : other}…`}
+            />
             <button
               className={`c-btn flex h-[42px] w-[42px] flex-none cursor-pointer items-center justify-center rounded-full transition-colors duration-150 ease-app ${
                 voicePhase === "recording"

@@ -1,3 +1,13 @@
+## [2026-08-17] - Composer controls reorder
+
+**What changed:** In `apps/web/components/app/ThreadPanel.tsx`, the message composer row now reads `[attach] [emoji] [text input] [mic] [send]` — the file-attach and emoji buttons moved to the left of the text input instead of the right. Mic/send remain right-aligned, and the attach/emoji/send buttons still hide while a voice recording is active.
+
+**Why:** Requested UI change — attachment and emoji controls are more discoverable on the leading edge of the composer.
+
+**Impact:** `apps/web` only, layout-only (pure DOM-order change in the existing flex row; the emoji popover still positions from `emojiBtnRef`, so no logic changes). No API, schema, or test changes; web lint and typecheck clean.
+
+**Follow-ups:** None.
+
 ## [2026-08-17] - Voice Messages (Rooms + DMs)
 
 **What changed:** Added end-to-end voice messages, usable in both rooms and DMs, plugged into the existing attachment/message pipeline rather than a parallel system.
