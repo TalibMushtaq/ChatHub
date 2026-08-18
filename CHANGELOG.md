@@ -1,3 +1,26 @@
+## [2026-08-18] - Rooms → Community: categories, channels, and roomId normalization (Phase 1)
+
+**What changed:** Laid the data-model + API foundation for the "Rooms to Community" roadmap (see `Rooms to Community — Improved Implementation Prompt.md`, Phase 1 / §5.1–5.6, DB-safety §17). Rooms now contain a `Category → Channel` tree, existing rooms were migrated into a `GENERAL → #general` structure, all room API/socket/web payloads were normalized from `chatRoomId` to `roomId`, and a role-based permission layer now guards room mutations.
+
+Server (`apps/server` + `packages/validators`):
+
+- **Schema** (`db/schema.prisma`): new `ChannelType` enum (TEXT/VOICE/ANNOUNCEMENT/FORUM), `Category` (`@@unique([roomId, name])`), `Channel` (categoryId nullable `onDelete: SetNull`, `@@unique([roomId, name])`), and `Message.channelId` (nullable, `onDelete: Cascade`, `@@index([channelId, createdAt])`). Migration `20260818174929_add_categories_channels` backfills every room with a `GENERAL` category + `#general` channel (guarded `WHERE NOT EXISTS`, so it is idempotent/resumable) and pins existing messages to it. `scripts/verify-channel-backfill.ts` re-verifies/repairs the invariant (`FIX=true`).
+- **Validators** (`packages/validators/src/room.ts`, `roomChat.ts`): added `roomAvatarKeySchema`, `updateRoomSchema`, `createCategorySchema`, `updateCategorySchema`, `channelNameSchema` + `normalizeChannelName` (lowercase-hyphen, 2–32 `[a-z0-9-]`), `channelTypeSchema`, `createChannelSchema`, `updateChannelSchema`, `reorderSchema`, `roomIdParamSchema`, `categoryIdParamSchema`, `channelIdParamSchema`. `chatRoomMessageSchema` now requires `roomId` with an optional `channelId`.
+- **Permissions** (`services/room/permissions.ts`, new): `RoomPermission` vocabulary mapped to roles — OWNER (all incl. `MANAGE_ROOM`/`MANAGE_ROLES`), ADMIN (channels/categories/members/messages), MEMBER (view/send) per spec §5.6. `assertRoomPermission`, `assertRoleAtLeast`, `getRoomRole`.
+- **Services**: `channels.ts`, `categories.ts` (delete moves channels to Uncategorized, never destroys them), `roomSettings.ts` (`updateRoom`/`deleteRoom` owner-only, `seedDefaultStructure` idempotent) — all new; `getMessages.ts` gained an optional `channelId` filter; `markRead.ts`/`getMembers.ts`/`editMessage.ts`/`deleteMessage.ts` param names normalized.
+- **Routes** (`routes/room/room.ts` + new `categories.ts`, `channels.ts`): mounts category/channel CRUD + reorder endpoints, seeds `GENERAL → #general` on `POST /rooms`, adds `GET/PATCH/DELETE /rooms/:roomId` and `GET /:roomId/channels/:channelId/messages`, normalizes every path param to `:roomId`.
+- **Socket** (`routes/room/roomChat.ts`, `types/socket-events.ts`): all `chatroom:*` payloads use `roomId`; messages carry `channelId` (a missing one resolves to the room's `#general` via `resolveDefaultChannelId` so the pre-Phase-2 UI keeps working), channel ownership is verified before send, and emits use the shared `toRoomMessagePayload`.
+
+Web (`apps/web`):
+
+- `components/app/types.ts`, `api.ts`, `AppShell.tsx`, `ThreadPanel.tsx`: `Message` type and all room API/socket calls normalized to `roomId`; added channel/category types, `getRoomDetail`/`getChannelMessages`/`updateRoom`/`deleteRoom` and channel/category CRUD + reorder stubs in `api.ts`.
+
+**Why:** Roadmap Phase 1 — the community architecture needs categories/channels as first-class models with safe one-time migration of existing data, and a single `roomId` naming convention before multi-channel UI lands in Phase 2.
+
+**Impact:** DB (additive migration + idempotent backfill), server API surface (`:chatRoomId` → `:roomId` is a breaking rename for existing room API/socket callers), web client. Tests: 661 across 96 files (server), coverage ≥90% on all metrics; server/web typecheck and lint clean; web build clean.
+
+**Follow-ups:** Phase 2 sidebar UI + explicit `channelId` sends from the client; ANNOUNCEMENT/FORUM channel types are accepted by the enum but not yet wired; `RESET_S3`/`FIX`/`RESET_S3_PRODUCTION` added to `turbo.json` `globalEnv` to silence env-var lint warnings.
+
 ## [2026-08-17] - Fix voice presign float duration rejection
 
 **What changed:** Fixed a 400 `Invalid input: expected int, received number` on `POST /api/attachments/presign` for voice uploads. `apps/web/components/app/VoiceRecorder.tsx` computed `durationSeconds` as a raw float (`ms / 1000`), which the Zod `presignSchema` (`.int()` on `durationSeconds`) correctly rejects. The recorder now rounds to a whole second at `onstop` (and stores raw `durationMs` so the sub-second "too short" guard still works after rounding). Server-side, `apps/server/src/services/attachment/createPending.ts` now normalizes a float duration with `Math.round` before persisting to the `Int` column, so a non-web client can't store a fractional value; new unit test covers the float branch.

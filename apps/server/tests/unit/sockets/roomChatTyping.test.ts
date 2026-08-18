@@ -54,7 +54,7 @@ describe("registerRoomChat - typing", () => {
     const { socket, handlers, broadcastEmit } = createSocketWithHandlers("u1");
 
     await handlers["chatroom:typing"]!({
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: true,
     });
 
@@ -62,7 +62,7 @@ describe("registerRoomChat - typing", () => {
     expect(broadcastEmit).toHaveBeenCalledWith("chatroom:typing", {
       userId: "u1",
       username: "user1",
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: true,
     });
   });
@@ -72,27 +72,27 @@ describe("registerRoomChat - typing", () => {
     const { handlers, broadcastEmit } = createSocketWithHandlers("u1");
 
     await handlers["chatroom:typing"]!({
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: true,
     });
     expect(broadcastEmit).toHaveBeenCalledTimes(1);
 
     // A second start within the window is dropped…
     await handlers["chatroom:typing"]!({
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: true,
     });
     expect(broadcastEmit).toHaveBeenCalledTimes(1);
 
     // …but the final stop is never throttled.
     await handlers["chatroom:typing"]!({
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: false,
     });
     expect(broadcastEmit).toHaveBeenCalledWith("chatroom:typing", {
       userId: "u1",
       username: "user1",
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: false,
     });
     expect(broadcastEmit).toHaveBeenCalledTimes(2);
@@ -108,7 +108,7 @@ describe("registerRoomChat - typing", () => {
     socket.data.rooms.delete("room-1");
 
     await handlers["chatroom:typing"]!({
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: true,
     });
 
@@ -121,7 +121,7 @@ describe("registerRoomChat - typing", () => {
   it("should ignore malformed payloads", async () => {
     const { handlers, broadcastEmit } = createSocketWithHandlers("u1");
 
-    await handlers["chatroom:typing"]!({ chatRoomId: "room-1" });
+    await handlers["chatroom:typing"]!({ roomId: "room-1" });
     await handlers["chatroom:typing"]!({ isTyping: true });
 
     expect(broadcastEmit).not.toHaveBeenCalled();
@@ -133,11 +133,11 @@ describe("registerRoomChat - typing", () => {
     });
 
     await handlers["chatroom:typing"]!({
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: true,
     });
     await handlers["chatroom:typing"]!({
-      chatRoomId: "room-1",
+      roomId: "room-1",
       isTyping: false,
     });
 

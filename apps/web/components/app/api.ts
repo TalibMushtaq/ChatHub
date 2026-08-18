@@ -27,6 +27,10 @@ import type {
   FriendRequest,
   BlockedUser,
   UserProfile,
+  Channel,
+  Category,
+  ChannelType,
+  RoomDetail,
 } from "./types";
 
 export interface Paginated<T> {
@@ -203,34 +207,145 @@ export const ChatAPI = {
   },
 
   async getRoomMessages(
-    chatRoomId: string,
-    opts: { cursor?: string } = {},
+    roomId: string,
+    opts: { cursor?: string; channelId?: string } = {},
   ): Promise<{ messages: Message[]; nextCursor: string | null }> {
-    const { data } = await api.get(`/room/${chatRoomId}/messages`, {
+    const { data } = await api.get(`/room/${roomId}/messages`, {
       params: opts,
     });
     return { messages: data.messages, nextCursor: data.nextCursor ?? null };
   },
 
-  async getRoomMembers(chatRoomId: string): Promise<RoomMember[]> {
-    const { data } = await api.get(`/room/${chatRoomId}/members`);
+  /** Channel-scoped history (preferred form for the Phase 2 sidebar). */
+  async getChannelMessages(
+    roomId: string,
+    channelId: string,
+    opts: { cursor?: string } = {},
+  ): Promise<{ messages: Message[]; nextCursor: string | null }> {
+    const { data } = await api.get(
+      `/room/${roomId}/channels/${channelId}/messages`,
+      {
+        params: opts,
+      },
+    );
+    return { messages: data.messages, nextCursor: data.nextCursor ?? null };
+  },
+
+  /** Room detail with the full category → channel structure. */
+  async getRoomDetail(roomId: string): Promise<RoomDetail> {
+    const { data } = await api.get(`/room/rooms/${roomId}`);
+    return data.room;
+  },
+
+  async updateRoom(
+    roomId: string,
+    payload: {
+      name?: string;
+      description?: string | null;
+      avatarKey?: string | null;
+    },
+  ): Promise<{ id: string; name: string }> {
+    const { data } = await api.patch(`/room/rooms/${roomId}`, payload);
+    return data.room;
+  },
+
+  async deleteRoom(roomId: string): Promise<void> {
+    await api.delete(`/room/rooms/${roomId}`);
+  },
+
+  async getRoomMembers(roomId: string): Promise<RoomMember[]> {
+    const { data } = await api.get(`/room/${roomId}/members`);
     return data.members;
   },
 
   async markRoomRead(
-    chatRoomId: string,
+    roomId: string,
     lastReadMessageId: string,
   ): Promise<number> {
-    const { data } = await api.post(`/room/${chatRoomId}/mark-read`, {
+    const { data } = await api.post(`/room/${roomId}/mark-read`, {
       lastReadMessageId,
     });
     return data.unreadCount;
   },
 
   /** Every member's read cursor for the room. */
-  async getRoomReadReceipts(chatRoomId: string): Promise<ReadReceipt[]> {
-    const { data } = await api.get(`/room/${chatRoomId}/read-receipts`);
+  async getRoomReadReceipts(roomId: string): Promise<ReadReceipt[]> {
+    const { data } = await api.get(`/room/${roomId}/read-receipts`);
     return data.receipts;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Channels + categories (Phase 1 backend; UI lands in Phase 2/3)
+  // ---------------------------------------------------------------------------
+
+  async getChannels(roomId: string): Promise<Channel[]> {
+    const { data } = await api.get(`/room/rooms/${roomId}/channels`);
+    return data.channels;
+  },
+
+  async createChannel(
+    roomId: string,
+    payload: {
+      name: string;
+      type?: ChannelType;
+      topic?: string | null;
+      categoryId?: string | null;
+    },
+  ): Promise<Channel> {
+    const { data } = await api.post(`/room/rooms/${roomId}/channels`, payload);
+    return data.channel;
+  },
+
+  async updateChannel(
+    roomId: string,
+    channelId: string,
+    payload: {
+      name?: string;
+      topic?: string | null;
+      categoryId?: string | null;
+      position?: number;
+    },
+  ): Promise<Channel> {
+    const { data } = await api.patch(
+      `/room/rooms/${roomId}/channels/${channelId}`,
+      payload,
+    );
+    return data.channel;
+  },
+
+  async deleteChannel(roomId: string, channelId: string): Promise<void> {
+    await api.delete(`/room/rooms/${roomId}/channels/${channelId}`);
+  },
+
+  async reorderChannels(roomId: string, orderedIds: string[]): Promise<void> {
+    await api.patch(`/room/rooms/${roomId}/channels/reorder`, { orderedIds });
+  },
+
+  async createCategory(roomId: string, name: string): Promise<Category> {
+    const { data } = await api.post(`/room/rooms/${roomId}/categories`, {
+      name,
+    });
+    return data.category;
+  },
+
+  async updateCategory(
+    roomId: string,
+    categoryId: string,
+    payload: { name?: string; position?: number },
+  ): Promise<Category> {
+    const { data } = await api.patch(
+      `/room/rooms/${roomId}/categories/${categoryId}`,
+      payload,
+    );
+    return data.category;
+  },
+
+  async deleteCategory(roomId: string, categoryId: string): Promise<void> {
+    await api.delete(`/room/rooms/${roomId}/categories/${categoryId}`);
+  },
+
+  async reorderCategories(roomId: string, orderedIds: string[]): Promise<void> {
+    await api.patch(`/room/rooms/${roomId}/categories/reorder`, { orderedIds });
   },
 
   async inviteToRoom(roomId: string, targetUserId: string): Promise<void> {
@@ -254,23 +369,23 @@ export const ChatAPI = {
     await api.patch(`/room/invitations/${invitationId}`, { status });
   },
 
-  async getJoinRequests(chatRoomId: string): Promise<JoinRequest[]> {
-    const { data } = await api.get(`/room/${chatRoomId}/join-requests`);
+  async getJoinRequests(roomId: string): Promise<JoinRequest[]> {
+    const { data } = await api.get(`/room/${roomId}/join-requests`);
     return data.requests;
   },
 
   async respondJoinRequest(
-    chatRoomId: string,
+    roomId: string,
     requestId: string,
     action: "APPROVED" | "REJECTED",
   ): Promise<void> {
-    await api.patch(`/room/${chatRoomId}/join-requests/${requestId}`, {
+    await api.patch(`/room/${roomId}/join-requests/${requestId}`, {
       action,
     });
   },
 
-  async createJoinLink(chatRoomId: string): Promise<JoinLink> {
-    const { data } = await api.post(`/room/${chatRoomId}/join-links`, {});
+  async createJoinLink(roomId: string): Promise<JoinLink> {
+    const { data } = await api.post(`/room/${roomId}/join-links`, {});
     return data.link;
   },
 
@@ -279,8 +394,8 @@ export const ChatAPI = {
     return data.links;
   },
 
-  async deactivateJoinLink(chatRoomId: string, linkId: string): Promise<void> {
-    await api.patch(`/room/${chatRoomId}/join-links/${linkId}`, {});
+  async deactivateJoinLink(roomId: string, linkId: string): Promise<void> {
+    await api.patch(`/room/${roomId}/join-links/${linkId}`, {});
   },
 
   // ---------------------------------------------------------------------------
@@ -410,8 +525,8 @@ export const ChatAPI = {
   },
 
   /** Update a room's avatar (OWNER/ADMIN only). */
-  async updateRoomAvatar(chatRoomId: string, avatarKey: string): Promise<void> {
-    await api.patch(`/room/${chatRoomId}/avatar`, { avatarKey });
+  async updateRoomAvatar(roomId: string, avatarKey: string): Promise<void> {
+    await api.patch(`/room/${roomId}/avatar`, { avatarKey });
   },
 };
 
@@ -442,26 +557,27 @@ export function emitRoomAck<T extends AckResult>(
 /** Promise-wrapped room operations used by the composer. */
 export const RoomSocket = {
   send(
-    chatRoomId: string,
+    roomId: string,
     body: { content?: string; messageType: string; attachmentIds?: string[] },
   ) {
+    // channelId is omitted until Phase 2; the server resolves #general.
     return emitRoomAck<AckResult & { message?: Message }>("chatroom:message", {
-      chatRoomId,
+      roomId,
       content: body.content,
       messageType: body.messageType,
       attachmentIds: body.attachmentIds,
       idempotencyKey: crypto.randomUUID(),
     });
   },
-  edit(chatRoomId: string, messageId: string, content: string) {
+  edit(roomId: string, messageId: string, content: string) {
     return emitRoomAck("chatroom:message:edit", {
-      chatRoomId,
+      roomId,
       messageId,
       content,
     });
   },
-  remove(chatRoomId: string, messageId: string) {
-    return emitRoomAck("chatroom:message:delete", { chatRoomId, messageId });
+  remove(roomId: string, messageId: string) {
+    return emitRoomAck("chatroom:message:delete", { roomId, messageId });
   },
 };
 

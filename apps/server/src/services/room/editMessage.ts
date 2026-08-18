@@ -15,13 +15,13 @@ import { editMessageInScope } from "../message/mutations";
  */
 export async function editMessage(
   userId: string,
-  chatRoomId: string,
+  roomId: string,
   messageId: string,
   content: string,
 ) {
   return editMessageInScope(userId, messageId, content, {
     scopeField: "chatRoomId",
-    scopeId: chatRoomId,
+    scopeId: roomId,
     editWindowMs: EDIT_WINDOW_MS,
   });
 }

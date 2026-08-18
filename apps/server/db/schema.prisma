@@ -33,6 +33,15 @@ enum MessageType {
   SYSTEM
 }
 
+// Channel kind. TEXT is fully implemented; VOICE is added in the calling phase.
+// ANNOUNCEMENT and FORUM are reserved so future phases need no schema churn.
+enum ChannelType {
+  TEXT
+  VOICE
+  ANNOUNCEMENT
+  FORUM
+}
+
 enum AttachmentStatus {
   PENDING
   ATTACHED
@@ -70,8 +79,51 @@ model ChatRoom {
   joinRequests   RoomJoinRequest[]
   joinLinks      RoomJoinLink[]
   readReceipts   ChatRoomReadReceipt[]
+  categories     Category[]
+  channels       Channel[]
 
   @@index([createdBy])
+}
+
+// A group of related channels inside a Room. Deleting a category keeps its
+// channels — the service layer moves them to "Uncategorized" (categoryId null)
+// instead of cascading (onDelete: SetNull on Channel.categoryId).
+model Category {
+  id        String   @id @default(cuid())
+  roomId    String
+  name      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ChatRoom ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  Channel  Channel[]
+
+  @@unique([roomId, name])
+  @@index([roomId, position])
+}
+
+// The primary conversation unit inside a Room. Text channels hold messages;
+// voice channels (Phase 7) hold call sessions instead. Names are unique per
+// Room (Discord-style), normalized to lowercase-hyphen form by the validator.
+model Channel {
+  id         String      @id @default(cuid())
+  roomId     String
+  categoryId String?
+  name       String
+  topic      String?
+  type       ChannelType @default(TEXT)
+  position   Int         @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  ChatRoom ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  Category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  Message  Message[]
+
+  @@unique([roomId, name])
+  @@index([roomId, position])
+  @@index([categoryId])
 }
 
 model ChatRoomMember {
@@ -97,6 +149,9 @@ model Message {
   senderId     String
   chatRoomId   String?
   directChatId String?
+  // The channel a room message belongs to. Null for DM messages and for room
+  // messages that predate the channels migration (backfilled to #general).
+  channelId    String?
 
   messageType  MessageType @default(TEXT)
 
@@ -108,6 +163,7 @@ model Message {
 
   ChatRoom     ChatRoom?   @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   DirectChat   DirectChat? @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  Channel      Channel?    @relation(fields: [channelId], references: [id], onDelete: Cascade)
   User         User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
   attachments  Attachment[]
 
@@ -116,6 +172,7 @@ model Message {
 
   @@index([chatRoomId, createdAt])
   @@index([directChatId, createdAt])
+  @@index([channelId, createdAt])
 }
 
 model Attachment {

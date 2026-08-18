@@ -43,7 +43,7 @@ const router = Router();
  * Returns a presigned PUT URL so the client can upload a processed/cropped
  * avatar image straight to S3. Does NOT modify the database — the returned
  * `s3Key` is associated with the user or room via the existing PATCH
- * endpoints (/auth/me/avatar, /room/:chatRoomId/avatar) afterwards.
+ * endpoints (/auth/me/avatar, /room/:roomId/avatar) afterwards.
  *
  * For room avatars the caller must be OWNER or ADMIN of the room, and the
  * S3 key is scoped to that room so members cannot overwrite each other's

@@ -31,7 +31,7 @@ export function createChatRoom(
   return { ...defaults, ...partial };
 }
 
-/** Explicit type for the chat room member factory output. */
+/** Explicit type for the room member factory output. */
 type ChatRoomMemberFactory = {
   id: string;
   userId: string;
@@ -52,6 +52,66 @@ export function createChatRoomMember(
     chatRoomId: crypto.randomUUID(),
     role: "MEMBER",
     joinedAt: new Date("2024-01-01T00:00:00Z"),
+  };
+
+  return { ...defaults, ...partial };
+}
+
+/** Explicit type for the channel factory output. */
+type ChannelFactory = {
+  id: string;
+  roomId: string;
+  categoryId: string | null;
+  name: string;
+  topic: string | null;
+  type: "TEXT" | "VOICE" | "ANNOUNCEMENT" | "FORUM";
+  position: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/** Factory for channel records. */
+export function createChannel(
+  partial: Partial<ChannelFactory> = {},
+): ChannelFactory {
+  const id = partial.id ?? crypto.randomUUID();
+  const defaults: ChannelFactory = {
+    id,
+    roomId: crypto.randomUUID(),
+    categoryId: null,
+    name: `general-${id.slice(0, 4)}`,
+    topic: null,
+    type: "TEXT",
+    position: 0,
+    createdAt: new Date("2024-01-01T00:00:00Z"),
+    updatedAt: new Date("2024-01-01T00:00:00Z"),
+  };
+
+  return { ...defaults, ...partial };
+}
+
+/** Explicit type for the category factory output. */
+type CategoryFactory = {
+  id: string;
+  roomId: string;
+  name: string;
+  position: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/** Factory for category records. */
+export function createCategory(
+  partial: Partial<CategoryFactory> = {},
+): CategoryFactory {
+  const id = partial.id ?? crypto.randomUUID();
+  const defaults: CategoryFactory = {
+    id,
+    roomId: crypto.randomUUID(),
+    name: "GENERAL",
+    position: 0,
+    createdAt: new Date("2024-01-01T00:00:00Z"),
+    updatedAt: new Date("2024-01-01T00:00:00Z"),
   };
 
   return { ...defaults, ...partial };

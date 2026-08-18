@@ -139,7 +139,7 @@ export default function ThreadPanel() {
     if (a.kind === "dm") {
       socket.emit("directChat:typing", { directChatId: a.id, isTyping });
     } else {
-      socket.emit("chatroom:typing", { chatRoomId: a.id, isTyping });
+      socket.emit("chatroom:typing", { roomId: a.id, isTyping });
     }
   }, []);
 

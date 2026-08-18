@@ -73,7 +73,8 @@ type AnyMsg = {
   deletedAt?: string | null;
   senderId?: string;
   directChatId?: string;
-  chatRoomId?: string;
+  roomId?: string;
+  channelId?: string;
   attachments?: Message["attachments"];
 };
 
@@ -555,7 +556,8 @@ export default function AppShell() {
         editedAt: msg.editedAt ?? undefined,
         deletedAt: msg.deletedAt ?? undefined,
         senderId: msg.senderId,
-        chatRoomId: msg.chatRoomId ?? c.id,
+        roomId: msg.roomId ?? c.id,
+        channelId: msg.channelId,
         attachments: msg.attachments ?? [],
         User: u,
       };
@@ -662,7 +664,7 @@ export default function AppShell() {
           });
           markReadNow();
         }
-      } else if (a.kind === "room" && msg.chatRoomId === a.id) {
+      } else if (a.kind === "room" && msg.roomId === a.id) {
         const norm = normalize(a, msg, mine);
         setMsgsBoth((prev) => ({
           ...prev,
@@ -757,17 +759,9 @@ export default function AppShell() {
 
     socket.on(
       "chatroom:read",
-      ({
-        chatRoomId,
-        unreadCount,
-      }: {
-        chatRoomId: string;
-        unreadCount: number;
-      }) => {
+      ({ roomId, unreadCount }: { roomId: string; unreadCount: number }) => {
         setRoomList((prev) =>
-          prev.map((r) =>
-            r.roomId === chatRoomId ? { ...r, unreadCount } : r,
-          ),
+          prev.map((r) => (r.roomId === roomId ? { ...r, unreadCount } : r)),
         );
       },
     );
@@ -814,13 +808,13 @@ export default function AppShell() {
       "chatroom:readReceipt",
       (payload: {
         userId: string;
-        chatRoomId: string;
+        roomId: string;
         lastReadMessageId: string;
         lastReadMessageCreatedAt: Date | string;
       }) => {
         if (payload.userId === userRef.current?.id) return;
         setReadReceiptsBoth((prev) =>
-          upsertReceipt(prev, `room:${payload.chatRoomId}`, {
+          upsertReceipt(prev, `room:${payload.roomId}`, {
             userId: payload.userId,
             lastReadMessageId: payload.lastReadMessageId,
             lastReadMessageCreatedAt: toIso(payload.lastReadMessageCreatedAt),
@@ -850,12 +844,12 @@ export default function AppShell() {
       userId: string;
       username: string;
       directChatId?: string;
-      chatRoomId?: string;
+      roomId?: string;
       isTyping: boolean;
     }) {
       if (payload.userId === userRef.current?.id) return;
       const isDm = payload.directChatId != null;
-      const id = isDm ? payload.directChatId! : payload.chatRoomId!;
+      const id = isDm ? payload.directChatId! : payload.roomId!;
       const key = convKey(isDm ? "dm" : "room", id);
       if (!payload.isTyping) {
         removeTyper(key, payload.userId);
@@ -1083,7 +1077,7 @@ export default function AppShell() {
     if (joinedRef.current.has(key)) return;
     joinedRef.current.add(key);
     if (c.kind === "dm") socket.emit("directChat:join", { directChatId: c.id });
-    else socket.emit("chatroom:join", { chatRoomId: c.id });
+    else socket.emit("chatroom:join", { roomId: c.id });
   }
 
   function leaveSocket(c: ActiveConv) {
@@ -1092,7 +1086,7 @@ export default function AppShell() {
     joinedRef.current.delete(key);
     if (c.kind === "dm")
       socket.emit("directChat:leave", { directChatId: c.id });
-    else socket.emit("chatroom:leave", { chatRoomId: c.id });
+    else socket.emit("chatroom:leave", { roomId: c.id });
   }
 
   function markRead() {
@@ -1226,7 +1220,7 @@ export default function AppShell() {
         displayName: me.displayName,
         avatar: me.avatar,
       },
-      ...(a.kind === "room" ? { chatRoomId: a.id, senderId: me.id } : {}),
+      ...(a.kind === "room" ? { roomId: a.id, senderId: me.id } : {}),
     };
     setMsgsBoth((prev) => ({
       ...prev,
@@ -1367,7 +1361,7 @@ export default function AppShell() {
         displayName: me.displayName,
         avatar: me.avatar,
       },
-      ...(a.kind === "room" ? { chatRoomId: a.id, senderId: me.id } : {}),
+      ...(a.kind === "room" ? { roomId: a.id, senderId: me.id } : {}),
     };
     setMsgsBoth((prev) => ({
       ...prev,

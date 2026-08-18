@@ -10,14 +10,14 @@ import { markConversationRead } from "../message/markRead";
  */
 export async function markRoomRead(
   userId: string,
-  chatRoomId: string,
+  roomId: string,
   lastReadMessageId: string,
 ) {
   return markConversationRead(userId, lastReadMessageId, {
     scopeField: "chatRoomId",
-    scopeId: chatRoomId,
+    scopeId: roomId,
     receiptModel: "chatRoomReadReceipt",
-    receiptWhere: { userId_chatRoomId: { userId, chatRoomId } },
+    receiptWhere: { userId_chatRoomId: { userId, chatRoomId: roomId } },
     wrongScope: {
       message: "Message does not belong to this room",
       code: "MESSAGE_WRONG_ROOM",

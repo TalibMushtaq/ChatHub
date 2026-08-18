@@ -15,12 +15,12 @@ import { deleteMessageInScope } from "../message/mutations";
  */
 export async function deleteMessage(
   userId: string,
-  chatRoomId: string,
+  roomId: string,
   messageId: string,
 ) {
   return deleteMessageInScope(userId, messageId, {
     scopeField: "chatRoomId",
-    scopeId: chatRoomId,
+    scopeId: roomId,
     deleteWindowMs: DELETE_WINDOW_MS,
   });
 }

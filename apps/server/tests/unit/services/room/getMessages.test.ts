@@ -68,4 +68,30 @@ describe("getMessages (room)", () => {
 
     expect(result.nextCursor).toBeNull();
   });
+
+  it("should scope the query to a single channel when channelId is given", async () => {
+    prismaMock.message.findMany.mockResolvedValue([]);
+
+    await getMessages("r1", { channelId: "ch-1" });
+
+    expect(prismaMock.message.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { chatRoomId: "r1", channelId: "ch-1" },
+      }),
+    );
+  });
+
+  it("should fall back to legacy behavior when a cursor has no direction", async () => {
+    prismaMock.message.findMany.mockResolvedValue([]);
+
+    const result = await getMessages("r1", { cursor: "m1" });
+
+    expect(result.nextCursor).toBeNull();
+    expect(prismaMock.message.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { chatRoomId: "r1" },
+        take: 50,
+      }),
+    );
+  });
 });

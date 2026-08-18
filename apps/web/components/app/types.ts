@@ -137,7 +137,9 @@ export interface Message {
   deletedAt?: string | null;
   senderId?: string;
   directChatId?: string;
-  chatRoomId?: string;
+  /** Room messages carry roomId + channelId instead of directChatId. */
+  roomId?: string;
+  channelId?: string;
   attachments?: Attachment[];
   User?: MessageUser | null;
   /** Client-only: optimistic send state. */
@@ -162,6 +164,45 @@ export interface DMInboxEntry {
 }
 
 export type RoomRole = "OWNER" | "ADMIN" | "MEMBER";
+
+/** Channel kind — VOICE is wired up in the calling phase. */
+export type ChannelType = "TEXT" | "VOICE" | "ANNOUNCEMENT" | "FORUM";
+
+export interface Channel {
+  id: string;
+  roomId: string;
+  categoryId: string | null;
+  name: string;
+  topic: string | null;
+  type: ChannelType;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Category {
+  id: string;
+  roomId: string;
+  name: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+  /** Present in the room-detail response: the category's own channels. */
+  channels?: Channel[];
+}
+
+/** Room detail from GET /room/rooms/:roomId — profile + full structure. */
+export interface RoomDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  avatar: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  categories: Category[];
+  uncategorized: Channel[];
+}
 
 export interface RoomInboxEntry {
   roomId: string;

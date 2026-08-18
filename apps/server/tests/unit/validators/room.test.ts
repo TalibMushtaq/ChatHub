@@ -8,6 +8,17 @@ import {
   joinRequestActionSchema,
   createJoinLinkSchema,
   joinRequestStatusQuerySchema,
+  updateRoomSchema,
+  createCategorySchema,
+  updateCategorySchema,
+  createChannelSchema,
+  updateChannelSchema,
+  channelNameSchema,
+  normalizeChannelName,
+  reorderSchema,
+  roomIdParamSchema,
+  categoryIdParamSchema,
+  channelIdParamSchema,
 } from "@repo/validators";
 
 describe("room validators", () => {
@@ -163,6 +174,173 @@ describe("room validators", () => {
         status: "BANNED",
       });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("updateRoomSchema", () => {
+    it("should accept a valid partial update", () => {
+      const result = updateRoomSchema.safeParse({
+        name: "Renamed",
+        description: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject an empty name", () => {
+      const result = updateRoomSchema.safeParse({ name: "" });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject an invalid avatarKey", () => {
+      const result = updateRoomSchema.safeParse({
+        avatarKey: "avatars/user-1/not-a-room.png",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("channelNameSchema", () => {
+    it("should normalize to lowercase-hyphen form", () => {
+      const result = channelNameSchema.safeParse("General Chat");
+      expect(result.success).toBe(true);
+      expect(result.data).toBe("general-chat");
+    });
+
+    it("should collapse underscores and repeat hyphens", () => {
+      const result = channelNameSchema.safeParse("  Help _ Desk  ");
+      expect(result.success).toBe(true);
+      expect(result.data).toBe("help-desk");
+    });
+
+    it("should trim leading and trailing hyphens", () => {
+      const result = channelNameSchema.safeParse("-general-");
+      expect(result.success).toBe(true);
+      expect(result.data).toBe("general");
+    });
+
+    it("should reject a name that is too short after trimming", () => {
+      const result = channelNameSchema.safeParse("g");
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject invalid punctuation", () => {
+      const result = channelNameSchema.safeParse("hello!!");
+      expect(result.success).toBe(false);
+    });
+
+    it("normalizeChannelName collapses whitespace runs to single hyphens", () => {
+      expect(normalizeChannelName("A  B   c")).toBe("a-b-c");
+    });
+  });
+
+  describe("createChannelSchema", () => {
+    it("should accept a valid channel with default type TEXT", () => {
+      const result = createChannelSchema.safeParse({ name: "Music" });
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(
+        expect.objectContaining({ name: "music", type: "TEXT" }),
+      );
+    });
+
+    it("should accept a VOICE channel", () => {
+      const result = createChannelSchema.safeParse({
+        name: "lounge",
+        type: "VOICE",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject an unsupported channel type", () => {
+      const result = createChannelSchema.safeParse({
+        name: "news",
+        type: "FORUM",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject a topic that is too long", () => {
+      const result = createChannelSchema.safeParse({
+        name: "general",
+        topic: "a".repeat(201),
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("updateChannelSchema", () => {
+    it("should accept a partial update with a new position", () => {
+      const result = updateChannelSchema.safeParse({
+        topic: "New topic",
+        position: 3,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject a negative position", () => {
+      const result = updateChannelSchema.safeParse({ position: -1 });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("createCategorySchema", () => {
+    it("should accept a valid category name", () => {
+      const result = createCategorySchema.safeParse({ name: "GAMES" });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject an empty name", () => {
+      const result = createCategorySchema.safeParse({ name: "" });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("updateCategorySchema", () => {
+    it("should accept a rename", () => {
+      const result = updateCategorySchema.safeParse({ name: "Music" });
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept a position", () => {
+      const result = updateCategorySchema.safeParse({ position: 0 });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject a negative position", () => {
+      const result = updateCategorySchema.safeParse({ position: -2 });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("reorderSchema", () => {
+    it("should accept a non-empty ordered id list", () => {
+      const result = reorderSchema.safeParse({ orderedIds: ["a", "b"] });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject an empty list", () => {
+      const result = reorderSchema.safeParse({ orderedIds: [] });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("param schemas", () => {
+    it("should parse roomId from params", () => {
+      const result = roomIdParamSchema.safeParse({ roomId: "r1" });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject a missing roomId", () => {
+      const result = roomIdParamSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+
+    it("should parse categoryId and channelId from params", () => {
+      expect(
+        categoryIdParamSchema.safeParse({ categoryId: "c1" }).success,
+      ).toBe(true);
+      expect(channelIdParamSchema.safeParse({ channelId: "c1" }).success).toBe(
+        true,
+      );
     });
   });
 });

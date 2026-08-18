@@ -11,6 +11,10 @@ export const DELETE_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
 
+// Default structure seeded into every new (and migrated) Room.
+export const DEFAULT_CATEGORY_NAME = "GENERAL";
+export const DEFAULT_CHANNEL_NAME = "general";
+
 // ---------------------------------------------------------------------------
 // Reusable Prisma select objects
 // ---------------------------------------------------------------------------
@@ -24,6 +28,7 @@ export const messageWithAttachmentsSelect = {
   content: true,
   senderId: true,
   chatRoomId: true,
+  channelId: true,
   messageType: true,
   createdAt: true,
   attachments: { select: attachmentSummarySelect },
@@ -39,6 +44,7 @@ export const roomMessageWithUserSelect = {
   content: true,
   senderId: true,
   chatRoomId: true,
+  channelId: true,
   messageType: true,
   createdAt: true,
   isDeleted: true,
@@ -53,3 +59,41 @@ export const roomMessageWithUserSelect = {
   },
   attachments: { select: attachmentSummarySelect },
 } as const;
+
+/**
+ * Channel summary — everything the sidebar + channel management UI needs.
+ * Reused by every channel endpoint so payloads stay consistent.
+ */
+export const channelSummarySelect = {
+  id: true,
+  roomId: true,
+  categoryId: true,
+  name: true,
+  topic: true,
+  type: true,
+  position: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+/** Category summary for the sidebar / detail endpoint. */
+export const categorySummarySelect = {
+  id: true,
+  roomId: true,
+  name: true,
+  position: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+/**
+ * Map a Prisma message row (which carries the DB column `chatRoomId`) into the
+ * client-facing payload that uses `roomId`. Centralizing the rename keeps every
+ * message boundary (history, send ack, socket broadcast) consistent.
+ */
+export function toRoomMessagePayload<T extends { chatRoomId: string | null }>(
+  message: T,
+) {
+  const { chatRoomId, ...rest } = message;
+  return { ...rest, roomId: chatRoomId };
+}

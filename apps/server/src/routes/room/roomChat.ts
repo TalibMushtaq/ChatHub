@@ -20,7 +20,10 @@ import { getOptionalS3Service, getRequiredS3Service } from "../../lib/s3";
 import { deleteMessageAttachments } from "../../services/attachment/deleteMessageAttachments";
 import { onAck } from "../../lib/socketAck";
 import { pushNewMessage } from "../../services/push/push";
-import { messageWithAttachmentsSelect } from "../../constants/room";
+import {
+  messageWithAttachmentsSelect,
+  toRoomMessagePayload,
+} from "../../constants/room";
 
 const log = createLogger("roomChat");
 
@@ -33,15 +36,31 @@ const ROOM_ACCESS_TTL_MS = 60_000;
 const TYPING_THROTTLE_MS = 1500;
 
 /**
+ * Resolve a room's default channel id (#general) for senders that don't yet
+ * send an explicit channelId (the pre-Phase-2 UI). Every room is guaranteed
+ * to have one by the channels migration and by POST /rooms seeding.
+ */
+async function resolveDefaultChannelId(roomId: string): Promise<string> {
+  const channel = await prisma.channel.findFirst({
+    where: { roomId, name: "general" },
+    select: { id: true },
+  });
+  if (!channel) {
+    throw new ApiError("Room has no #general channel", 500, "CHANNEL_MISSING");
+  }
+  return channel.id;
+}
+
+/**
  * Registers chat room socket handlers.
  *
  * Improvements:
  * - Room membership is cached in socket.data.rooms on join, so subsequent
  *   messages don't hit the database for access checks until the cache entry
  *   expires.
- * - Fixed typo: "paylaod" -> "payload".
- * - Standardized event names: all lowercase "chatroom:*" (was mixed casing).
- * - Replaced generic socket.emit("error") with chatroom:error event.
+ * - Standardized event names: all lowercase "chatroom:*".
+ * - Payloads use `roomId` (normalized) and messages carry `channelId` so the
+ *   client can route them to the right channel without extra lookups.
  * - message.create now uses explicit select to avoid exposing extra fields.
  * - Updates ChatRoom.lastMessageAt on every message for accurate inbox ordering.
  * - Full attachment support with transactional linking.
@@ -50,7 +69,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
   const { user } = socket.data;
   const userId = user.id;
 
-  // Room cache: chatRoomId -> timestamp at which the cached membership check
+  // Room cache: roomId -> timestamp at which the cached membership check
   // expires and must be re-verified against the database.
   if (!socket.data.rooms) {
     socket.data.rooms = new Map<string, number>();
@@ -61,10 +80,10 @@ export function registerRoomChat(io: Server, socket: Socket) {
   // a user removed from a room loses write access immediately instead of
   // riding out the remaining TTL.
   async function ensureRoomAccess(
-    chatRoomId: string,
+    roomId: string,
     opts: { bypassCache?: boolean } = {},
   ): Promise<void> {
-    const expiresAt = socket.data.rooms.get(chatRoomId);
+    const expiresAt = socket.data.rooms.get(roomId);
     if (
       !opts.bypassCache &&
       expiresAt !== undefined &&
@@ -73,29 +92,29 @@ export function registerRoomChat(io: Server, socket: Socket) {
       return;
     }
 
-    await assertRoomAccess(userId, chatRoomId);
-    socket.data.rooms.set(chatRoomId, Date.now() + ROOM_ACCESS_TTL_MS);
+    await assertRoomAccess(userId, roomId);
+    socket.data.rooms.set(roomId, Date.now() + ROOM_ACCESS_TTL_MS);
   }
 
   // JOIN
-  socket.on("chatroom:join", async ({ chatRoomId }) => {
+  socket.on("chatroom:join", async ({ roomId }) => {
     try {
-      if (typeof chatRoomId !== "string") {
+      if (typeof roomId !== "string") {
         throw new Error("Invalid room id");
       }
 
-      await assertRoomAccess(userId, chatRoomId);
+      await assertRoomAccess(userId, roomId);
 
       // Cache membership so future messages skip the DB check until the TTL
       // expires.
-      socket.data.rooms.set(chatRoomId, Date.now() + ROOM_ACCESS_TTL_MS);
+      socket.data.rooms.set(roomId, Date.now() + ROOM_ACCESS_TTL_MS);
 
-      socket.join(`room:${chatRoomId}`);
-      socket.emit("chatroom:joined", { chatRoomId });
+      socket.join(`room:${roomId}`);
+      socket.emit("chatroom:joined", { roomId });
     } catch (err: unknown) {
       const expected = err instanceof ApiError;
       if (!expected) {
-        log.error("chatroom:join failed", err, { userId, chatRoomId });
+        log.error("chatroom:join failed", err, { userId, roomId });
       }
       socket.emit("chatroom:error", {
         code: expected ? (err.code ?? "JOIN_FAILED") : "JOIN_FAILED",
@@ -106,42 +125,39 @@ export function registerRoomChat(io: Server, socket: Socket) {
   });
 
   // LEAVE
-  socket.on("chatroom:leave", ({ chatRoomId }) => {
-    if (typeof chatRoomId !== "string") return;
+  socket.on("chatroom:leave", ({ roomId }) => {
+    if (typeof roomId !== "string") return;
 
-    socket.data.rooms.delete(chatRoomId);
-    socket.leave(`room:${chatRoomId}`);
-    socket.emit("chatroom:left", { chatRoomId });
+    socket.data.rooms.delete(roomId);
+    socket.leave(`room:${roomId}`);
+    socket.emit("chatroom:left", { roomId });
   });
 
   // Typing indicator — broadcast to everyone except the sender.
   socket.on("chatroom:typing", async (payload: unknown) => {
     const parsed = chatRoomTypingSchema.safeParse(payload);
     if (!parsed.success) return;
-    const { chatRoomId, isTyping } = parsed.data;
+    const { roomId, isTyping } = parsed.data;
     // Privacy gate: a user who disabled typing visibility never emits typing
     // events (start or stop), so receivers never see a stale indicator.
     if (user.showTypingStatus === false) return;
     try {
-      await ensureRoomAccess(chatRoomId);
+      await ensureRoomAccess(roomId);
       const throttle = (socket.data.typingThrottle ??= new Map());
       const now = Date.now();
-      if (
-        isTyping &&
-        now - (throttle.get(chatRoomId) ?? 0) < TYPING_THROTTLE_MS
-      ) {
+      if (isTyping && now - (throttle.get(roomId) ?? 0) < TYPING_THROTTLE_MS) {
         return;
       }
-      throttle.set(chatRoomId, now);
-      socket.broadcast.to(`room:${chatRoomId}`).emit("chatroom:typing", {
+      throttle.set(roomId, now);
+      socket.broadcast.to(`room:${roomId}`).emit("chatroom:typing", {
         userId,
         username: user.username,
-        chatRoomId,
+        roomId,
         isTyping,
       });
     } catch (err: unknown) {
       if (!(err instanceof ApiError)) {
-        log.error("chatroom:typing failed", err, { userId, chatRoomId });
+        log.error("chatroom:typing failed", err, { userId, roomId });
       }
       socket.emit("chatroom:error", {
         code:
@@ -158,7 +174,25 @@ export function registerRoomChat(io: Server, socket: Socket) {
     "chatroom:message",
     chatRoomMessageSchema,
     async (data, ack) => {
-      await ensureRoomAccess(data.chatRoomId);
+      await ensureRoomAccess(data.roomId);
+
+      // Messages are pinned to a channel. Before Phase 2 sends an explicit
+      // channelId, resolve a missing one to the room's #general channel so the
+      // pre-channels UI keeps working; when provided, verify the channel lives
+      // in this room so a member can't inject into another room's channel.
+      const resolvedChannelId =
+        data.channelId ?? (await resolveDefaultChannelId(data.roomId));
+      const channel = await prisma.channel.findFirst({
+        where: { id: resolvedChannelId, roomId: data.roomId },
+        select: { id: true },
+      });
+      if (!channel) {
+        throw new ApiError(
+          "Channel does not belong to this room",
+          400,
+          "BAD_REQUEST",
+        );
+      }
 
       const hasAttachments =
         data.attachmentIds && data.attachmentIds.length > 0;
@@ -178,8 +212,11 @@ export function registerRoomChat(io: Server, socket: Socket) {
             select: messageWithAttachmentsSelect,
           });
           if (existing) {
-            io.to(`room:${data.chatRoomId}`).emit("chatroom:message", existing);
-            ack({ ok: true, message: existing });
+            io.to(`room:${data.roomId}`).emit(
+              "chatroom:message",
+              toRoomMessagePayload(existing),
+            );
+            ack({ ok: true, message: toRoomMessagePayload(existing) });
             return;
           }
         }
@@ -200,7 +237,8 @@ export function registerRoomChat(io: Server, socket: Socket) {
           data: {
             content: data.content ?? null,
             senderId: userId,
-            chatRoomId: data.chatRoomId,
+            chatRoomId: data.roomId,
+            channelId: channel.id,
             messageType: data.messageType as MessageType,
           },
           select: messageWithAttachmentsSelect,
@@ -211,7 +249,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
         }
 
         await tx.chatRoom.update({
-          where: { id: data.chatRoomId },
+          where: { id: data.roomId },
           data: { lastMessageAt: new Date() },
         });
 
@@ -233,14 +271,16 @@ export function registerRoomChat(io: Server, socket: Socket) {
         await storeIdempotency(userId, data.idempotencyKey, message.id);
       }
 
-      io.to(`room:${data.chatRoomId}`).emit("chatroom:message", message);
+      const payload = toRoomMessagePayload(message);
+
+      io.to(`room:${data.roomId}`).emit("chatroom:message", payload);
 
       // Fire-and-forget OS notifications to the other room members via Web
       // Push. A push failure must never fail a message the sender already saw
       // deliver. SYSTEM messages are filtered inside pushNewMessage.
       void pushNewMessage({
         kind: "room",
-        conversationId: data.chatRoomId,
+        conversationId: data.roomId,
         messageId: message.id,
         senderId: userId,
         senderName: user.displayName ?? user.username,
@@ -248,7 +288,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
         content: message.content,
       });
 
-      ack({ ok: true, message });
+      ack({ ok: true, message: payload });
     },
   );
 
@@ -260,18 +300,18 @@ export function registerRoomChat(io: Server, socket: Socket) {
     async (data, ack) => {
       // Edit is destructive — bypass the membership cache so a revoked user
       // cannot keep editing during the TTL window.
-      await ensureRoomAccess(data.chatRoomId, { bypassCache: true });
+      await ensureRoomAccess(data.roomId, { bypassCache: true });
 
       const updated = await editMessage(
         userId,
-        data.chatRoomId,
+        data.roomId,
         data.messageId,
         data.content,
       );
 
-      io.to(`room:${data.chatRoomId}`).emit("chatroom:message:edited", {
+      io.to(`room:${data.roomId}`).emit("chatroom:message:edited", {
         messageId: updated.id,
-        chatRoomId: data.chatRoomId,
+        roomId: data.roomId,
         content: updated.content,
         editedAt: updated.editedAt,
       });
@@ -288,17 +328,13 @@ export function registerRoomChat(io: Server, socket: Socket) {
     async (data, ack) => {
       // Delete is destructive — bypass the membership cache so a revoked user
       // cannot keep deleting during the TTL window.
-      await ensureRoomAccess(data.chatRoomId, { bypassCache: true });
+      await ensureRoomAccess(data.roomId, { bypassCache: true });
 
-      const deleted = await deleteMessage(
-        userId,
-        data.chatRoomId,
-        data.messageId,
-      );
+      const deleted = await deleteMessage(userId, data.roomId, data.messageId);
 
-      io.to(`room:${data.chatRoomId}`).emit("chatroom:message:deleted", {
+      io.to(`room:${data.roomId}`).emit("chatroom:message:deleted", {
         messageId: deleted.id,
-        chatRoomId: data.chatRoomId,
+        roomId: data.roomId,
         deletedAt: deleted.deletedAt,
       });
 

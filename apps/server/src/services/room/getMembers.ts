@@ -7,9 +7,9 @@ import { prisma } from "../../../db/prisma";
  * the owner at the top of the room info panel. Only the fields the room info
  * UI renders are selected — no attachment blobs or message bodies.
  */
-export async function getMembers(chatRoomId: string) {
+export async function getMembers(roomId: string) {
   const members = await prisma.chatRoomMember.findMany({
-    where: { chatRoomId },
+    where: { chatRoomId: roomId },
     orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
     select: {
       id: true,

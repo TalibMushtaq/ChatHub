@@ -6,7 +6,7 @@ describe("roomChat validators", () => {
     it("should accept a valid TEXT message", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "TEXT",
-        chatRoomId: "room-1",
+        roomId: "room-1",
         content: "Hello!",
       });
       expect(result.success).toBe(true);
@@ -15,7 +15,7 @@ describe("roomChat validators", () => {
     it("should reject TEXT message with empty content", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "TEXT",
-        chatRoomId: "room-1",
+        roomId: "room-1",
         content: "",
       });
       expect(result.success).toBe(false);
@@ -24,7 +24,7 @@ describe("roomChat validators", () => {
     it("should reject TEXT message with missing content", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "TEXT",
-        chatRoomId: "room-1",
+        roomId: "room-1",
       });
       expect(result.success).toBe(false);
     });
@@ -32,8 +32,28 @@ describe("roomChat validators", () => {
     it("should reject TEXT message with content too long", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "TEXT",
-        chatRoomId: "room-1",
+        roomId: "room-1",
         content: "a".repeat(30001),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should accept an optional channelId", () => {
+      const result = chatRoomMessageSchema.safeParse({
+        messageType: "TEXT",
+        roomId: "room-1",
+        channelId: "ch-1",
+        content: "Hello!",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject an empty channelId", () => {
+      const result = chatRoomMessageSchema.safeParse({
+        messageType: "TEXT",
+        roomId: "room-1",
+        channelId: "",
+        content: "Hello!",
       });
       expect(result.success).toBe(false);
     });
@@ -43,7 +63,7 @@ describe("roomChat validators", () => {
     it("should accept IMAGE with attachments", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "IMAGE",
-        chatRoomId: "room-1",
+        roomId: "room-1",
         attachmentIds: ["att-1", "att-2"],
       });
       expect(result.success).toBe(true);
@@ -52,7 +72,7 @@ describe("roomChat validators", () => {
     it("should reject IMAGE without attachments", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "IMAGE",
-        chatRoomId: "room-1",
+        roomId: "room-1",
       });
       expect(result.success).toBe(false);
     });
@@ -62,7 +82,7 @@ describe("roomChat validators", () => {
     it("should accept VIDEO with exactly one attachment", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "VIDEO",
-        chatRoomId: "room-1",
+        roomId: "room-1",
         attachmentIds: ["att-1"],
       });
       expect(result.success).toBe(true);
@@ -71,7 +91,7 @@ describe("roomChat validators", () => {
     it("should reject VIDEO with zero attachments", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "VIDEO",
-        chatRoomId: "room-1",
+        roomId: "room-1",
       });
       expect(result.success).toBe(false);
     });
@@ -81,7 +101,7 @@ describe("roomChat validators", () => {
     it("should reject SYSTEM message from client", () => {
       const result = chatRoomMessageSchema.safeParse({
         messageType: "SYSTEM",
-        chatRoomId: "room-1",
+        roomId: "room-1",
         content: "System update",
       });
       expect(result.success).toBe(false);
@@ -92,26 +112,26 @@ describe("roomChat validators", () => {
     it("should accept start and stop typing events", () => {
       expect(
         chatRoomTypingSchema.safeParse({
-          chatRoomId: "room-1",
+          roomId: "room-1",
           isTyping: true,
         }).success,
       ).toBe(true);
       expect(
         chatRoomTypingSchema.safeParse({
-          chatRoomId: "room-1",
+          roomId: "room-1",
           isTyping: false,
         }).success,
       ).toBe(true);
     });
 
     it("should reject a missing isTyping flag", () => {
-      const result = chatRoomTypingSchema.safeParse({ chatRoomId: "room-1" });
+      const result = chatRoomTypingSchema.safeParse({ roomId: "room-1" });
       expect(result.success).toBe(false);
     });
 
-    it("should reject an empty chatRoomId", () => {
+    it("should reject an empty roomId", () => {
       const result = chatRoomTypingSchema.safeParse({
-        chatRoomId: "",
+        roomId: "",
         isTyping: true,
       });
       expect(result.success).toBe(false);

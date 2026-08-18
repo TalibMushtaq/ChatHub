@@ -70,10 +70,14 @@ describe("registerRoomChat with attachments", () => {
       attachments: [],
     } as any);
 
+    // Room sockets resolve a missing channelId to the room's #general channel
+    // before creating the message, so the resolver must find it.
+    prismaMock.channel.findFirst.mockResolvedValue({ id: "ch-1" } as any);
+
     const callback = vi.fn();
     await handlers["chatroom:message"](
       {
-        chatRoomId: "room-1",
+        roomId: "room-1",
         content: "Hello room!",
         messageType: "TEXT",
         idempotencyKey: "test-key-123",
@@ -126,11 +130,12 @@ describe("registerRoomChat with attachments", () => {
     ] as any);
     prismaMock.attachment.updateMany.mockResolvedValue({ count: 1 } as any);
     prismaMock.chatRoom.update.mockResolvedValue({ id: "room-1" } as any);
+    prismaMock.channel.findFirst.mockResolvedValue({ id: "ch-1" } as any);
 
     const callback = vi.fn();
     await handlers["chatroom:message"](
       {
-        chatRoomId: "room-1",
+        roomId: "room-1",
         messageType: "IMAGE",
         attachmentIds: ["att-1"],
       },
@@ -164,7 +169,7 @@ describe("registerRoomChat with attachments", () => {
     const callback = vi.fn();
     await handlers["chatroom:message"](
       {
-        chatRoomId: "room-1",
+        roomId: "room-1",
         content: "System update",
         messageType: "SYSTEM",
       },

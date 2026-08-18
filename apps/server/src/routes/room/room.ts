@@ -3,29 +3,42 @@ import requireAuth from "../../middleware/requireAuth";
 import { prisma } from "../../../db/prisma";
 import {
   createRoomSchema,
-  chatRoomIdParamSchema,
+  roomIdParamSchema,
+  channelIdParamSchema,
   markReadSchema,
   getMessagesSchema,
+  updateRoomSchema,
 } from "@repo/validators";
 import { assertRoomAccess } from "../../middleware/socketAccess";
 import { asyncHandler } from "../../middleware/async-handler";
 import { markRoomRead } from "../../services/room/markRead";
 import { getMessages } from "../../services/room/getMessages";
 import { getMembers } from "../../services/room/getMembers";
+import {
+  updateRoom,
+  deleteRoom,
+  seedDefaultStructure,
+} from "../../services/room/roomSettings";
+import { getRoomStructure } from "../../services/room/channels";
 import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import joinRoomInvite from "./joinroominvite";
 import joinRoomRequest from "./joinroomreq";
 import joinRoomlink from "./joinroomlink";
 import updateRoomAvatarRouter from "./updateRoomAvatar";
+import categoriesRouter from "./categories";
+import channelsRouter from "./channels";
 
 const router = Router();
 
 // join room routes
-
 router.use(joinRoomInvite);
 router.use(joinRoomRequest);
 router.use(joinRoomlink);
 router.use(updateRoomAvatarRouter);
+
+// Category + channel management (spec §5.5)
+router.use(categoriesRouter);
+router.use(channelsRouter);
 
 /**
  * POST /rooms
@@ -78,6 +91,11 @@ router.post(
           avatar: true,
         },
       });
+
+      // Every Room starts with GENERAL → #general so messages always have a
+      // channel to land in (mirrors the migration backfill for existing rooms).
+      await seedDefaultStructure(room.id);
+
       return res.status(201).json({ ok: true, room });
     } catch (err) {
       return next(err);
@@ -212,57 +230,170 @@ router.get(
   },
 );
 
-// GET /:chatRoomId/messages
+// GET /:roomId/messages
 // Returns the room's message timeline with cursor pagination (same contract as
 // the direct-chat GET /:directChatId/messages so the web client can reuse its
-// timeline hook). Access is gated by room membership.
+// timeline hook). Access is gated by room membership. An optional `channelId`
+// query scopes results to one channel; the nested
+// GET /:roomId/channels/:channelId/messages route is the preferred form.
 router.get(
-  "/:chatRoomId/messages",
+  "/:roomId/messages",
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
-    const params = chatRoomIdParamSchema.safeParse(req.params);
+    const params = roomIdParamSchema.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ ok: false, error: "chatRoomId missing" });
+      res.status(400).json({ ok: false, error: "roomId missing" });
       return;
     }
-    const chatRoomId = params.data.chatRoomId;
+    const roomId = params.data.roomId;
 
-    await assertRoomAccess(userId, chatRoomId);
+    await assertRoomAccess(userId, roomId);
 
     const query = getMessagesSchema.safeParse(req.query);
     const { cursor, limit, direction } = query.success ? query.data : {};
+    const channelId =
+      typeof req.query.channelId === "string" ? req.query.channelId : undefined;
 
-    const { messages, nextCursor } = await getMessages(chatRoomId, {
+    const { messages, nextCursor } = await getMessages(roomId, {
       cursor,
       limit,
       direction,
+      channelId,
     });
     res.json({ ok: true, messages, nextCursor });
   }),
 );
 
-// GET /:chatRoomId/members
-// Lists the room's members (user info + role) for the room info panel.
-// Access is gated by room membership.
+// GET /:roomId/channels/:channelId/messages
+// Channel-scoped timeline — the canonical way to load a channel's history
+// (spec §5.5: messages scoped to roomId + channelId).
 router.get(
-  "/:chatRoomId/members",
+  "/:roomId/channels/:channelId/messages",
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
-    const params = chatRoomIdParamSchema.safeParse(req.params);
-    if (!params.success) {
-      res.status(400).json({ ok: false, error: "chatRoomId missing" });
+    const roomId = roomIdParamSchema.safeParse(req.params).data?.roomId;
+    const channelId = channelIdParamSchema.safeParse(req.params).data
+      ?.channelId;
+    if (!roomId || !channelId) {
+      res
+        .status(400)
+        .json({ ok: false, error: "roomId and channelId required" });
       return;
     }
-    const chatRoomId = params.data.chatRoomId;
 
-    await assertRoomAccess(userId, chatRoomId);
+    await assertRoomAccess(userId, roomId);
 
-    const members = await getMembers(chatRoomId);
+    const query = getMessagesSchema.safeParse(req.query);
+    const { cursor, limit, direction } = query.success ? query.data : {};
+
+    const { messages, nextCursor } = await getMessages(roomId, {
+      cursor,
+      limit,
+      direction,
+      channelId,
+    });
+    res.json({ ok: true, messages, nextCursor });
+  }),
+);
+
+// GET /:roomId/members
+// Lists the room's members (user info + role) for the room info panel.
+// Access is gated by room membership.
+router.get(
+  "/:roomId/members",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = roomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "roomId missing" });
+      return;
+    }
+    const roomId = params.data.roomId;
+
+    await assertRoomAccess(userId, roomId);
+
+    const members = await getMembers(roomId);
     res.json({ ok: true, members });
+  }),
+);
+
+// GET /rooms/:roomId
+// Room detail including the full category → channel structure for the sidebar.
+// Access is gated by room membership.
+router.get(
+  "/rooms/:roomId",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = roomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "roomId missing" });
+      return;
+    }
+    const roomId = params.data.roomId;
+
+    await assertRoomAccess(userId, roomId);
+
+    const room = await getRoomStructure(roomId);
+    res.json({ ok: true, room });
+  }),
+);
+
+// PATCH /rooms/:roomId
+// Update the room profile (owner only). Separated from GET /:roomId to avoid
+// clashing with the sub-routes that mount under /:roomId/... (messages, members).
+router.patch(
+  "/rooms/:roomId",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = roomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "roomId missing" });
+      return;
+    }
+    const roomId = params.data.roomId;
+
+    const input = updateRoomSchema.safeParse(req.body);
+    if (!input.success) {
+      res.status(400).json({
+        ok: false,
+        error: input.error.issues[0]?.message ?? "Invalid input",
+      });
+      return;
+    }
+
+    const room = await updateRoom(userId, roomId, input.data);
+    res.json({ ok: true, room });
+  }),
+);
+
+// DELETE /rooms/:roomId
+// Owner-only; cascades categories, channels, messages, memberships, invites.
+// Backend-only in Phase 1 — the Settings "Danger Zone" UI lands in Phase 5.
+router.delete(
+  "/rooms/:roomId",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = roomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "roomId missing" });
+      return;
+    }
+    const roomId = params.data.roomId;
+
+    await deleteRoom(userId, roomId);
+    res.json({ ok: true });
   }),
 );
 
@@ -272,22 +403,22 @@ const markReadLimiter = createRateLimiter({
   prefix: "room:markread",
 });
 
-// POST /:chatRoomId/mark-read
+// POST /:roomId/mark-read
 // Uses asyncHandler so ApiError statuses (403 FORBIDDEN, 404 MESSAGE_NOT_FOUND,
 // 400 MESSAGE_WRONG_ROOM) reach the shared error handler instead of being
 // flattened into a 500 by a local try/catch.
 router.post(
-  "/:chatRoomId/mark-read",
+  "/:roomId/mark-read",
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
-    const params = chatRoomIdParamSchema.safeParse(req.params);
+    const params = roomIdParamSchema.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ ok: false, error: "chatRoomId missing" });
+      res.status(400).json({ ok: false, error: "roomId missing" });
       return;
     }
-    const chatRoomId = params.data.chatRoomId;
+    const roomId = params.data.roomId;
 
     const rate = await markReadLimiter(`markread:${userId}`);
     setRateLimitHeaders(res, rate);
@@ -305,24 +436,24 @@ router.post(
       return;
     }
 
-    await assertRoomAccess(userId, chatRoomId);
+    await assertRoomAccess(userId, roomId);
 
     const result = await markRoomRead(
       userId,
-      chatRoomId,
+      roomId,
       body.data.lastReadMessageId,
     );
 
     // Emit to all of the user's sessions so tabs/devices stay in sync.
     req.io.to(`user:${userId}`).emit("chatroom:read", {
-      chatRoomId,
+      roomId,
       unreadCount: result.unreadCount,
     });
 
     // Broadcast the read cursor to the room so senders' read ticks update.
-    req.io.to(`room:${chatRoomId}`).emit("chatroom:readReceipt", {
+    req.io.to(`room:${roomId}`).emit("chatroom:readReceipt", {
       userId,
-      chatRoomId,
+      roomId,
       lastReadMessageId: result.lastReadMessageId,
       lastReadMessageCreatedAt: result.lastReadMessageCreatedAt,
     });
@@ -331,25 +462,25 @@ router.post(
   }),
 );
 
-// GET /:chatRoomId/read-receipts
+// GET /:roomId/read-receipts
 // Returns every member's read cursor so each participant can render
 // per-message read ticks ("read by all") when the room is first opened.
 router.get(
-  "/:chatRoomId/read-receipts",
+  "/:roomId/read-receipts",
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
-    const params = chatRoomIdParamSchema.safeParse(req.params);
+    const params = roomIdParamSchema.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ ok: false, error: "chatRoomId missing" });
+      res.status(400).json({ ok: false, error: "roomId missing" });
       return;
     }
 
-    await assertRoomAccess(userId, params.data.chatRoomId);
+    await assertRoomAccess(userId, params.data.roomId);
 
     const receipts = await prisma.chatRoomReadReceipt.findMany({
-      where: { chatRoomId: params.data.chatRoomId },
+      where: { chatRoomId: params.data.roomId },
       select: {
         userId: true,
         lastReadMessageId: true,

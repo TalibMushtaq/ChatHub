@@ -70,7 +70,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:edit"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
           content: "updated content",
         },
@@ -97,7 +97,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:edit"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
           content: "hacked",
         },
@@ -123,7 +123,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:edit"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
           content: "too late",
         },
@@ -149,7 +149,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:edit"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
           content: "nope",
         },
@@ -181,7 +181,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:edit"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
           content: "cross-room edit",
         },
@@ -214,7 +214,7 @@ describe("registerRoomChat - edit and delete", () => {
 
       await handlers["chatroom:message:edit"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
           content: "updated",
         },
@@ -269,7 +269,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:delete"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
         },
         callback,
@@ -304,7 +304,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:delete"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
         },
         callback,
@@ -332,7 +332,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:delete"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
         },
         callback,
@@ -357,7 +357,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:delete"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
         },
         callback,
@@ -382,7 +382,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:delete"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
         },
         callback,
@@ -410,7 +410,7 @@ describe("registerRoomChat - edit and delete", () => {
       const callback = vi.fn();
       await handlers["chatroom:message:delete"](
         {
-          chatRoomId: "room-1",
+          roomId: "room-1",
           messageId: "msg-1",
         },
         callback,
@@ -440,7 +440,7 @@ describe("registerRoomChat - edit and delete", () => {
       } as any);
 
       await handlers["chatroom:message:delete"](
-        { chatRoomId: "room-1", messageId: "msg-1" },
+        { roomId: "room-1", messageId: "msg-1" },
         vi.fn(),
       );
 

@@ -18,7 +18,7 @@ type AuthUser = Pick<
 declare module "socket.io" {
   interface SocketData {
     user: AuthUser;
-    /** chatRoomId -> epoch ms at which the cached membership check expires. */
+    /** roomId -> epoch ms at which the cached membership check expires. */
     rooms?: Map<string, number>;
     /** conversationId -> epoch ms of the last typing broadcast (anti-spam). */
     typingThrottle?: Map<string, number>;

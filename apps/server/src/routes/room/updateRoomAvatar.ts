@@ -30,25 +30,25 @@ const roomAvatarKeySchema = z.union([
 ]);
 
 /**
- * PATCH /rooms/:chatRoomId/avatar
+ * PATCH /rooms/:roomId/avatar
  *
  * Updates the room's avatar. Only OWNER or ADMIN may change the avatar.
  */
 router.patch(
-  "/:chatRoomId/avatar",
+  "/:roomId/avatar",
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user.id;
-    const chatRoomId = String(req.params.chatRoomId ?? "");
+    const roomId = String(req.params.roomId ?? "");
 
-    if (!chatRoomId) {
-      res.status(400).json({ ok: false, error: "chatRoomId is required" });
+    if (!roomId) {
+      res.status(400).json({ ok: false, error: "roomId is required" });
       return;
     }
 
     // Verify the user is OWNER or ADMIN
     const membership = await prisma.chatRoomMember.findUnique({
-      where: { userId_chatRoomId: { userId, chatRoomId } },
+      where: { userId_chatRoomId: { userId, chatRoomId: roomId } },
       select: { role: true },
     });
 
@@ -81,16 +81,16 @@ router.patch(
     // Read the old avatar before writing so a replaced custom upload can be
     // cleaned up afterwards — defaults are shared, so they're never deleted.
     const before = await prisma.chatRoom.findUnique({
-      where: { id: chatRoomId },
+      where: { id: roomId },
       select: { avatar: true },
     });
 
     await prisma.chatRoom.update({
-      where: { id: chatRoomId },
+      where: { id: roomId },
       data: { avatar: avatarKey },
     });
 
-    log.info("Room avatar updated", { userId, chatRoomId, avatarKey });
+    log.info("Room avatar updated", { userId, roomId, avatarKey });
 
     res.json({ ok: true, avatarKey });
 
@@ -100,10 +100,10 @@ router.patch(
     if (oldKey && oldKey.startsWith("avatars/") && oldKey !== avatarKey) {
       try {
         await getRequiredS3Service().deleteObject(oldKey);
-        log.info("Deleted replaced room avatar", { chatRoomId, oldKey });
+        log.info("Deleted replaced room avatar", { roomId, oldKey });
       } catch (err) {
         log.error("Failed to delete replaced room avatar", {
-          chatRoomId,
+          roomId,
           oldKey,
           error: err,
         });

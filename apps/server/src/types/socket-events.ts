@@ -8,10 +8,9 @@ export interface ClientToServerEvents {
     directChatId: string;
     isTyping: boolean;
   }) => void;
-  "chatroom:typing": (payload: {
-    chatRoomId: string;
-    isTyping: boolean;
-  }) => void;
+  "chatroom:join": (payload: { roomId: string }) => void;
+  "chatroom:leave": (payload: { roomId: string }) => void;
+  "chatroom:typing": (payload: { roomId: string; isTyping: boolean }) => void;
   /** Tab liveness signal; the server treats absence as the idle signal. */
   "presence:heartbeat": () => void;
   /** Live update of the user's manual status / custom status. */
@@ -33,10 +32,13 @@ export interface ServerToClientEvents {
     directChatId: string;
     unreadCount: number;
   }) => void;
-  "chatroom:read": (payload: {
-    chatRoomId: string;
-    unreadCount: number;
-  }) => void;
+  "chatroom:joined": (payload: { roomId: string }) => void;
+  "chatroom:left": (payload: { roomId: string }) => void;
+  "chatroom:error": (payload: { code: string; message: string }) => void;
+  "chatroom:message": (payload: MessagePayload) => void;
+  "chatroom:message:edited": (payload: RoomMessageEditedPayload) => void;
+  "chatroom:message:deleted": (payload: RoomMessageDeletedPayload) => void;
+  "chatroom:read": (payload: { roomId: string; unreadCount: number }) => void;
   "directChat:typing": (payload: {
     userId: string;
     username: string;
@@ -46,7 +48,7 @@ export interface ServerToClientEvents {
   "chatroom:typing": (payload: {
     userId: string;
     username: string;
-    chatRoomId: string;
+    roomId: string;
     isTyping: boolean;
   }) => void;
   "directChat:readReceipt": (payload: {
@@ -57,7 +59,7 @@ export interface ServerToClientEvents {
   }) => void;
   "chatroom:readReceipt": (payload: {
     userId: string;
-    chatRoomId: string;
+    roomId: string;
     lastReadMessageId: string;
     lastReadMessageCreatedAt: Date;
   }) => void;
@@ -101,13 +103,18 @@ export type MessagePayload = {
   id: string;
   content: string | null;
   senderId: string;
-  directChatId: string;
   createdAt: Date;
   messageType: string;
   attachments: AttachmentPayload[];
   isDeleted: boolean;
   editedAt?: Date | null;
   deletedAt?: Date | null;
+  /** Present on DM messages. */
+  directChatId?: string | null;
+  /** Present on room messages (normalized from the DB column chatRoomId). */
+  roomId?: string | null;
+  /** Present on room messages; pins the message into a channel. */
+  channelId?: string | null;
 };
 
 export type MessageEditedPayload = {
@@ -120,6 +127,19 @@ export type MessageEditedPayload = {
 export type MessageDeletedPayload = {
   messageId: string;
   directChatId: string;
+  deletedAt: Date;
+};
+
+export type RoomMessageEditedPayload = {
+  messageId: string;
+  roomId: string;
+  content: string | null;
+  editedAt: Date | null;
+};
+
+export type RoomMessageDeletedPayload = {
+  messageId: string;
+  roomId: string;
   deletedAt: Date;
 };
 
