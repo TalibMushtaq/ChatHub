@@ -49,6 +49,12 @@ export {
   channelReorderSchema,
   roomAvatarKeySchema,
   markReadSchema,
+  assignableRoleSchema,
+  changeMemberRoleSchema,
+  banMemberSchema,
+  muteMemberSchema,
+  setNicknameSchema,
+  memberUserIdParamSchema,
 } from "./room";
 export {
   RELATIONSHIP_VALUES,

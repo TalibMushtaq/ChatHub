@@ -1,3 +1,33 @@
+## [2026-08-19] - Rooms → Community: roles + member management (Phase 4)
+
+**What changed:** Implemented the Phase 4 roles + members layer (§8): a new `MODERATOR` role, a full member-management API (assign role, kick, ban/unban, timed mute, per-room nickname), live member events over the existing socket layer, and a member-management UI (member context menu, ban list, nickname/member-action modals). Banned users are blocked from re-entering via join links and invitations. The permission vocabulary also gained the voice permissions Phase 7 will consume.
+
+Server (`apps/server` + `packages/validators`):
+
+- **Schema** (`db/schema.prisma`): `ChatRoomRole` gains `MODERATOR` (inserted between ADMIN and MEMBER, non-destructive); `ChatRoomMember` gains `nickname String?` + `mutedUntil DateTime?`; new `RoomBan` model (`@@unique([roomId, userId])`, `bannedById`, `reason`) so bans persist after the membership is removed. Migration `20260819000000_add_roles_members` (additive, no backfill).
+- **Permissions** (`services/room/permissions.ts`): role hierarchy becomes MEMBER < MODERATOR < ADMIN < OWNER; MODERATOR gets `VIEW_CHANNEL`/`SEND_MESSAGES`/`MANAGE_MESSAGES` plus the voice perms (`CONNECT_VOICE`, `SPEAK_VOICE`, `VIDEO_VOICE`, `SCREENSHARE_VOICE`, `MOVE_MEMBERS_VOICE`); ADMIN/OWNER also gain those voice perms and `MENTION_EVERYONE`.
+- **New service** `services/room/members.ts`: `changeMemberRole` (owner-only via `MANAGE_ROLES`), `kickMember` (removes membership + read receipt, `MANAGE_MEMBERS`), `banMember` (RoomBan upsert + kick in one transaction, idempotent re-ban), `unbanMember`, `muteMember`/`unmuteMember` (`MANAGE_MEMBERS`, sets `mutedUntil`), `setNickname` (self or `MANAGE_MEMBERS`), `isMuted`, `getRoomBans`. All hierarchy checks refuse to act on the OWNER or a role at/above the caller's.
+- **Routes** `routes/room/members.ts` (mounted in `room.ts`): `PATCH /:roomId/members/:userId/role`, `POST /:roomId/members/:userId/kick`, `POST|DELETE /:roomId/members/:userId/ban`, `POST|DELETE /:roomId/members/:userId/mute`, `PATCH /:roomId/members/:userId/nickname`, `GET /:roomId/bans`. Bodies validated with the new `changeMemberRoleSchema`/`banMemberSchema`/`muteMemberSchema`/`setNicknameSchema` (400 on invalid input); `memberUserIdParamSchema` added.
+- **Member list** (`getMembers.ts`): now returns `nickname` + `mutedUntil`.
+- **Ban gates**: `POST /room/join/:token` and invitation-accept both reject a banned user (403) inside the transaction.
+- **Socket events** (`types/socket-events.ts` + emitters): `chatroom:member:added` (join-link join), `chatroom:member:removed` (`reason: left|kicked|banned` — wired into `leave`, `kick`, `ban`), `chatroom:member:roleChanged`, `chatroom:member:muted`/`unmuted`, `chatroom:member:nicknameChanged`.
+
+Web (`apps/web`):
+
+- `types.ts`: `RoomRole` gains `"MODERATOR"`; `RoomMember` gains `nickname`/`mutedUntil`; new `RoomBan` type; `ModalName` gains `memberAction`/`banList`/`nickname`.
+- `api.ts`: `changeMemberRole`, `kickMember`, `banMember`, `unbanMember`, `getRoomBans`, `muteMember`, `unmuteMember`, `setMemberNickname`.
+- `state.ts` + `AppShell.tsx`: context gains `roomBans` + the member-action methods and `refreshRoomBans`; socket handlers for all `chatroom:member:*` events update the member list live (reuse the `setRoomMembersBoth`/ref pattern); optimistic role/mute/nickname patches.
+- `room/MemberSidebar.tsx`: adds the `MODERATOR` group, a 🔇 muted indicator, per-room nickname display, and a per-member "⋯" button + right-click that opens the new member context menu.
+- `room/MemberContextMenu.tsx` (new): permission-gated member actions — View Profile, Set Nickname, Set as Admin/Moderator/Member (owner-only for admin), Mute presets (10min/1h/1d/1w)/Unmute, Kick/Ban; only OWNER/ADMIN (strictly senior to the target, never the owner) get management actions.
+- `room/MemberModals.tsx` (new): `MemberActionModal` (kick/ban confirm + optional reason), `BanListModal` (review + unban), `NicknameModal` (set/clear). Registered in `Modals.tsx`.
+- `room/RoomHeaderMenu.tsx`: adds "Banned Users" to the admin menu. `styles.ts` adds `chipModerator`.
+
+**Why:** Roadmap Phase 4 — communities need role-based moderation (a Moderator tier between Admin and Member) and the ability to assign roles, kick, ban, mute, and nickname members, all enforced on the backend with live sidebar updates, before Room Settings and voice channels land.
+
+**Impact:** DB (additive migration: new enum value, two nullable columns, new `RoomBan` table), server API surface (additive member endpoints + member socket events), web client. Existing OWNER/ADMIN/MEMBER behavior is preserved; `GET /:roomId/members` returns two extra nullable fields. Verification: `pnpm test` (server 697 / 99 files incl. new members service + route + validator tests; web 78 / 8 files), `check-types`, `lint` (0 warnings), `build` — all clean. Run `prisma migrate dev` to apply `20260819000000_add_roles_members`.
+
+**Follow-ups:** `MOVE_MEMBERS_VOICE` and the voice permissions are defined but only exercised in Phase 7 (calls). Message moderation (delete others' messages as `MANAGE_MESSAGES`) isn't surfaced in the UI yet — the permission exists and the existing message edit/delete is currently sender-scoped, so that's a Phase 9/12 concern. Custom roles with per-permission overrides remain out of scope (the permission map is the extension point).
+
 ## [2026-08-19] - Rooms → Community: channel/category management (Phase 3)
 
 **What changed:** Implemented the Phase 3 channel & category management layer on top of the Phase 1/2 foundation: full channel CRUD (create/rename/edit/move/delete) with client + server validation and duplicate prevention, category rename/delete (delete moves channels to "Uncategorized"), drag-and-drop reorder for categories and channels (with keyboard + touch support and optimistic rollback), channel/category context menus, confirmation for destructive actions, and shareable per-channel deep links.

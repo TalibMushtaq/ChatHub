@@ -22,6 +22,8 @@ import type {
   Tab,
   ToastType,
   TypingUser,
+  RoomRole,
+  RoomBan,
 } from "./types";
 import type { Relationship } from "@repo/validators";
 
@@ -75,6 +77,8 @@ export interface ShellCtx {
   channelUnread: Record<string, boolean>;
   /** roomId -> cached category/channel tree (GET /room/rooms/:roomId). */
   roomDetails: Record<string, RoomDetail>;
+  /** roomId -> banned users (loaded when the ban-list modal opens). */
+  roomBans: Record<string, RoomBan[]>;
   /** userId -> live presence/status, kept current by `presence:changed`. */
   presence: Record<string, PresenceInfo>;
   q: string;
@@ -95,6 +99,34 @@ export interface ShellCtx {
   openChannel: (roomId: string, channelId: string) => void;
   /** Remove the current user from a room (non-owner). */
   leaveRoom: (roomId: string) => Promise<void>;
+  /** Assign/change a member's role (owner-only). */
+  changeMemberRole: (
+    roomId: string,
+    userId: string,
+    role: RoomRole,
+  ) => Promise<void>;
+  /** Kick a member from the room. */
+  kickMember: (roomId: string, userId: string) => Promise<void>;
+  /** Ban a member (kicks them + records the ban). */
+  banMember: (roomId: string, userId: string, reason?: string) => Promise<void>;
+  /** Lift a ban. */
+  unbanMember: (roomId: string, userId: string) => Promise<void>;
+  /** Mute a member for `durationMinutes`. */
+  muteMember: (
+    roomId: string,
+    userId: string,
+    durationMinutes: number,
+  ) => Promise<void>;
+  /** Unmute a member. */
+  unmuteMember: (roomId: string, userId: string) => Promise<void>;
+  /** Set/clear a member's per-room nickname. */
+  setMemberNickname: (
+    roomId: string,
+    userId: string,
+    nickname: string | null,
+  ) => Promise<void>;
+  /** Load the room's ban list (used by the ban-list modal). */
+  refreshRoomBans: (roomId: string) => Promise<void>;
   /** Re-fetch a room's category/channel tree (e.g. after creating a channel). */
   refreshRoomDetail: (roomId: string) => Promise<void>;
   /** Optimistically patch the cached room structure without a network call

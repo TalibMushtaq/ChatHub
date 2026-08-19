@@ -13,6 +13,7 @@ import type {
   Invitation,
   JoinLink,
   JoinRequest,
+  RoomMember,
   UserProfile,
   UserStatus,
 } from "./types";
@@ -43,6 +44,11 @@ import { CreateChannelModal } from "./room/CreateChannelModal";
 import { CreateCategoryModal } from "./room/CreateCategoryModal";
 import { EditChannelModal } from "./room/EditChannelModal";
 import { EditCategoryModal } from "./room/EditCategoryModal";
+import {
+  MemberActionModal,
+  BanListModal,
+  NicknameModal,
+} from "./room/MemberModals";
 import {
   btn,
   btnPrimary,
@@ -89,6 +95,9 @@ const TITLES: Record<ModalEntry["name"], string> = {
   confirm: "Confirm",
   userProfile: "Profile",
   avatarViewer: "Profile picture",
+  memberAction: "Member",
+  banList: "Banned users",
+  nickname: "Nickname",
 };
 
 export default function Modals() {
@@ -262,6 +271,9 @@ function ModalFrame({
 }
 
 function Body(entry: ModalEntry) {
+  // Read once (unconditionally) so hook order stays stable across cases; used
+  // by the nickname modal to look up a member's current nickname.
+  const { roomMembers } = useShell();
   switch (entry.name) {
     case "newDm":
       return <NewDmModal />;
@@ -334,6 +346,47 @@ function Body(entry: ModalEntry) {
         avatar?: string | null;
       };
       return <AvatarViewer name={p.name} avatar={p.avatar} />;
+    }
+    case "memberAction": {
+      const p = entry.payload as {
+        roomId: string;
+        member: {
+          memberId: string;
+          role: string;
+          nickname?: string | null;
+          user: {
+            id: string;
+            username: string;
+            displayName: string | null;
+            avatar?: string | null;
+          };
+        };
+        action: "kick" | "ban";
+      };
+      return (
+        <MemberActionModal
+          roomId={p.roomId}
+          member={p.member as RoomMember}
+          action={p.action}
+        />
+      );
+    }
+    case "banList": {
+      const roomId = String(entry.payload);
+      return <BanListModal roomId={roomId} />;
+    }
+    case "nickname": {
+      const p = entry.payload as { roomId: string; userId: string };
+      const current = (roomMembers[p.roomId] ?? []).find(
+        (m) => m.user.id === p.userId,
+      )?.nickname;
+      return (
+        <NicknameModal
+          roomId={p.roomId}
+          userId={p.userId}
+          current={current ?? null}
+        />
+      );
     }
   }
 }

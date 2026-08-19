@@ -26,6 +26,7 @@ import type {
   Message,
   PresenceInfo,
   ReadReceipt,
+  RoomBan,
   RoomDetail,
   RoomInboxEntry,
   RoomMember,
@@ -33,6 +34,7 @@ import type {
   Tab,
   ToastType,
   TypingUser,
+  RoomRole,
 } from "./types";
 import type { Relationship } from "@repo/validators";
 import AppAvatar from "./AppAvatar";
@@ -100,6 +102,7 @@ export default function AppShell() {
   const [roomDetails, setRoomDetails] = useState<Record<string, RoomDetail>>(
     {},
   );
+  const [roomBans, setRoomBans] = useState<Record<string, RoomBan[]>>({});
   const [channelUnread, setChannelUnread] = useState<Record<string, boolean>>(
     {},
   );
@@ -128,6 +131,7 @@ export default function AppShell() {
   const readReceiptsRef = useRef<Record<string, ReadReceipt[]>>({});
   const typingRef = useRef<Record<string, TypingUser[]>>({});
   const presenceRef = useRef<Record<string, PresenceInfo>>({});
+  const roomBansRef = useRef<Record<string, RoomBan[]>>({});
   const friendRequestsRef = useRef<FriendRequest[]>([]);
   // conversation key -> userId -> pending "stopped typing" removal timer.
   const typingTimersRef = useRef<Record<string, Record<string, number>>>({});
@@ -183,6 +187,26 @@ export default function AppShell() {
   ) {
     presenceRef.current = fn(presenceRef.current);
     setPresence(presenceRef.current);
+  }
+  function setRoomBansBoth(
+    fn: (prev: Record<string, RoomBan[]>) => Record<string, RoomBan[]>,
+  ) {
+    roomBansRef.current = fn(roomBansRef.current);
+    setRoomBans(roomBansRef.current);
+  }
+
+  /** Replace a member row in a room's member list (socket-driven Phase 4). */
+  function patchRoomMember(
+    roomId: string,
+    userId: string,
+    patch: Partial<RoomMember>,
+  ) {
+    setRoomMembersBoth((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).map((m) =>
+        m.user.id === userId ? { ...m, ...patch } : m,
+      ),
+    }));
   }
   function setFriendRequestsBoth(
     fn: (prev: FriendRequest[]) => FriendRequest[],
@@ -1023,6 +1047,66 @@ export default function AppShell() {
       );
     });
 
+    // Member lifecycle events (Phase 4 §8): keep the sidebar's member list and
+    // role chips live. Uses refs + stable setters so the once-registered
+    // handlers never read stale closures.
+    socket.on(
+      "chatroom:member:added",
+      (payload: { roomId: string; member: RoomMember }) => {
+        setRoomMembersBoth((prev) => {
+          const list = prev[payload.roomId] ?? [];
+          if (list.some((m) => m.user.id === payload.member.user.id))
+            return prev;
+          return { ...prev, [payload.roomId]: [...list, payload.member] };
+        });
+      },
+    );
+    socket.on(
+      "chatroom:member:removed",
+      (payload: { roomId: string; userId: string }) => {
+        setRoomMembersBoth((prev) => ({
+          ...prev,
+          [payload.roomId]: (prev[payload.roomId] ?? []).filter(
+            (m) => m.user.id !== payload.userId,
+          ),
+        }));
+      },
+    );
+    socket.on(
+      "chatroom:member:roleChanged",
+      (payload: { roomId: string; userId: string; role: RoomRole }) => {
+        patchRoomMember(payload.roomId, payload.userId, {
+          role: payload.role,
+        });
+      },
+    );
+    socket.on(
+      "chatroom:member:muted",
+      (payload: { roomId: string; userId: string; mutedUntil: string }) => {
+        patchRoomMember(payload.roomId, payload.userId, {
+          mutedUntil: payload.mutedUntil,
+        });
+      },
+    );
+    socket.on(
+      "chatroom:member:unmuted",
+      (payload: { roomId: string; userId: string }) => {
+        patchRoomMember(payload.roomId, payload.userId, { mutedUntil: null });
+      },
+    );
+    socket.on(
+      "chatroom:member:nicknameChanged",
+      (payload: {
+        roomId: string;
+        userId: string;
+        nickname: string | null;
+      }) => {
+        patchRoomMember(payload.roomId, payload.userId, {
+          nickname: payload.nickname,
+        });
+      },
+    );
+
     // Re-join the active conversation after a reconnect (the server drops rooms).
     socket.on("connect", () => {
       joinedRef.current.clear();
@@ -1050,6 +1134,12 @@ export default function AppShell() {
       socket.off("friend-request:accepted");
       socket.off("friend-request:declined");
       socket.off("friend-request:blocked");
+      socket.off("chatroom:member:added");
+      socket.off("chatroom:member:removed");
+      socket.off("chatroom:member:roleChanged");
+      socket.off("chatroom:member:muted");
+      socket.off("chatroom:member:unmuted");
+      socket.off("chatroom:member:nicknameChanged");
       socket.off("connect");
       socket.off("disconnect");
       // Clear pending typing indicators on unmount (app teardown only).
@@ -1061,6 +1151,7 @@ export default function AppShell() {
     // The socket handlers only reference refs and the module-level
     // notification pipeline (handleIncomingMessageNotification), so this
     // effect registers exactly once for the component's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -1420,6 +1511,130 @@ export default function AppShell() {
       if (!detail) return prev;
       return { ...prev, [roomId]: updater(detail) };
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Member management (Phase 4 §8)
+  // ---------------------------------------------------------------------------
+
+  async function changeMemberRole(
+    roomId: string,
+    userId: string,
+    role: RoomRole,
+  ): Promise<void> {
+    try {
+      const member = await ChatAPI.changeMemberRole(roomId, userId, role);
+      // Optimistically reflect the role change; the socket echo reconciles too.
+      patchRoomMember(roomId, userId, { role: member.role });
+      toast(
+        role === "MEMBER"
+          ? "Role updated to member"
+          : `Promoted to ${role.toLowerCase()}`,
+        "success",
+      );
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't change role"), "error");
+      throw err;
+    }
+  }
+
+  async function kickMember(roomId: string, userId: string): Promise<void> {
+    try {
+      await ChatAPI.kickMember(roomId, userId);
+      // Drop the member from the local list; the socket echo reconciles too.
+      setRoomMembersBoth((prev) => ({
+        ...prev,
+        [roomId]: (prev[roomId] ?? []).filter((m) => m.user.id !== userId),
+      }));
+      toast("Member removed", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't remove member"), "error");
+      throw err;
+    }
+  }
+
+  async function banMember(
+    roomId: string,
+    userId: string,
+    reason?: string,
+  ): Promise<void> {
+    try {
+      await ChatAPI.banMember(roomId, userId, reason);
+      setRoomMembersBoth((prev) => ({
+        ...prev,
+        [roomId]: (prev[roomId] ?? []).filter((m) => m.user.id !== userId),
+      }));
+      // Refresh the ban list if it's already loaded.
+      if (roomBansRef.current[roomId]) void refreshRoomBans(roomId);
+      toast("Member banned", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't ban member"), "error");
+      throw err;
+    }
+  }
+
+  async function unbanMember(roomId: string, userId: string): Promise<void> {
+    try {
+      await ChatAPI.unbanMember(roomId, userId);
+      setRoomBansBoth((prev) => ({
+        ...prev,
+        [roomId]: (prev[roomId] ?? []).filter((b) => b.userId !== userId),
+      }));
+      toast("Ban lifted", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't lift ban"), "error");
+      throw err;
+    }
+  }
+
+  async function muteMember(
+    roomId: string,
+    userId: string,
+    durationMinutes: number,
+  ): Promise<void> {
+    try {
+      const member = await ChatAPI.muteMember(roomId, userId, durationMinutes);
+      patchRoomMember(roomId, userId, { mutedUntil: member.mutedUntil });
+      toast("Member muted", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't mute member"), "error");
+      throw err;
+    }
+  }
+
+  async function unmuteMember(roomId: string, userId: string): Promise<void> {
+    try {
+      const member = await ChatAPI.unmuteMember(roomId, userId);
+      patchRoomMember(roomId, userId, { mutedUntil: member.mutedUntil });
+      toast("Member unmuted", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't unmute member"), "error");
+      throw err;
+    }
+  }
+
+  async function setMemberNickname(
+    roomId: string,
+    userId: string,
+    nickname: string | null,
+  ): Promise<void> {
+    try {
+      const member = await ChatAPI.setMemberNickname(roomId, userId, nickname);
+      patchRoomMember(roomId, userId, { nickname: member.nickname });
+      toast(nickname ? "Nickname updated" : "Nickname cleared", "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't update nickname"), "error");
+      throw err;
+    }
+  }
+
+  async function refreshRoomBans(roomId: string): Promise<void> {
+    try {
+      const bans = await ChatAPI.getRoomBans(roomId);
+      setRoomBansBoth((prev) => ({ ...prev, [roomId]: bans }));
+    } catch (err) {
+      toast(getErrorMessage(err, "Couldn't load bans"), "error");
+    }
   }
 
   function closeConv() {
@@ -1865,6 +2080,7 @@ export default function AppShell() {
     presence,
     channelUnread,
     roomDetails,
+    roomBans,
     q,
     results,
     listLoading,
@@ -1878,6 +2094,14 @@ export default function AppShell() {
     openConv,
     openChannel,
     leaveRoom,
+    changeMemberRole,
+    kickMember,
+    banMember,
+    unbanMember,
+    muteMember,
+    unmuteMember,
+    setMemberNickname,
+    refreshRoomBans,
     refreshRoomDetail,
     patchRoomDetail,
     loadOlderMessages,

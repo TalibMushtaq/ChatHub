@@ -19,6 +19,11 @@ import {
   roomIdParamSchema,
   categoryIdParamSchema,
   channelIdParamSchema,
+  changeMemberRoleSchema,
+  banMemberSchema,
+  muteMemberSchema,
+  setNicknameSchema,
+  memberUserIdParamSchema,
 } from "@repo/validators";
 
 describe("room validators", () => {
@@ -341,6 +346,71 @@ describe("room validators", () => {
       expect(channelIdParamSchema.safeParse({ channelId: "c1" }).success).toBe(
         true,
       );
+    });
+  });
+
+  describe("member schemas (Phase 4)", () => {
+    it("changeMemberRoleSchema accepts assignable roles only", () => {
+      expect(changeMemberRoleSchema.safeParse({ role: "ADMIN" }).success).toBe(
+        true,
+      );
+      expect(
+        changeMemberRoleSchema.safeParse({ role: "MODERATOR" }).success,
+      ).toBe(true);
+      expect(changeMemberRoleSchema.safeParse({ role: "MEMBER" }).success).toBe(
+        true,
+      );
+      // OWNER is not assignable via the role endpoint.
+      expect(changeMemberRoleSchema.safeParse({ role: "OWNER" }).success).toBe(
+        false,
+      );
+      expect(changeMemberRoleSchema.safeParse({}).success).toBe(false);
+    });
+
+    it("banMemberSchema accepts an optional reason", () => {
+      expect(banMemberSchema.safeParse({}).success).toBe(true);
+      expect(banMemberSchema.safeParse({ reason: "spam" }).success).toBe(true);
+      expect(banMemberSchema.safeParse({ reason: null }).success).toBe(true);
+      expect(
+        banMemberSchema.safeParse({ reason: "x".repeat(201) }).success,
+      ).toBe(false);
+    });
+
+    it("muteMemberSchema bounds the duration", () => {
+      expect(muteMemberSchema.safeParse({ durationMinutes: 1 }).success).toBe(
+        true,
+      );
+      expect(
+        muteMemberSchema.safeParse({ durationMinutes: 43200 }).success,
+      ).toBe(true);
+      expect(muteMemberSchema.safeParse({ durationMinutes: 0 }).success).toBe(
+        false,
+      );
+      expect(
+        muteMemberSchema.safeParse({ durationMinutes: 43201 }).success,
+      ).toBe(false);
+      expect(muteMemberSchema.safeParse({ durationMinutes: 1.5 }).success).toBe(
+        false,
+      );
+    });
+
+    it("setNicknameSchema caps length and allows null", () => {
+      expect(setNicknameSchema.safeParse({ nickname: "Cool" }).success).toBe(
+        true,
+      );
+      expect(setNicknameSchema.safeParse({ nickname: null }).success).toBe(
+        true,
+      );
+      expect(
+        setNicknameSchema.safeParse({ nickname: "x".repeat(33) }).success,
+      ).toBe(false);
+    });
+
+    it("memberUserIdParamSchema parses a userId", () => {
+      expect(memberUserIdParamSchema.safeParse({ userId: "u1" }).success).toBe(
+        true,
+      );
+      expect(memberUserIdParamSchema.safeParse({}).success).toBe(false);
     });
   });
 });

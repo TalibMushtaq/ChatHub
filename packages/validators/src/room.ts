@@ -205,3 +205,50 @@ export const channelIdParamSchema = z.object({
 export const markReadSchema = z.object({
   lastReadMessageId: z.string().min(1),
 });
+
+// --- Members (Phase 4 §8) ---
+
+/**
+ * Roles a member can be promoted/demoted to. OWNER is intentionally absent —
+ * ownership transfer/delete is a Phase 5 concern and must never be reachable
+ * via a role-assignment endpoint.
+ */
+export const assignableRoleSchema = z.enum(["ADMIN", "MODERATOR", "MEMBER"], {
+  message: "Role must be ADMIN, MODERATOR, or MEMBER",
+});
+
+export const changeMemberRoleSchema = z.object({
+  role: assignableRoleSchema,
+});
+
+export const banMemberSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .max(200, "Reason must be at most 200 characters")
+    .optional()
+    .nullable(),
+});
+
+export const muteMemberSchema = z.object({
+  // Minutes the mute lasts; capped at 30 days so a mis-typed value can't
+  // create a practically-permanent mute.
+  durationMinutes: z
+    .number()
+    .int("Duration must be a whole number of minutes")
+    .min(1, "Mute must be at least 1 minute")
+    .max(43200, "Mute cannot exceed 30 days"),
+});
+
+export const setNicknameSchema = z.object({
+  nickname: z
+    .string()
+    .trim()
+    .max(32, "Nickname must be at most 32 characters")
+    .nullable(),
+});
+
+/** Param schema for `:userId` in member-management routes. */
+export const memberUserIdParamSchema = z.object({
+  userId: z.string().min(1),
+});

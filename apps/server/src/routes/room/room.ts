@@ -28,6 +28,7 @@ import joinRoomlink from "./joinroomlink";
 import updateRoomAvatarRouter from "./updateRoomAvatar";
 import categoriesRouter from "./categories";
 import channelsRouter from "./channels";
+import membersRouter from "./members";
 
 const router = Router();
 
@@ -40,6 +41,9 @@ router.use(updateRoomAvatarRouter);
 // Category + channel management (spec §5.5)
 router.use(categoriesRouter);
 router.use(channelsRouter);
+
+// Member + role management (Phase 4 §8)
+router.use(membersRouter);
 
 /**
  * POST /rooms
@@ -417,6 +421,12 @@ router.post(
     await leaveRoom(userId, roomId);
     // The leaver's other tabs need to drop the room from their list too.
     req.io.to(`user:${userId}`).emit("chatroom:left", { roomId });
+    // Everyone else in the room sees the member removed from the sidebar.
+    req.io.to(`room:${roomId}`).emit("chatroom:member:removed", {
+      roomId,
+      userId,
+      reason: "left",
+    });
     res.json({ ok: true });
   }),
 );

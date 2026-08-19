@@ -45,9 +45,11 @@
 
 ### Phase 4 — Roles + Members
 
-- [ ] Role system: Owner/Admin/Moderator/Member with permissions list, backend-enforced (§8.1)
-- [ ] Member list grouped by role with avatar, presence, role indicator (§8.2)
-- [ ] Member management: assign/remove role, mute/kick/ban with confirmation (§8.3)
+- [x] Role system: Owner/Admin/Moderator/Member with permissions list, backend-enforced (§8.1)
+- [x] Member list grouped by role with avatar, presence, role indicator (§8.2)
+- [x] Member management: assign/remove role, mute/kick/ban with confirmation (§8.3)
+
+> Phase 4 verified with `pnpm test` (server 697 / web 78), `check-types`, `lint` (0 warnings), `build` (server + web) — all clean. Manual browser pass still pending.
 
 ### Phase 5 — Room Settings
 

@@ -33,6 +33,7 @@ export const chip =
   "inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] font-extrabold tracking-[0.02em]";
 export const chipOwner = `${chip} bg-accent-wash text-accent-solid`;
 export const chipAdmin = `${chip} bg-[color-mix(in_oklab,oklch(0.7_0.15_265)_14%,transparent)] text-[oklch(0.55_0.14_265)]`;
+export const chipModerator = `${chip} bg-[color-mix(in_oklab,oklch(0.7_0.12_300)_14%,transparent)] text-[oklch(0.55_0.12_300)]`;
 export const chipMember = `${chip} bg-fg-wash text-muted`;
 export const chipPending = `${chip} bg-[color-mix(in_oklab,oklch(0.7_0.12_75)_16%,transparent)] text-[oklch(0.62_0.11_75)]`;
 export const chipOk = `${chip} bg-success-wash text-success`;

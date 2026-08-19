@@ -123,6 +123,14 @@ All endpoints are prefixed with `/api`. Session-authenticated routes return `401
 | GET    | `/api/room/rooms`                            | List user's rooms (cursor paginated)    |
 | GET    | `/api/room/:chatRoomId/messages`             | Room message history (cursor paginated) |
 | GET    | `/api/room/:chatRoomId/members`              | List room members                       |
+| PATCH  | `/api/room/:roomId/members/:userId/role`     | Assign a member's role (OWNER)          |
+| POST   | `/api/room/:roomId/members/:userId/kick`     | Remove a member (OWNER/ADMIN)           |
+| POST   | `/api/room/:roomId/members/:userId/ban`      | Ban a member (OWNER/ADMIN)              |
+| DELETE | `/api/room/:roomId/members/:userId/ban`      | Lift a ban                              |
+| POST   | `/api/room/:roomId/members/:userId/mute`     | Timed mute (1–43200 min)                |
+| DELETE | `/api/room/:roomId/members/:userId/mute`     | Unmute                                  |
+| PATCH  | `/api/room/:roomId/members/:userId/nickname` | Set/clear per-room nickname             |
+| GET    | `/api/room/:roomId/bans`                     | List room bans                          |
 | POST   | `/api/room/:chatRoomId/mark-read`            | Mark room as read                       |
 | GET    | `/api/room/:chatRoomId/read-receipts`        | All members' read cursors               |
 | PATCH  | `/api/room/:chatRoomId/avatar`               | Set room avatar (OWNER/ADMIN)           |
@@ -202,7 +210,7 @@ All events are namespaced under the root `/socket.io` connection and require an 
 
 ## Database Schema
 
-Key models: `User`, `Session`, `ChatRoom`, `ChatRoomMember`, `Message`, `Attachment`, `DirectChat`, `RoomInvitation`, `RoomJoinRequest`, `RoomJoinLink`, `RecoveryCode`, `DirectChatReadReceipt`, `ChatRoomReadReceipt`
+Key models: `User`, `Session`, `ChatRoom`, `ChatRoomMember`, `RoomBan`, `Message`, `Attachment`, `DirectChat`, `RoomInvitation`, `RoomJoinRequest`, `RoomJoinLink`, `RecoveryCode`, `DirectChatReadReceipt`, `ChatRoomReadReceipt`
 
 See `apps/server/db/schema.prisma` for the full schema.
 

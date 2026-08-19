@@ -39,6 +39,35 @@ export interface ServerToClientEvents {
   "chatroom:message:edited": (payload: RoomMessageEditedPayload) => void;
   "chatroom:message:deleted": (payload: RoomMessageDeletedPayload) => void;
   "chatroom:read": (payload: { roomId: string; unreadCount: number }) => void;
+  "chatroom:member:added": (payload: {
+    roomId: string;
+    member: RoomMemberPayload;
+  }) => void;
+  "chatroom:member:removed": (payload: {
+    roomId: string;
+    userId: string;
+    reason: "left" | "kicked" | "banned";
+  }) => void;
+  "chatroom:member:roleChanged": (payload: {
+    roomId: string;
+    userId: string;
+    role: string;
+    member: RoomMemberPayload;
+  }) => void;
+  "chatroom:member:muted": (payload: {
+    roomId: string;
+    userId: string;
+    mutedUntil: Date | null;
+  }) => void;
+  "chatroom:member:unmuted": (payload: {
+    roomId: string;
+    userId: string;
+  }) => void;
+  "chatroom:member:nicknameChanged": (payload: {
+    roomId: string;
+    userId: string;
+    nickname: string | null;
+  }) => void;
   "directChat:typing": (payload: {
     userId: string;
     username: string;
@@ -176,4 +205,20 @@ export type FriendRequestDeclinedPayload = {
 // the relationship to BLOCKED and drop any pending request card from the blocker.
 export type FriendRequestBlockedPayload = {
   blockedBy: FriendUserPayload;
+};
+
+/** A room member summary broadcast on role/mute/nickname changes (Phase 4). */
+export type RoomMemberPayload = {
+  memberId: string;
+  userId: string;
+  role: string;
+  joinedAt: Date;
+  nickname: string | null;
+  mutedUntil: Date | null;
+  user: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatar: string | null;
+  };
 };

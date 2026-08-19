@@ -13,6 +13,7 @@ import {
   GearIcon,
   LogoutIcon,
   PlusIcon,
+  TrashIcon,
   UserIcon,
   UsersIcon,
 } from "../icons";
@@ -109,6 +110,11 @@ export function RoomHeaderMenu({
         label: "Manage Members",
         icon: <UsersIcon className="h-4 w-4 flex-none" />,
         onClick: () => openModal("roomInfo"),
+      },
+      {
+        label: "Banned Users",
+        icon: <TrashIcon className="h-4 w-4 flex-none" />,
+        onClick: () => openModal("banList", roomId),
       },
       {
         label: "Create Category",

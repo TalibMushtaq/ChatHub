@@ -5,9 +5,13 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+// Role hierarchy (Phase 4 §8.1): OWNER > ADMIN > MODERATOR > MEMBER. The
+// permission map in services/room/permissions.ts is the single source of truth
+// for what each role can actually do.
 enum ChatRoomRole {
   OWNER
   ADMIN
+  MODERATOR
   MEMBER
 }
 
@@ -81,6 +85,7 @@ model ChatRoom {
   readReceipts   ChatRoomReadReceipt[]
   categories     Category[]
   channels       Channel[]
+  roomBans       RoomBan[]
 
   @@index([createdBy])
 }
@@ -132,12 +137,37 @@ model ChatRoomMember {
   chatRoomId String
   role       ChatRoomRole @default(MEMBER)
   joinedAt   DateTime     @default(now())
+  // Per-room display name shown instead of the global display name (Phase 4).
+  nickname   String?
+  // Temporary mute: while set (and in the future), the member cannot send
+  // messages. Null means "not muted". Expired mutes are treated as unmuted.
+  mutedUntil DateTime?
 
   ChatRoom   ChatRoom     @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   User       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chatRoomId])
   @@index([chatRoomId])
+  @@index([userId])
+}
+
+// A room-level ban. Bans persist after the membership is removed (unlike a
+// `banned` flag on ChatRoomMember, which would vanish on leave) so admins can
+// review and lift them. Members are re-admitted via the normal invite/link flow.
+model RoomBan {
+  id         String   @id @default(cuid())
+  roomId     String
+  userId     String
+  bannedById String
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  ChatRoom  ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bannedBy  User     @relation("RoomBanBannedBy", fields: [bannedById], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
   @@index([userId])
 }
 
@@ -318,6 +348,8 @@ model User {
   friendshipsB                        Friendship[]     @relation("FriendshipsUserB")
   userBlocksCreated                   UserBlock[]      @relation("UserBlocksCreated")
   userBlocksReceived                  UserBlock[]      @relation("UserBlocksReceived")
+  roomBansCreated                     RoomBan[]        @relation("RoomBanBannedBy")
+  roomBansReceived                    RoomBan[]
 }
 
 model Session {

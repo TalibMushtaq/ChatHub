@@ -15,6 +15,8 @@ export async function getMembers(roomId: string) {
       id: true,
       role: true,
       joinedAt: true,
+      nickname: true,
+      mutedUntil: true,
       User: {
         select: {
           id: true,
@@ -30,6 +32,8 @@ export async function getMembers(roomId: string) {
     memberId: m.id,
     role: m.role,
     joinedAt: m.joinedAt,
+    nickname: m.nickname,
+    mutedUntil: m.mutedUntil,
     user: m.User,
   }));
 }

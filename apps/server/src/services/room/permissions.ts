@@ -5,8 +5,9 @@ import type { ChatRoomRole } from "@prisma/client";
 /**
  * Room permission names — the authorization vocabulary for the Rooms feature.
  *
- * Phase 1 keeps this deliberately small (spec §5.6): roles map to a fixed set
- * of permissions. The map below is the single source of truth so granular
+ * Phase 1 keeps this deliberately small (spec §5.6); Phase 4 (roles/members)
+ * adds the voice permissions that Phase 7 consumes. Roles map to a fixed set
+ * of permissions; the map below is the single source of truth so granular
  * per-channel permissions can later override it without touching call sites.
  */
 export type RoomPermission =
@@ -17,16 +18,23 @@ export type RoomPermission =
   | "MANAGE_CATEGORIES"
   | "MANAGE_MEMBERS"
   | "MANAGE_ROLES"
-  | "MANAGE_ROOM";
+  | "MANAGE_ROOM"
+  | "MENTION_EVERYONE"
+  | "CONNECT_VOICE"
+  | "SPEAK_VOICE"
+  | "VIDEO_VOICE"
+  | "SCREENSHARE_VOICE"
+  | "MOVE_MEMBERS_VOICE";
 
-/** Membership role that grants room-level administration (owner or admin). */
+/** Membership roles that grant room-level administration (owner or admin). */
 export const ROOM_MANAGER_ROLES: readonly ChatRoomRole[] = ["OWNER", "ADMIN"];
 
 /** Role ordering used by assertRoleAtLeast: higher index = more authority. */
 const ROLE_ORDER: Record<ChatRoomRole, number> = {
   MEMBER: 0,
-  ADMIN: 1,
-  OWNER: 2,
+  MODERATOR: 1,
+  ADMIN: 2,
+  OWNER: 3,
 };
 
 const ROLE_PERMISSIONS: Record<ChatRoomRole, readonly RoomPermission[]> = {
@@ -39,6 +47,12 @@ const ROLE_PERMISSIONS: Record<ChatRoomRole, readonly RoomPermission[]> = {
     "MANAGE_MEMBERS",
     "MANAGE_ROLES",
     "MANAGE_ROOM",
+    "MENTION_EVERYONE",
+    "CONNECT_VOICE",
+    "SPEAK_VOICE",
+    "VIDEO_VOICE",
+    "SCREENSHARE_VOICE",
+    "MOVE_MEMBERS_VOICE",
   ],
   ADMIN: [
     "VIEW_CHANNEL",
@@ -47,8 +61,33 @@ const ROLE_PERMISSIONS: Record<ChatRoomRole, readonly RoomPermission[]> = {
     "MANAGE_CHANNELS",
     "MANAGE_CATEGORIES",
     "MANAGE_MEMBERS",
+    "MENTION_EVERYONE",
+    "CONNECT_VOICE",
+    "SPEAK_VOICE",
+    "VIDEO_VOICE",
+    "SCREENSHARE_VOICE",
+    "MOVE_MEMBERS_VOICE",
   ],
-  MEMBER: ["VIEW_CHANNEL", "SEND_MESSAGES"],
+  // Moderator (Phase 4 §8.1) moderates messages and can police voice channels
+  // but does not manage the room structure or membership roles.
+  MODERATOR: [
+    "VIEW_CHANNEL",
+    "SEND_MESSAGES",
+    "MANAGE_MESSAGES",
+    "CONNECT_VOICE",
+    "SPEAK_VOICE",
+    "VIDEO_VOICE",
+    "SCREENSHARE_VOICE",
+    "MOVE_MEMBERS_VOICE",
+  ],
+  MEMBER: [
+    "VIEW_CHANNEL",
+    "SEND_MESSAGES",
+    "CONNECT_VOICE",
+    "SPEAK_VOICE",
+    "VIDEO_VOICE",
+    "SCREENSHARE_VOICE",
+  ],
 };
 
 export function roleHasPermission(
@@ -58,7 +97,7 @@ export function roleHasPermission(
   return ROLE_PERMISSIONS[role].includes(permission);
 }
 
-/** Whether `role` is at least as senior as `minRole` (MEMBER < ADMIN < OWNER). */
+/** Whether `role` is at least as senior as `minRole` (MEMBER < MODERATOR < ADMIN < OWNER). */
 export function roleAtLeast(
   role: ChatRoomRole,
   minRole: ChatRoomRole,

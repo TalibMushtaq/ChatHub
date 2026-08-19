@@ -163,7 +163,7 @@ export interface DMInboxEntry {
   createdAt: string;
 }
 
-export type RoomRole = "OWNER" | "ADMIN" | "MEMBER";
+export type RoomRole = "OWNER" | "ADMIN" | "MODERATOR" | "MEMBER";
 
 /** Channel kind — VOICE is wired up in the calling phase. */
 export type ChannelType = "TEXT" | "VOICE" | "ANNOUNCEMENT" | "FORUM";
@@ -230,6 +230,20 @@ export interface RoomMember {
   memberId: string;
   role: RoomRole;
   joinedAt: string;
+  user: MessageUser;
+  /** Per-room display name (Phase 4), falls back to the global display name. */
+  nickname?: string | null;
+  /** While set (and in the future), the member is muted. */
+  mutedUntil?: string | null;
+}
+
+/** A room ban record from GET /room/:roomId/bans (Phase 4 §8.3). */
+export interface RoomBan {
+  id: string;
+  userId: string;
+  reason: string | null;
+  createdAt: string;
+  bannedBy: MessageUser;
   user: MessageUser;
 }
 
@@ -324,7 +338,10 @@ export type ModalName =
   | "recovery"
   | "confirm"
   | "userProfile"
-  | "avatarViewer";
+  | "avatarViewer"
+  | "memberAction"
+  | "banList"
+  | "nickname";
 
 export interface UploadItem {
   uid: string;

@@ -321,6 +321,18 @@ router.patch(
           if (invitation.status !== "PENDING")
             throw new AppError("Invitation already processed", 409);
 
+          // A banned user cannot re-enter via an invitation (Phase 4 §8.3).
+          const banned = await tx.roomBan.findUnique({
+            where: {
+              roomId_userId: {
+                roomId: invitation.roomId,
+                userId: myId,
+              },
+            },
+            select: { id: true },
+          });
+          if (banned) throw new AppError("You are banned from this room", 403);
+
           await tx.roomInvitation.update({
             where: { id: invitationId },
             data: { status: "ACCEPTED" },

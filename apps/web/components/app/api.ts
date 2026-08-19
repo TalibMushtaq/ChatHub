@@ -31,6 +31,8 @@ import type {
   Category,
   ChannelType,
   RoomDetail,
+  RoomBan,
+  RoomRole,
 } from "./types";
 
 export interface Paginated<T> {
@@ -261,6 +263,80 @@ export const ChatAPI = {
   async getRoomMembers(roomId: string): Promise<RoomMember[]> {
     const { data } = await api.get(`/room/${roomId}/members`);
     return data.members;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Member management (Phase 4 §8)
+  // ---------------------------------------------------------------------------
+
+  /** Assign/change a member's role (owner-only server-side). */
+  async changeMemberRole(
+    roomId: string,
+    userId: string,
+    role: RoomRole,
+  ): Promise<RoomMember> {
+    const { data } = await api.patch(`/room/${roomId}/members/${userId}/role`, {
+      role,
+    });
+    return data.member;
+  },
+
+  /** Kick a member from the room. */
+  async kickMember(roomId: string, userId: string): Promise<void> {
+    await api.post(`/room/${roomId}/members/${userId}/kick`);
+  },
+
+  /** Ban a member (kicks them + records the ban). */
+  async banMember(
+    roomId: string,
+    userId: string,
+    reason?: string,
+  ): Promise<void> {
+    await api.post(`/room/${roomId}/members/${userId}/ban`, {
+      reason: reason || null,
+    });
+  },
+
+  /** Lift a ban (the user must rejoin via invite/link). */
+  async unbanMember(roomId: string, userId: string): Promise<void> {
+    await api.delete(`/room/${roomId}/members/${userId}/ban`);
+  },
+
+  /** List the room's bans. */
+  async getRoomBans(roomId: string): Promise<RoomBan[]> {
+    const { data } = await api.get(`/room/${roomId}/bans`);
+    return data.bans;
+  },
+
+  /** Mute a member for `durationMinutes` (1–43200). */
+  async muteMember(
+    roomId: string,
+    userId: string,
+    durationMinutes: number,
+  ): Promise<RoomMember> {
+    const { data } = await api.post(`/room/${roomId}/members/${userId}/mute`, {
+      durationMinutes,
+    });
+    return data.member;
+  },
+
+  /** Unmute a member. */
+  async unmuteMember(roomId: string, userId: string): Promise<RoomMember> {
+    const { data } = await api.delete(`/room/${roomId}/members/${userId}/mute`);
+    return data.member;
+  },
+
+  /** Set (or clear with null) a member's per-room nickname. */
+  async setMemberNickname(
+    roomId: string,
+    userId: string,
+    nickname: string | null,
+  ): Promise<RoomMember> {
+    const { data } = await api.patch(
+      `/room/${roomId}/members/${userId}/nickname`,
+      { nickname },
+    );
+    return data.member;
   },
 
   async markRoomRead(

@@ -5,9 +5,45 @@ import { prisma } from "../../../db/prisma";
 import { getPrismaErrorCode } from "../../lib/prismaError";
 import { AppError } from "../../lib/AppError";
 import { createJoinLinkSchema } from "@repo/validators";
+import type { Server as IOServer } from "socket.io";
 import crypto from "crypto";
 
 const router = Router();
+
+/**
+ * Broadcast that a user joined the room so all open sidebars add them without
+ * polling. Reads the member row after the join transaction committed.
+ */
+async function emitMemberAdded(req: Request, roomId: string, userId: string) {
+  const member = await prisma.chatRoomMember.findUnique({
+    where: { userId_chatRoomId: { userId, chatRoomId: roomId } },
+    select: {
+      id: true,
+      role: true,
+      joinedAt: true,
+      nickname: true,
+      mutedUntil: true,
+      User: {
+        select: { id: true, username: true, displayName: true, avatar: true },
+      },
+    },
+  });
+  if (!member) return;
+  (req.io as unknown as IOServer)
+    .to(`room:${roomId}`)
+    .emit("chatroom:member:added", {
+      roomId,
+      member: {
+        memberId: member.id,
+        userId,
+        role: member.role,
+        joinedAt: member.joinedAt,
+        nickname: member.nickname,
+        mutedUntil: member.mutedUntil,
+        user: member.User,
+      },
+    });
+}
 
 /**
  * Hash a join token using SHA-256 before storing it in the database.
@@ -186,6 +222,9 @@ router.post(
       const userId = req.user!.id;
       const rawToken = String(req.params.token);
       const hashedToken = hashToken(rawToken);
+      // Room the user joins; captured inside the transaction for the
+      // post-transaction member-added broadcast.
+      let joinedRoomId: string | null = null;
 
       await prisma.$transaction(async (tx) => {
         const link = await tx.roomJoinLink.findUnique({
@@ -205,6 +244,17 @@ router.post(
         if (link.expiresAt && link.expiresAt < now) {
           throw new AppError("Link is no longer valid", 410);
         }
+
+        // A banned user cannot re-enter via a join link (Phase 4 §8.3).
+        const banned = await tx.roomBan.findUnique({
+          where: { roomId_userId: { roomId: link.roomId, userId } },
+          select: { id: true },
+        });
+        if (banned) {
+          throw new AppError("You are banned from this room", 403);
+        }
+
+        joinedRoomId = link.roomId;
 
         // Atomic reservation: try to claim a slot before joining.
         // If maxUses is null (unlimited), skip the check.
@@ -257,6 +307,11 @@ router.post(
           });
         }
       });
+
+      // Broadcast the new member to the room so sidebars update live.
+      if (joinedRoomId) {
+        void emitMemberAdded(req, joinedRoomId, userId);
+      }
 
       return res.status(200).json({ ok: true });
     } catch (err: unknown) {
