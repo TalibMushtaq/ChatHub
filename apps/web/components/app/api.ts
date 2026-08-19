@@ -322,8 +322,13 @@ export const ChatAPI = {
     await api.delete(`/room/rooms/${roomId}/channels/${channelId}`);
   },
 
-  async reorderChannels(roomId: string, orderedIds: string[]): Promise<void> {
-    await api.patch(`/room/rooms/${roomId}/channels/reorder`, { orderedIds });
+  /** Reorder channels (and move them across categories) in one atomic request.
+      Each item carries the category it ends up in; null moves it to Uncategorized. */
+  async reorderChannels(
+    roomId: string,
+    items: { id: string; categoryId: string | null }[],
+  ): Promise<void> {
+    await api.patch(`/room/rooms/${roomId}/channels/reorder`, { items });
   },
 
   async createCategory(roomId: string, name: string): Promise<Category> {

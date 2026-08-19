@@ -132,6 +132,22 @@ export const reorderSchema = z.object({
   orderedIds: z.array(z.string().min(1)).min(1, "Ordered ids are required"),
 });
 
+/**
+ * Channel reorder payload: each channel carries the category it ends up in so a
+ * drag across categories (move + reorder) commits atomically in one request.
+ * `categoryId: null` moves the channel to "Uncategorized".
+ */
+export const channelReorderSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        categoryId: z.string().min(1).nullable(),
+      }),
+    )
+    .min(1, "Ordered channels are required"),
+});
+
 // --- Invitations ---
 
 export const sendInvitationSchema = z.object({

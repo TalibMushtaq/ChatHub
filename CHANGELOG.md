@@ -1,3 +1,32 @@
+## [2026-08-19] - Rooms → Community: channel/category management (Phase 3)
+
+**What changed:** Implemented the Phase 3 channel & category management layer on top of the Phase 1/2 foundation: full channel CRUD (create/rename/edit/move/delete) with client + server validation and duplicate prevention, category rename/delete (delete moves channels to "Uncategorized"), drag-and-drop reorder for categories and channels (with keyboard + touch support and optimistic rollback), channel/category context menus, confirmation for destructive actions, and shareable per-channel deep links.
+
+Server (`apps/server` + `packages/validators`):
+
+- **Reorder endpoint extended for cross-category moves** — `channelReorderSchema` (new) replaces `reorderSchema` on `PATCH /rooms/:roomId/channels/reorder`; the payload is now `{ items: [{ id, categoryId }] }` so a drag that moves a channel into another category commits atomically (position + categoryId) in one transaction. `reorderChannels` (`services/room/channels.ts`) validates every id and non-null category belongs to the room before writing. `reorderCategories` keeps the old `orderedIds` contract.
+- **Tests** (`tests/unit/services/room/channels.test.ts`): reorder tests updated to the item payload; added foreign-category rejection + cross-category position/category assignment coverage (20 tests in the file).
+
+Web (`apps/web`):
+
+- **New deps** `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` — accessible drag-and-drop (PointerSensor for mouse/touch, KeyboardSensor for keyboard, closestCenter collision).
+- **`room/sidebarReorder.ts`** (new): pure, unit-tested helpers — `channelsByCategory`/`channelContainer`/`applyDragOver`/`moveChannel` (arrayMove semantics), `channelReorderResult`/`categoryReorderResult` (build the API payload + locally-patched room detail), `channelLink`/`parseConvParam` (deep links). 16 tests in `tests/sidebarReorder.test.ts`.
+- **`room/RoomSidebar.tsx`**: owns the `DndContext`; category headers sort via a `SortableContext`, each category's channel list is its own `SortableContext` with a droppable container (drop into empty categories). Reorder state lives in a local `dragContainers` snapshot seeded at drag start; on drop the arrangement is patched optimistically via the new `patchRoomDetail` shell function and reconciled with the server, with a refetch rollback on failure.
+- **`room/CategorySection.tsx`**: sortable category header (grip handle for admins), droppable channel-list area, category context menu trigger (right-click + "⋯"), and per-container channel rendering from the DnD state.
+- **`room/ChannelItem.tsx`**: row now also carries a drag handle (admins) and a "⋯" menu button; right-click opens the context menu. Menu is portal-rendered with viewport-clamped fixed coordinates so it isn't clipped by the sidebar's scroll container.
+- **`room/ChannelContextMenu.tsx` + `room/CategoryContextMenu.tsx` + `room/MenuList.tsx`** (new): §7.3 menus — admins get Edit Channel / Notification Settings / Copy Channel Link / Delete Channel; members get Notification Settings / Copy Channel Link. Categories get Rename / Create Channel / Delete. Destructive actions go through the existing confirm modal.
+- **`room/EditChannelModal.tsx` + `room/EditCategoryModal.tsx`** (new): rename + topic + category move (the keyboard/mobile path for moving a channel), with client-side name validation mirroring the server and inline duplicate detection. Registered as `editChannel`/`editCategory` modals in `Modals.tsx`.
+- **`room/CreateChannelModal.tsx`**: drops ANNOUNCEMENT/FORUM (server only accepts TEXT/VOICE), disables VOICE with a "coming soon" tooltip (§7.1), adds client-side name validation + duplicate pre-check.
+- **`Modals.tsx`**: registers both edit modals; `ConfirmModal` now awaits an async `onYes` so delete/category-delete shows a busy state until the request settles.
+- **`AppShell.tsx`**: `parseConvParam` extended to `room:<roomId>:<channelId>` (shared helper), `openConvFromLink` passes the channel through, and room open validates the requested channel against the fetched structure (falls back to `#general`/first when stale). `patchRoomDetail` added to the shell for optimistic tree edits.
+- **`api.ts`**: `reorderChannels(roomId, items)` matches the new payload.
+
+**Why:** Roadmap Phase 3 — authorized users need to manage the category/channel tree (create, rename, move, delete) with production-grade validation, confirmation, and accessible drag-and-drop, plus shareable channel links, before roles/members and voice channels land.
+
+**Impact:** `apps/web` (large: new room management components + dnd wiring in the sidebar; `reorderChannels` signature change is web-only, the endpoint was unused before) and `apps/server` (reorder endpoint contract change + validator; additive for category reorder). Deep links gained an optional `:channelId` segment; existing `?conv=room:<id>` links still work. Verification: `pnpm test` (server 665 / 97 files incl. updated channel tests; web 78 / 8 files incl. the new 16-test `sidebarReorder.test.ts`), `check-types`, `lint` (0 warnings), `build` — all clean.
+
+**Follow-ups:** Real-time channel/category events (Phase 6) will make reorder/create/edit propagate to other members automatically — today they're reflected per-client after the action's local patch/refresh. Drag-and-drop is dnd-kit KeyboardSensor-based; the settings-side channel editor (Phase 5) will offer a redundant, non-drag alternative for moving channels.
+
 ## [2026-08-19] - Rooms → Community: room shell, channels UI, per-channel timelines (Phase 2)
 
 **What changed:** Built the Phase 2 room front-end on top of the Phase 1 category/channel model: a full room shell (sidebar with category→channel tree, channel timeline + composer, members sidebar), per-channel message timelines with cursor pagination, a client-side unread heuristic, and functional Create Channel / Create Category modals. A new `POST /rooms/:roomId/leave` endpoint removes the caller's membership.

@@ -41,6 +41,8 @@ import { useNotificationSound } from "./useNotificationSound";
 import { useNotifications } from "./useNotifications";
 import { CreateChannelModal } from "./room/CreateChannelModal";
 import { CreateCategoryModal } from "./room/CreateCategoryModal";
+import { EditChannelModal } from "./room/EditChannelModal";
+import { EditCategoryModal } from "./room/EditCategoryModal";
 import {
   btn,
   btnPrimary,
@@ -71,6 +73,8 @@ const TITLES: Record<ModalEntry["name"], string> = {
   roomInfo: "Room info",
   createChannel: "Create channel",
   createCategory: "Create category",
+  editChannel: "Edit channel",
+  editCategory: "Edit category",
   invite: "Invite to room",
   joinRequests: "Join requests",
   joinLinks: "Join links",
@@ -277,6 +281,14 @@ function Body(entry: ModalEntry) {
     case "createCategory": {
       const roomId = String(entry.payload);
       return <CreateCategoryModal roomId={roomId} />;
+    }
+    case "editChannel": {
+      const p = entry.payload as { roomId: string; channelId: string };
+      return <EditChannelModal roomId={p.roomId} channelId={p.channelId} />;
+    }
+    case "editCategory": {
+      const p = entry.payload as { roomId: string; categoryId: string };
+      return <EditCategoryModal roomId={p.roomId} categoryId={p.categoryId} />;
     }
     case "roomInfo":
       return <RoomInfoModal />;
@@ -1798,22 +1810,31 @@ function ConfirmModal({
         {p.text}
       </p>
       <div className="mactions mt-4 grid gap-2.5">
-        <button className={`${btnGhost} ${btnBlock}`} onClick={clearModals}>
+        <button
+          className={`${btnGhost} ${btnBlock}`}
+          onClick={clearModals}
+          disabled={busy}
+        >
           Cancel
         </button>
         <button
           className={`${btnBlock} ${p.danger ? btnDanger : btnPrimary}`}
           disabled={busy}
-          onClick={() => {
+          onClick={async () => {
             setBusy(true);
             try {
-              p.onYes();
+              // Await async handlers (e.g. delete channel/category) so the
+              // modal shows a busy state and stays open until the call settles.
+              await p.onYes();
+            } catch {
+              // Handlers toast their own errors; nothing to surface here.
             } finally {
+              setBusy(false);
               clearModals();
             }
           }}
         >
-          {p.danger ? "Delete" : "Confirm"}
+          {busy ? "Working…" : p.danger ? "Delete" : "Confirm"}
         </button>
       </div>
     </>

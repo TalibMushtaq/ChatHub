@@ -97,6 +97,12 @@ export interface ShellCtx {
   leaveRoom: (roomId: string) => Promise<void>;
   /** Re-fetch a room's category/channel tree (e.g. after creating a channel). */
   refreshRoomDetail: (roomId: string) => Promise<void>;
+  /** Optimistically patch the cached room structure without a network call
+      (used by edit/delete/reorder before the next refresh reconciles). */
+  patchRoomDetail: (
+    roomId: string,
+    updater: (detail: RoomDetail) => RoomDetail,
+  ) => void;
   /** Fetch the page of messages before a room channel's oldest loaded one. */
   loadOlderMessages: (
     roomId: string,

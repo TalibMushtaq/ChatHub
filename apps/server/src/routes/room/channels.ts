@@ -6,7 +6,7 @@ import {
   channelIdParamSchema,
   createChannelSchema,
   updateChannelSchema,
-  reorderSchema,
+  channelReorderSchema,
 } from "@repo/validators";
 import {
   listChannels,
@@ -78,8 +78,8 @@ router.patch(
   requireAuth,
   asyncHandler(async (req, res) => {
     const roomId = roomIdParamSchema.parse(req.params).roomId;
-    const { orderedIds } = reorderSchema.parse(req.body);
-    await reorderChannels(req.user!.id, roomId, orderedIds);
+    const { items } = channelReorderSchema.parse(req.body);
+    await reorderChannels(req.user!.id, roomId, items);
     res.json({ ok: true });
   }),
 );

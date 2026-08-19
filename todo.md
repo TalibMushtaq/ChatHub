@@ -20,22 +20,28 @@
 
 ### Phase 2 — New Room Frontend Shell
 
-- [ ] Room layout: header + sidebar (categories/channels) + channel content + members sidebar (§6)
-- [ ] Room sidebar with header dropdown menu (authorized vs member menus) (§6.1)
-- [ ] Categories render (collapse/expand, channels) (§6.2)
-- [ ] Channel appearance: # / 🔊 icons, active/unread/mentioned states, voice participant count + avatar stack (§6.3)
-- [ ] Channel header (name + topic, notification/search/member toggle) (§6.4)
-- [ ] Message area: cursor pagination, grouping, timestamps/avatar/content, edited/deleted states, context menu (§6.5)
-- [ ] Message composer: anchored, multiline, Enter/Shift+Enter, failure handling, preserves text (§6.6)
-- [ ] Mobile layout: drawers/sheets, room→sidebar→channel flow, keyboard-aware composer (§6.7)
-- [ ] Phase 2 completion: loading/error/empty states + existing auth + realtime (§6.8)
+- [x] Room layout: header + sidebar (categories/channels) + channel content + members sidebar (§6)
+- [x] Room sidebar with header dropdown menu (authorized vs member menus) (§6.1)
+- [x] Categories render (collapse/expand, channels) + functional Create Channel/Category modals (§6.2)
+- [x] Channel appearance: # / 🔊 icons, active/unread states (§6.3)
+- [ ] Channel appearance: mentioned-state indicator (needs per-channel mention/unread system — Phase 6) (§6.3)
+- [ ] Channel appearance: voice participant count + avatar stack (needs call presence — Phase 7) (§6.3)
+- [x] Channel header: name + topic, notification + member toggle, stays visible while scrolling (§6.4; search deferred — message search is a Backlog item)
+- [x] Message area: cursor pagination, grouping, timestamps/avatar/content, edited/deleted states, context menu (§6.5; reactions/reply N/A — app has neither)
+- [x] Message composer: anchored, multiline, Enter/Shift+Enter, failure handling, preserves text, attachments (§6.6)
+- [x] Mobile layout: drawers/sheets, room→sidebar→channel flow, member-list drawer; full-screen thread sheet handles the keyboard (§6.7)
+- [x] Phase 2 completion: loading/error/empty states + existing auth + realtime; client-side per-channel unread heuristic (server cursors land in Phase 6) (§6.8)
+
+> Phase 2 verified with `pnpm test` (664), `check-types`, `lint`, `build` (commit `b9a99a1`). Deferred pieces tracked as separate items above; manual browser pass still pending.
 
 ### Phase 3 — Channel & Category Management
 
-- [ ] Channel CRUD (create/rename/edit/delete/move) with create modal + client/server validation + duplicate prevention (§7.1)
-- [ ] Category CRUD (create/rename/delete/collapse/reorder); delete moves channels to "Uncategorized" (§7.2)
-- [ ] Drag-and-drop reorder with keyboard + touch + optimistic rollback (§7.2)
-- [ ] Channel context menu (edit/notification/copy link/delete) + confirmation for destructive actions (§7.3)
+- [x] Channel CRUD (create/rename/edit/delete/move) with create modal + client/server validation + duplicate prevention (§7.1)
+- [x] Category CRUD (create/rename/delete/collapse/reorder); delete moves channels to "Uncategorized" (§7.2)
+- [x] Drag-and-drop reorder with keyboard + touch + optimistic rollback (§7.2)
+- [x] Channel context menu (edit/notification/copy link/delete) + confirmation for destructive actions (§7.3)
+
+> Phase 3 verified with `pnpm test` (server 665 / web 78), `check-types`, `lint`, `build` (format check clean). Manual browser pass still pending.
 
 ### Phase 4 — Roles + Members
 

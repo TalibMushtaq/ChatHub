@@ -309,6 +309,18 @@ export const ChevronIcon = (p: IconProps) => (
   </svg>
 );
 
+/** Vertical grip dots used as the drag handle for channel/category reorder. */
+export const GripIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 /** Returns the icon component for a MIME type (used in attachment chips). */
 export function iconForMime(mime: string | undefined): ReactNode {
   if (!mime) return <FileIcon />;

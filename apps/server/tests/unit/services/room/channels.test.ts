@@ -242,7 +242,7 @@ describe("room channels service", () => {
   });
 
   describe("reorderChannels", () => {
-    it("reassigns positions from the ordered id list", async () => {
+    it("reassigns positions and categories from the ordered item list", async () => {
       prismaMock.chatRoomMember.findUnique.mockResolvedValue({
         role: "ADMIN",
       } as any);
@@ -250,35 +250,60 @@ describe("room channels service", () => {
         { id: "a" },
         { id: "b" },
       ] as any);
+      prismaMock.category.findMany.mockResolvedValue([{ id: "cat-1" }] as any);
       prismaMock.channel.update.mockImplementation((args) => args as any);
       prismaMock.$transaction.mockImplementation((ops: any[]) =>
         Promise.all(ops),
       );
 
-      await reorderChannels("u1", "r1", ["a", "b"]);
+      await reorderChannels("u1", "r1", [
+        { id: "a", categoryId: "cat-1" },
+        { id: "b", categoryId: null },
+      ]);
 
       expect(prismaMock.$transaction).toHaveBeenCalledWith([
         expect.objectContaining({
-          data: { position: 0 },
+          data: { position: 0, categoryId: "cat-1" },
         }),
         expect.objectContaining({
-          data: { position: 1 },
+          data: { position: 1, categoryId: null },
         }),
       ]);
     });
 
-    it("throws 400 when an id does not belong to the room", async () => {
+    it("throws 400 when a channel id does not belong to the room", async () => {
       prismaMock.chatRoomMember.findUnique.mockResolvedValue({
         role: "ADMIN",
       } as any);
       prismaMock.channel.findMany.mockResolvedValue([{ id: "a" }] as any);
 
       await expect(
-        reorderChannels("u1", "r1", ["a", "b"]),
+        reorderChannels("u1", "r1", [
+          { id: "a", categoryId: null },
+          { id: "b", categoryId: null },
+        ]),
       ).rejects.toMatchObject({
         statusCode: 400,
         code: "BAD_REQUEST",
       });
+    });
+
+    it("throws 400 when a category does not belong to the room", async () => {
+      prismaMock.chatRoomMember.findUnique.mockResolvedValue({
+        role: "ADMIN",
+      } as any);
+      prismaMock.channel.findMany.mockResolvedValue([{ id: "a" }] as any);
+      // The category lives in a different room, so the room-scoped lookup
+      // returns nothing and the length guard rejects the request.
+      prismaMock.category.findMany.mockResolvedValue([] as any);
+
+      await expect(
+        reorderChannels("u1", "r1", [{ id: "a", categoryId: "cat-1" }]),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: "BAD_REQUEST",
+      });
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
   });
 

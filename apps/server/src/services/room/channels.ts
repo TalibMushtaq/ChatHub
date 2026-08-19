@@ -171,22 +171,24 @@ export async function deleteChannel(
 }
 
 /**
- * Reassign positions from an ordered id list. The list is scoped to a single
- * ordering bucket (one category's channels, or uncategorized) by the caller,
- * and every id must belong to this room before anything is written.
+ * Reassign positions (and optionally category) from an ordered list. The list
+ * covers every channel in the room in display order; each entry may also carry
+ * a new `categoryId` so moving a channel across categories and reordering
+ * commit atomically. Every id and category must belong to this room before
+ * anything is written.
  */
 export async function reorderChannels(
   userId: string,
   roomId: string,
-  orderedIds: string[],
+  items: { id: string; categoryId: string | null }[],
 ) {
   await assertRoomPermission(userId, roomId, "MANAGE_CHANNELS");
 
   const channels = await prisma.channel.findMany({
-    where: { id: { in: orderedIds }, roomId },
+    where: { id: { in: items.map((i) => i.id) }, roomId },
     select: { id: true },
   });
-  if (channels.length !== orderedIds.length) {
+  if (channels.length !== items.length) {
     throw new ApiError(
       "One or more channels do not belong to this room",
       400,
@@ -194,11 +196,32 @@ export async function reorderChannels(
     );
   }
 
+  // Category ids may repeat (several channels in one category) but must all
+  // belong to this room; a null means "move to Uncategorized".
+  const categoryIds = Array.from(
+    new Set(
+      items.map((i) => i.categoryId).filter((c): c is string => c !== null),
+    ),
+  );
+  if (categoryIds.length > 0) {
+    const categories = await prisma.category.findMany({
+      where: { id: { in: categoryIds }, roomId },
+      select: { id: true },
+    });
+    if (categories.length !== categoryIds.length) {
+      throw new ApiError(
+        "One or more categories do not belong to this room",
+        400,
+        "BAD_REQUEST",
+      );
+    }
+  }
+
   await prisma.$transaction(
-    orderedIds.map((id, index) =>
+    items.map((item, index) =>
       prisma.channel.update({
-        where: { id },
-        data: { position: index },
+        where: { id: item.id },
+        data: { position: index, categoryId: item.categoryId },
       }),
     ),
   );

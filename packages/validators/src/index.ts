@@ -46,6 +46,7 @@ export {
   channelNameSchema,
   normalizeChannelName,
   reorderSchema,
+  channelReorderSchema,
   roomAvatarKeySchema,
   markReadSchema,
 } from "./room";

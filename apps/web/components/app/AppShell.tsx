@@ -39,6 +39,7 @@ import AppAvatar from "./AppAvatar";
 import ListPanel from "./ListPanel";
 import ThreadPanel from "./ThreadPanel";
 import RoomShell from "./room/RoomShell";
+import { parseConvParam as parseConvParamHelper } from "./room/sidebarReorder";
 import Modals from "./Modals";
 import { Toasts } from "./Toasts";
 import {
@@ -135,9 +136,9 @@ export default function AppShell() {
   const threadHistoryRef = useRef(false);
   // Latest deep-link handler for the service worker's navigate messages; the
   // listener is registered once, so it must read through a ref.
-  const openConvFromLinkRef = useRef<(kind: "dm" | "room", id: string) => void>(
-    () => {},
-  );
+  const openConvFromLinkRef = useRef<
+    (kind: "dm" | "room", id: string, channelId?: string) => void
+  >(() => {});
   // Latest friend-request event applier, shared by the once-registered socket
   // and service-worker handlers (same ref pattern as openConvFromLinkRef).
   const applyFriendRequestEventRef = useRef<
@@ -441,7 +442,11 @@ export default function AppShell() {
             if (typeof window !== "undefined") {
               history.replaceState({}, "", "/dashboard");
             }
-            openConvFromLinkRef.current(target.kind, target.id);
+            openConvFromLinkRef.current(
+              target.kind,
+              target.id,
+              target.channelId,
+            );
           }
         }),
         onLists: live((dm, rooms, friendRequests) => {
@@ -1114,18 +1119,18 @@ export default function AppShell() {
   // Conversation lifecycle
   // ---------------------------------------------------------------------------
   // ---------------------------------------------------------------------------
-  // Deep links (notification clicks): open a conversation by kind + id.
+  // Deep links (notification clicks): open a conversation by kind + id, or a
+  // specific room channel via `?conv=room:<roomId>:<channelId>` (Phase 3).
   // ---------------------------------------------------------------------------
-  function parseConvParam(): { kind: "dm" | "room"; id: string } | null {
+  function parseConvParam(): {
+    kind: "dm" | "room";
+    id: string;
+    channelId?: string;
+  } | null {
     if (typeof window === "undefined") return null;
     const raw = new URLSearchParams(window.location.search).get("conv");
-    if (!raw) return null;
-    const sep = raw.indexOf(":");
-    if (sep <= 0) return null;
-    const kind = raw.slice(0, sep);
-    const id = raw.slice(sep + 1);
-    if ((kind !== "dm" && kind !== "room") || !id) return null;
-    return { kind, id };
+    const parsed = parseConvParamHelper(raw);
+    return parsed;
   }
 
   async function openDmFromLink(directChatId: string) {
@@ -1149,9 +1154,13 @@ export default function AppShell() {
     openConv({ kind: "dm", id: directChatId, otherUser });
   }
 
-  function openConvFromLink(kind: "dm" | "room", id: string) {
+  function openConvFromLink(
+    kind: "dm" | "room",
+    id: string,
+    channelId?: string,
+  ) {
     if (kind === "dm") void openDmFromLink(id);
-    else openConv({ kind: "room", id });
+    else openConv({ kind: "room", id, channelId });
   }
   openConvFromLinkRef.current = openConvFromLink;
   applyFriendRequestEventRef.current = applyFriendRequestEvent;
@@ -1251,26 +1260,36 @@ export default function AppShell() {
     const prev = activeRef.current;
     const wasActive = prev != null;
     if (prev && !(prev.kind === c.kind && prev.id === c.id)) leaveSocket(prev);
-    if (c.kind === "room" && !c.channelId) {
-      // Rooms are opened at a channel; resolve the tree and default to
-      // #general (or the first channel) before mounting the RoomShell.
-      void openRoomWithDefaultChannel(c, wasActive);
+    if (c.kind === "room") {
+      // Rooms are opened at a channel. A deep link may specify one; otherwise
+      // (or if it no longer exists) fall back to #general / the first channel.
+      void openRoomWithChannel(c, wasActive);
       return;
     }
     activateConv(c, wasActive);
   }
 
-  /** Fetch a room's structure, cache it, pick the default channel, then open. */
-  async function openRoomWithDefaultChannel(c: ActiveConv, wasActive: boolean) {
-    let channelId: string | undefined;
+  /** Fetch a room's structure, validate the requested (or default) channel, open. */
+  async function openRoomWithChannel(c: ActiveConv, wasActive: boolean) {
+    let channelId = c.channelId;
     try {
       const detail = await ChatAPI.getRoomDetail(c.id);
       setRoomDetails((prev) => ({ ...prev, [c.id]: detail }));
-      channelId = defaultChannelId(detail);
+      if (!channelId || !channelExists(detail, channelId)) {
+        channelId = defaultChannelId(detail);
+      }
     } catch (err) {
       toast(getErrorMessage(err, "Failed to load room"), "error");
     }
     activateConv({ ...c, channelId }, wasActive);
+  }
+
+  /** Whether a channel id exists anywhere in a room's structure. */
+  function channelExists(detail: RoomDetail, channelId: string): boolean {
+    for (const cat of detail.categories) {
+      if ((cat.channels ?? []).some((ch) => ch.id === channelId)) return true;
+    }
+    return detail.uncategorized.some((ch) => ch.id === channelId);
   }
 
   /** Core open path — everything `openConv` used to do synchronously. */
@@ -1388,6 +1407,19 @@ export default function AppShell() {
   async function refreshRoomDetail(roomId: string): Promise<void> {
     const detail = await ChatAPI.getRoomDetail(roomId);
     setRoomDetails((prev) => ({ ...prev, [roomId]: detail }));
+  }
+
+  /** Locally apply an edit/delete/reorder to the cached room structure so the
+      sidebar reflects it instantly; a later refresh reconciles with the server. */
+  function patchRoomDetail(
+    roomId: string,
+    updater: (detail: RoomDetail) => RoomDetail,
+  ) {
+    setRoomDetails((prev) => {
+      const detail = prev[roomId];
+      if (!detail) return prev;
+      return { ...prev, [roomId]: updater(detail) };
+    });
   }
 
   function closeConv() {
@@ -1847,6 +1879,7 @@ export default function AppShell() {
     openChannel,
     leaveRoom,
     refreshRoomDetail,
+    patchRoomDetail,
     loadOlderMessages,
     closeConv,
     navigateBack,

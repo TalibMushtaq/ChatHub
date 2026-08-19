@@ -1,37 +1,46 @@
 "use client";
 
-// Create-channel modal (Phase 3 §7.1): name + type + optional topic + category.
-// TEXT is fully wired; VOICE is visible but disabled until the calling phase
-// (spec §7.1 — pick one affordance and stay consistent). ANNOUNCEMENT/FORUM are
-// dropped because the server only accepts TEXT/VOICE. Name rules are mirrored
-// client-side; the server re-validates and enforces the unique constraint.
+// Edit-channel modal (Phase 3 §7.1): rename, edit the topic, or move the
+// channel to another category (the keyboard/mobile path for "move"). The type
+// is fixed after creation, mirroring Discord. Duplicate names are rejected
+// client-side against the loaded tree AND server-side (409) as the authority.
 import { useMemo, useState, type FormEvent } from "react";
 import { useShell } from "../state";
 import { ChatAPI, getErrorMessage } from "../api";
 import { normalizeChannelName } from "@repo/validators";
-import { useRoomDetail } from "./useRoomDetail";
-import type { ChannelType } from "../types";
 import { btnPrimary, btnBlock, fieldLabel, fieldInput } from "../styles";
+import { useRoomDetail } from "./useRoomDetail";
 
 const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 
-export function CreateChannelModal({
+export function EditChannelModal({
   roomId,
-  initialCategoryId,
+  channelId,
 }: {
   roomId: string;
-  initialCategoryId?: string | null;
+  channelId: string;
 }) {
-  const { toast, refreshRoomDetail, clearModals } = useShell();
+  const { toast, patchRoomDetail, clearModals } = useShell();
   const { detail } = useRoomDetail(roomId);
-  const [name, setName] = useState("");
-  const [type, setType] = useState<ChannelType>("TEXT");
-  const [topic, setTopic] = useState("");
+  const channel = useMemo(() => {
+    if (!detail) return undefined;
+    for (const cat of detail.categories) {
+      const hit = (cat.channels ?? []).find((c) => c.id === channelId);
+      if (hit) return hit;
+    }
+    return detail.uncategorized.find((c) => c.id === channelId);
+  }, [detail, channelId]);
+
+  const [name, setName] = useState(channel?.name ?? "");
+  const [topic, setTopic] = useState(channel?.topic ?? "");
   const [categoryId, setCategoryId] = useState<string | null>(
-    initialCategoryId ?? null,
+    channel?.categoryId ?? null,
   );
   const [busy, setBusy] = useState(false);
 
+  // Client-side mirror of the server's channel-name rules (2–32 lowercase
+  // alphanumeric/hyphen, spaces collapsed to hyphens). The server still
+  // re-validates and enforces the unique constraint.
   const normalized = useMemo(() => normalizeChannelName(name), [name]);
   const nameError = useMemo(() => {
     if (name.trim() && normalized.length < 2) {
@@ -47,42 +56,70 @@ export function CreateChannelModal({
       const clash = [
         ...detail.categories.flatMap((c) => c.channels ?? []),
         ...detail.uncategorized,
-      ].some((c) => c.name === normalized);
+      ].some((c) => c.id !== channelId && c.name === normalized);
       if (clash) return "A channel with that name already exists";
     }
     return null;
-  }, [name, normalized, detail]);
+  }, [name, normalized, detail, channelId]);
 
-  async function create(e: FormEvent) {
+  if (!channel) {
+    return (
+      <p className="role-note mt-1.5 mb-0.5 text-[12.5px] text-muted">
+        Channel not found.
+      </p>
+    );
+  }
+
+  async function save(e: FormEvent) {
     e.preventDefault();
     if (!normalized || nameError || busy) return;
     setBusy(true);
     try {
-      await ChatAPI.createChannel(roomId, {
+      const updated = await ChatAPI.updateChannel(roomId, channelId, {
         name: normalized,
-        type,
         topic: topic.trim() || null,
         categoryId,
       });
-      toast(`#${normalized} created`, "success");
+      // Swap the edited channel into the cached tree (updates its category
+      // bucket too when the user moved it).
+      patchRoomDetail(roomId, (detail) => {
+        const categories = detail.categories.map((cat) => ({
+          ...cat,
+          channels: [
+            ...(cat.channels ?? []).filter((c) => c.id !== channelId),
+            ...(updated.categoryId === cat.id ? [updated] : []),
+          ].sort((a, b) => a.position - b.position),
+        }));
+        return {
+          ...detail,
+          categories,
+          uncategorized:
+            updated.categoryId === null
+              ? [
+                  ...detail.uncategorized.filter((c) => c.id !== channelId),
+                  updated,
+                ]
+              : detail.uncategorized.filter((c) => c.id !== channelId),
+        };
+      });
+      toast(`#${normalized} saved`, "success");
       clearModals();
-      void refreshRoomDetail(roomId);
     } catch (err) {
-      toast(getErrorMessage(err, "Failed to create channel"), "error");
+      toast(getErrorMessage(err, "Couldn't update the channel"), "error");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={(e) => void create(e)}>
+    <form onSubmit={(e) => void save(e)}>
       <div className="mfield mb-3.5">
         <label className={fieldLabel}>Channel name</label>
         <input
           className={fieldInput}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. general-development"
+          placeholder="general-development"
           autoFocus
           maxLength={64}
         />
@@ -91,23 +128,6 @@ export function CreateChannelModal({
             {nameError}
           </p>
         )}
-      </div>
-      <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Type</label>
-        <select
-          className={fieldInput}
-          value={type}
-          onChange={(e) => setType(e.target.value as ChannelType)}
-        >
-          <option value="TEXT">Text</option>
-          <option
-            value="VOICE"
-            disabled
-            title="Voice channels arrive in a later update"
-          >
-            Voice (coming soon)
-          </option>
-        </select>
       </div>
       <div className="mfield mb-3.5">
         <label className={fieldLabel}>Topic (optional)</label>
@@ -140,7 +160,7 @@ export function CreateChannelModal({
           type="submit"
           disabled={busy || !!nameError || !normalized}
         >
-          {busy ? "Creating…" : "Create channel"}
+          {busy ? "Saving…" : "Save channel"}
         </button>
       </div>
     </form>
