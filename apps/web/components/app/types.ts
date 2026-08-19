@@ -307,6 +307,8 @@ export type ModalName =
   | "newDm"
   | "newRoom"
   | "roomInfo"
+  | "createChannel"
+  | "createCategory"
   | "invite"
   | "joinRequests"
   | "joinLinks"

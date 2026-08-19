@@ -12,6 +12,7 @@ import { uploadVoiceAttachment } from "../../app/lib/attachments";
 import {
   ShellContext,
   convKey,
+  channelKey,
   type ActiveConv,
   type ModalEntry,
   type ToastItem,
@@ -25,6 +26,7 @@ import type {
   Message,
   PresenceInfo,
   ReadReceipt,
+  RoomDetail,
   RoomInboxEntry,
   RoomMember,
   SearchUser,
@@ -36,6 +38,7 @@ import type { Relationship } from "@repo/validators";
 import AppAvatar from "./AppAvatar";
 import ListPanel from "./ListPanel";
 import ThreadPanel from "./ThreadPanel";
+import RoomShell from "./room/RoomShell";
 import Modals from "./Modals";
 import { Toasts } from "./Toasts";
 import {
@@ -93,6 +96,12 @@ export default function AppShell() {
   >({});
   const [typing, setTyping] = useState<Record<string, TypingUser[]>>({});
   const [presence, setPresence] = useState<Record<string, PresenceInfo>>({});
+  const [roomDetails, setRoomDetails] = useState<Record<string, RoomDetail>>(
+    {},
+  );
+  const [channelUnread, setChannelUnread] = useState<Record<string, boolean>>(
+    {},
+  );
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchUser[]>([]);
   const [mStack, setMStack] = useState<ModalEntry[]>([]);
@@ -109,6 +118,10 @@ export default function AppShell() {
   const userRef = useRef<AppUser | null>(null);
   const joinedRef = useRef<Set<string>>(new Set());
   const loadedKeysRef = useRef<Set<string>>(new Set());
+  // Per-channel pagination cursors (channelKey -> nextCursor / has-more flag).
+  // Only room channels page; DMs load in full as before.
+  const channelCursorRef = useRef<Record<string, string | null>>({});
+  const channelHasMoreRef = useRef<Record<string, boolean>>({});
   const msgsRef = useRef<Record<string, Message[]>>({});
   const roomMembersRef = useRef<Record<string, RoomMember[]>>({});
   const readReceiptsRef = useRef<Record<string, ReadReceipt[]>>({});
@@ -175,6 +188,25 @@ export default function AppShell() {
   ) {
     friendRequestsRef.current = fn(friendRequestsRef.current);
     setFriendRequests(friendRequestsRef.current);
+  }
+
+  // The timeline cache key for a conversation. Rooms are keyed per channel so
+  // each channel's history loads/updates independently (Phase 2).
+  function timelineKey(c: ActiveConv): string {
+    return c.kind === "room" && c.channelId
+      ? channelKey(c.id, c.channelId)
+      : convKey(c.kind, c.id);
+  }
+
+  // Pick the default channel for a freshly opened room: #general when present
+  // (Phase 1 guarantees every room has one), otherwise the first channel.
+  function defaultChannelId(detail: RoomDetail): string | undefined {
+    const all = [
+      ...detail.categories.flatMap((cat) => cat.channels ?? []),
+      ...detail.uncategorized,
+    ];
+    return (all.find((ch) => ch.name.toLowerCase() === "general") ?? all[0])
+      ?.id;
   }
 
   // ---------------------------------------------------------------------------
@@ -618,7 +650,7 @@ export default function AppShell() {
     function markReadNow() {
       const a = activeRef.current;
       if (!a) return;
-      const key = `${a.kind}:${a.id}`;
+      const key = timelineKey(a);
       const list = msgsRef.current[key] ?? [];
       const last = list[list.length - 1];
       if (!last || last.pending) return;
@@ -664,12 +696,23 @@ export default function AppShell() {
           });
           markReadNow();
         }
-      } else if (a.kind === "room" && msg.roomId === a.id) {
+      } else if (a.kind === "room" && msg.roomId === a.id && msg.channelId) {
         const norm = normalize(a, msg, mine);
-        setMsgsBoth((prev) => ({
-          ...prev,
-          [`room:${a.id}`]: upsert(prev[`room:${a.id}`] ?? [], norm),
-        }));
+        const key = channelKey(msg.roomId, msg.channelId);
+        // Only append when this channel's timeline is actually loaded — a
+        // message for a channel we've never opened must not fabricate one.
+        if (loadedKeysRef.current.has(key)) {
+          setMsgsBoth((prev) => ({
+            ...prev,
+            [key]: upsert(prev[key] ?? [], norm),
+          }));
+        }
+        // Phase 2 unread heuristic: flag every channel the message isn't in.
+        // The active channel is read-on-delivery (markReadNow below), so only
+        // non-active channels accumulate the sidebar dot.
+        if (msg.channelId !== a.channelId) {
+          setChannelUnread((prev) => ({ ...prev, [key]: true }));
+        }
         bumpRoomList(a.id, norm, mine);
         if (!mine) {
           handleIncomingMessageNotification({
@@ -684,7 +727,7 @@ export default function AppShell() {
             messageType: msg.messageType,
             content: msg.content,
           });
-          markReadNow();
+          if (msg.channelId === a.channelId) markReadNow();
         }
       }
     }
@@ -696,35 +739,76 @@ export default function AppShell() {
     }) {
       const a = activeRef.current;
       if (!a) return;
-      const key = `${a.kind}:${a.id}`;
-      setMsgsBoth((prev) => ({
-        ...prev,
-        [key]: (prev[key] ?? []).map((m) =>
-          m.id === patch.messageId
-            ? { ...m, content: patch.content, editedAt: patch.editedAt }
-            : m,
-        ),
-      }));
+      if (a.kind === "dm") {
+        const key = `dm:${a.id}`;
+        setMsgsBoth((prev) => ({
+          ...prev,
+          [key]: (prev[key] ?? []).map((m) =>
+            m.id === patch.messageId
+              ? { ...m, content: patch.content, editedAt: patch.editedAt }
+              : m,
+          ),
+        }));
+        return;
+      }
+      // Room edit payloads carry no channelId, so patch every loaded channel
+      // timeline of the active room (Phase 2 decision — client-side scan).
+      const prefix = `room:${a.id}:`;
+      setMsgsBoth((prev) => {
+        let changed = false;
+        const next: Record<string, Message[]> = { ...prev };
+        for (const key of Object.keys(prev)) {
+          if (!key.startsWith(prefix)) continue;
+          const mapped = (prev[key] ?? []).map((m) =>
+            m.id === patch.messageId
+              ? { ...m, content: patch.content, editedAt: patch.editedAt }
+              : m,
+          );
+          if (mapped !== prev[key]) {
+            next[key] = mapped;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
     }
 
     function onDeleted(patch: { messageId: string; deletedAt: string }) {
       const a = activeRef.current;
       if (!a) return;
-      const key = `${a.kind}:${a.id}`;
-      setMsgsBoth((prev) => ({
-        ...prev,
-        [key]: (prev[key] ?? []).map((m) =>
-          m.id === patch.messageId
-            ? {
-                ...m,
-                isDeleted: true,
-                deletedAt: patch.deletedAt,
-                // Mirror the server's placeholder so client state matches a refetch.
-                content: "deleted",
-              }
-            : m,
-        ),
-      }));
+      const applyDelete = (m: Message): Message =>
+        m.id === patch.messageId
+          ? {
+              ...m,
+              isDeleted: true,
+              deletedAt: patch.deletedAt,
+              // Mirror the server's placeholder so client state matches a refetch.
+              content: "deleted",
+            }
+          : m;
+      if (a.kind === "dm") {
+        const key = `dm:${a.id}`;
+        setMsgsBoth((prev) => ({
+          ...prev,
+          [key]: (prev[key] ?? []).map(applyDelete),
+        }));
+        return;
+      }
+      // Same client-side scan as onEdited: the delete payload has no channelId.
+      const prefix = `room:${a.id}:`;
+      setMsgsBoth((prev) => {
+        let changed = false;
+        const next: Record<string, Message[]> = { ...prev };
+        for (const key of Object.keys(prev)) {
+          if (!key.startsWith(prefix)) continue;
+          const mapped = (prev[key] ?? []).map(applyDelete);
+          if (mapped !== prev[key]) {
+            next[key] = mapped;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
     }
 
     socket.on("message:new", onNew);
@@ -1092,7 +1176,7 @@ export default function AppShell() {
   function markRead() {
     const a = activeRef.current;
     if (!a) return;
-    const key = `${a.kind}:${a.id}`;
+    const key = timelineKey(a);
     const list = msgsRef.current[key] ?? [];
     const last = list[list.length - 1];
     if (!last || last.pending) return;
@@ -1105,20 +1189,61 @@ export default function AppShell() {
       ChatAPI.markDmRead(a.id, last.id).catch(() => {});
     } else {
       ChatAPI.markRoomRead(a.id, last.id).catch(() => {});
+      // Viewing a channel clears its client-side unread dot (Phase 2).
+      setChannelUnread((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
   }
 
   async function loadMessages(c: ActiveConv) {
-    const key = `${c.kind}:${c.id}`;
+    const key = timelineKey(c);
     try {
-      const { messages: list } =
-        c.kind === "dm"
-          ? await ChatAPI.getDmMessages(c.id)
-          : await ChatAPI.getRoomMessages(c.id);
-      setMsgsBoth((prev) => ({ ...prev, [key]: list }));
+      if (c.kind === "dm") {
+        const { messages: list } = await ChatAPI.getDmMessages(c.id);
+        setMsgsBoth((prev) => ({ ...prev, [key]: list }));
+      } else if (c.channelId) {
+        const { messages: list, nextCursor } = await ChatAPI.getChannelMessages(
+          c.id,
+          c.channelId,
+        );
+        setMsgsBoth((prev) => ({ ...prev, [key]: list }));
+        channelCursorRef.current[key] = nextCursor;
+        channelHasMoreRef.current[key] = !!nextCursor;
+      }
       markRead();
     } catch (err) {
       toast(getErrorMessage(err, "Failed to load messages"), "error");
+    }
+  }
+
+  /** Fetch the page of messages before a room channel's oldest loaded one. */
+  async function loadOlderMessages(roomId: string, channelId: string) {
+    const key = channelKey(roomId, channelId);
+    if (!channelHasMoreRef.current[key]) return { hasMore: false };
+    const cursor = channelCursorRef.current[key] ?? undefined;
+    try {
+      const { messages, nextCursor } = await ChatAPI.getChannelMessages(
+        roomId,
+        channelId,
+        { cursor },
+      );
+      setMsgsBoth((prev) => {
+        const existing = prev[key] ?? [];
+        const known = new Set(existing.map((m) => m.id));
+        const fresh = messages.filter((m) => !known.has(m.id));
+        if (fresh.length === 0) return prev;
+        return { ...prev, [key]: [...fresh, ...existing] };
+      });
+      channelCursorRef.current[key] = nextCursor;
+      channelHasMoreRef.current[key] = !!nextCursor;
+      return { hasMore: !!nextCursor };
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to load older messages"), "error");
+      return { hasMore: false };
     }
   }
 
@@ -1126,6 +1251,30 @@ export default function AppShell() {
     const prev = activeRef.current;
     const wasActive = prev != null;
     if (prev && !(prev.kind === c.kind && prev.id === c.id)) leaveSocket(prev);
+    if (c.kind === "room" && !c.channelId) {
+      // Rooms are opened at a channel; resolve the tree and default to
+      // #general (or the first channel) before mounting the RoomShell.
+      void openRoomWithDefaultChannel(c, wasActive);
+      return;
+    }
+    activateConv(c, wasActive);
+  }
+
+  /** Fetch a room's structure, cache it, pick the default channel, then open. */
+  async function openRoomWithDefaultChannel(c: ActiveConv, wasActive: boolean) {
+    let channelId: string | undefined;
+    try {
+      const detail = await ChatAPI.getRoomDetail(c.id);
+      setRoomDetails((prev) => ({ ...prev, [c.id]: detail }));
+      channelId = defaultChannelId(detail);
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to load room"), "error");
+    }
+    activateConv({ ...c, channelId }, wasActive);
+  }
+
+  /** Core open path — everything `openConv` used to do synchronously. */
+  function activateConv(c: ActiveConv, wasActive: boolean) {
     activeRef.current = c;
     setActive(c);
     setFmenu(false);
@@ -1142,8 +1291,11 @@ export default function AppShell() {
     }
     // Load the current read cursors so per-message read ticks render as soon
     // as the timeline does. Best-effort: a failure just means ticks appear
-    // after the next readReceipt event.
-    const key = convKey(c.kind, c.id);
+    // after the next readReceipt event. Room cursors are stored at room
+    // granularity (matching the chatroom:readReceipt handler) and shared by
+    // every channel timeline, so key by room id, not the channel timeline.
+    const key = timelineKey(c);
+    const receiptsKey = c.kind === "room" ? convKey("room", c.id) : key;
     void (
       c.kind === "dm"
         ? ChatAPI.getDmReadReceipt(c.id)
@@ -1153,7 +1305,7 @@ export default function AppShell() {
         const list = (
           receipts ? (Array.isArray(receipts) ? receipts : [receipts]) : []
         ).filter((r) => r.userId !== userRef.current?.id);
-        setReadReceiptsBoth((prev) => ({ ...prev, [key]: list }));
+        setReadReceiptsBoth((prev) => ({ ...prev, [receiptsKey]: list }));
       })
       .catch(() => {});
     if (!loadedKeysRef.current.has(key)) {
@@ -1172,6 +1324,70 @@ export default function AppShell() {
         window.history.pushState({ threadOpen: true }, "");
       }
     }
+  }
+
+  /** Switch the active room's channel (loads it if not yet loaded). */
+  function openChannel(roomId: string, channelId: string) {
+    const a = activeRef.current;
+    if (!a || a.kind !== "room" || a.id !== roomId) return;
+    if (a.channelId === channelId) return;
+    const updated: ActiveConv = { ...a, channelId };
+    activeRef.current = updated;
+    setActive(updated);
+    setActiveConversation("room", roomId);
+    // Entering a channel marks it read (clears its unread dot).
+    setChannelUnread((prev) => {
+      const key = channelKey(roomId, channelId);
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    const key = channelKey(roomId, channelId);
+    if (!loadedKeysRef.current.has(key)) {
+      loadedKeysRef.current.add(key);
+      void loadMessages(updated);
+    } else {
+      markRead();
+    }
+  }
+
+  /** Remove the current user from a room (owner transfer/delete is Phase 5). */
+  async function leaveRoom(roomId: string): Promise<void> {
+    await ChatAPI.leaveRoom(roomId);
+    // The server also emits chatroom:left to this user's room, but the client
+    // updates its own state here so the list drops the room immediately (the
+    // socket echo can't be distinguished from the chatroom:leave ack).
+    setRoomList((prev) => prev.filter((r) => r.roomId !== roomId));
+    const a = activeRef.current;
+    if (a && a.kind === "room" && a.id === roomId) {
+      leaveSocket(a);
+      activeRef.current = null;
+      setActive(null);
+      clearActiveConversation();
+      threadHistoryRef.current = false;
+    }
+    // Drop the room's cached timelines/cursors so a later re-join refetches.
+    const prefix = `room:${roomId}:`;
+    for (const k of Object.keys(msgsRef.current)) {
+      if (k.startsWith(prefix)) delete msgsRef.current[k];
+    }
+    setMsgs(msgsRef.current);
+    for (const k of Object.keys(channelCursorRef.current)) {
+      if (k.startsWith(prefix)) delete channelCursorRef.current[k];
+    }
+    for (const k of Object.keys(channelHasMoreRef.current)) {
+      if (k.startsWith(prefix)) delete channelHasMoreRef.current[k];
+    }
+    for (const k of [...loadedKeysRef.current]) {
+      if (k.startsWith(prefix)) loadedKeysRef.current.delete(k);
+    }
+  }
+
+  /** Re-fetch a room's category/channel tree (e.g. after creating a channel). */
+  async function refreshRoomDetail(roomId: string): Promise<void> {
+    const detail = await ChatAPI.getRoomDetail(roomId);
+    setRoomDetails((prev) => ({ ...prev, [roomId]: detail }));
   }
 
   function closeConv() {
@@ -1199,7 +1415,7 @@ export default function AppShell() {
     const a = activeRef.current;
     if (!a) return;
     const me = userRef.current!;
-    const key = convKey(a.kind, a.id);
+    const key = timelineKey(a);
 
     // Optimistic bubble: render immediately with a pending marker, then swap
     // in the server's canonical message on success (or mark failed).
@@ -1220,7 +1436,9 @@ export default function AppShell() {
         displayName: me.displayName,
         avatar: me.avatar,
       },
-      ...(a.kind === "room" ? { roomId: a.id, senderId: me.id } : {}),
+      ...(a.kind === "room"
+        ? { roomId: a.id, channelId: a.channelId, senderId: me.id }
+        : {}),
     };
     setMsgsBoth((prev) => ({
       ...prev,
@@ -1244,7 +1462,7 @@ export default function AppShell() {
             attachmentIds,
           });
         } else {
-          const res = await RoomSocket.send(a.id, {
+          const res = await RoomSocket.send(a.id, a.channelId!, {
             content: content || undefined,
             messageType,
             attachmentIds,
@@ -1258,7 +1476,7 @@ export default function AppShell() {
             messageType: "TEXT",
           });
         } else {
-          const res = await RoomSocket.send(a.id, {
+          const res = await RoomSocket.send(a.id, a.channelId!, {
             content,
             messageType: "TEXT",
           });
@@ -1341,7 +1559,7 @@ export default function AppShell() {
     const a = activeRef.current;
     if (!a) return;
     const me = userRef.current!;
-    const key = convKey(a.kind, a.id);
+    const key = timelineKey(a);
     const text = caption?.trim() ?? "";
 
     const tempId = `temp-${Date.now().toString(36)}-${Math.random()
@@ -1361,7 +1579,9 @@ export default function AppShell() {
         displayName: me.displayName,
         avatar: me.avatar,
       },
-      ...(a.kind === "room" ? { roomId: a.id, senderId: me.id } : {}),
+      ...(a.kind === "room"
+        ? { roomId: a.id, channelId: a.channelId, senderId: me.id }
+        : {}),
     };
     setMsgsBoth((prev) => ({
       ...prev,
@@ -1386,7 +1606,7 @@ export default function AppShell() {
       if (a.kind === "dm") {
         msg = await ChatAPI.sendDmMessage(a.id, body);
       } else {
-        const res = await RoomSocket.send(a.id, body);
+        const res = await RoomSocket.send(a.id, a.channelId!, body);
         msg = res.message ?? null;
       }
 
@@ -1454,7 +1674,7 @@ export default function AppShell() {
   function removeLocalMessage(messageId: string) {
     const a = activeRef.current;
     if (!a) return;
-    const key = convKey(a.kind, a.id);
+    const key = timelineKey(a);
     setMsgsBoth((prev) => ({
       ...prev,
       [key]: (prev[key] ?? []).filter((m) => m.id !== messageId),
@@ -1611,6 +1831,8 @@ export default function AppShell() {
     readReceipts,
     typing,
     presence,
+    channelUnread,
+    roomDetails,
     q,
     results,
     listLoading,
@@ -1622,6 +1844,10 @@ export default function AppShell() {
     setQ,
     search,
     openConv,
+    openChannel,
+    leaveRoom,
+    refreshRoomDetail,
+    loadOlderMessages,
     closeConv,
     navigateBack,
     refreshLists,
@@ -1769,7 +1995,11 @@ export default function AppShell() {
           <aside
             className={`thread flex min-h-0 min-w-0 flex-col bg-bg max-md:fixed max-md:inset-0 max-md:z-30 max-md:translate-x-full max-md:transition-transform max-md:duration-[260ms] max-md:ease-app ${active ? "max-md:group-data-[thread-open]:translate-x-0" : ""}`}
           >
-            <ThreadPanel />
+            {active?.kind === "room" ? (
+              <RoomShell key={active.id} />
+            ) : (
+              <ThreadPanel />
+            )}
           </aside>
         </div>
 

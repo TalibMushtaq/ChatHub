@@ -20,6 +20,7 @@ import {
   seedDefaultStructure,
 } from "../../services/room/roomSettings";
 import { getRoomStructure } from "../../services/room/channels";
+import { leaveRoom } from "../../services/room/leaveRoom";
 import { createRateLimiter, setRateLimitHeaders } from "../../lib/rateLimiter";
 import joinRoomInvite from "./joinroominvite";
 import joinRoomRequest from "./joinroomreq";
@@ -393,6 +394,29 @@ router.delete(
     const roomId = params.data.roomId;
 
     await deleteRoom(userId, roomId);
+    res.json({ ok: true });
+  }),
+);
+
+// POST /rooms/:roomId/leave
+// Removes the caller's own membership (Phase 2 §6.1). Owners are rejected so a
+// room never gets orphaned; ownership transfer lives in the Phase 5 settings.
+router.post(
+  "/rooms/:roomId/leave",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = roomIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ ok: false, error: "roomId missing" });
+      return;
+    }
+    const roomId = params.data.roomId;
+
+    await leaveRoom(userId, roomId);
+    // The leaver's other tabs need to drop the room from their list too.
+    req.io.to(`user:${userId}`).emit("chatroom:left", { roomId });
     res.json({ ok: true });
   }),
 );

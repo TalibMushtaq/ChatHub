@@ -1,3 +1,29 @@
+## [2026-08-19] - Rooms → Community: room shell, channels UI, per-channel timelines (Phase 2)
+
+**What changed:** Built the Phase 2 room front-end on top of the Phase 1 category/channel model: a full room shell (sidebar with category→channel tree, channel timeline + composer, members sidebar), per-channel message timelines with cursor pagination, a client-side unread heuristic, and functional Create Channel / Create Category modals. A new `POST /rooms/:roomId/leave` endpoint removes the caller's membership.
+
+Server (`apps/server`):
+
+- **New service** `services/room/leaveRoom.ts` (`leaveRoom`): deletes the caller's `ChatRoomMember` + `ChatRoomReadReceipt` in one transaction; rejects OWNER (transfer/delete is Phase 5) and non-members with 403 via `getRoomRole`.
+- **Route** `routes/room/room.ts`: `POST /rooms/:roomId/leave`; emits `chatroom:left` to `user:{userId}` after leaving.
+- **Tests** `tests/unit/services/room/leaveRoom.test.ts`: 3 tests (member leave, owner blocked, non-member blocked).
+
+Web (`apps/web`):
+
+- `components/app/messages/` (new): `MessageRow.tsx` (+ `AttachmentCard`) and `MessageComposer.tsx` extracted verbatim from the old `ThreadPanel` so DM and channel timelines share one renderer; `MessageList.tsx` adds day dividers/sender grouping, upward cursor pagination (`onLoadOlder`/`hasMore`/`loadingOlder`), scroll-restore (captures `scrollHeight`/`scrollTop` before a fetch, re-applies the delta on completion) and an `empty` slot. Composer now resets on channel switch and its `onSendVoice` accepts an optional caption.
+- `components/app/room/` (new): `RoomShell.tsx` (renders in the thread column for `active.kind === "room"`; grid `RoomSidebar | channel | MemberSidebar`, mobile drawer + scrim, skeleton/error/empty states, per-room reset via `key`), `RoomSidebar.tsx` (+ skeleton), `RoomHeaderMenu.tsx` (OWNER/ADMIN management menu vs member menu; Create Channel/Category, Leave Room with confirm, Invite People; role falls back to `active.myRole`), `CategorySection.tsx` (+ uncategorized, collapse/expand persisted in `RoomShell`, per-category "+" for admins), `ChannelItem.tsx` (`#`/`🔊` glyphs via new `HashIcon`/`SpeakerIcon`, active/unread states), `ChannelHeader.tsx` (name/topic, room-scoped typing indicator, member count badge, notifications entry), `MemberSidebar.tsx` (role-grouped members, presence dots, mobile bottom-sheet), `CreateChannelModal.tsx` + `CreateCategoryModal.tsx` (functional, refresh the cached room detail), `useRoomDetail.ts` (cached `GET /room/rooms/:roomId` loader).
+- `state.ts`: `ActiveConv.channelId`; `channelKey(roomId, channelId)` timeline key; `ShellCtx` gains `channelUnread`, `roomDetails`, `openChannel`, `leaveRoom`, `refreshRoomDetail`, `loadOlderMessages`.
+- `api.ts`: `ChatAPI.leaveRoom`, and `RoomSocket.send` now takes an explicit `channelId`.
+- `AppShell.tsx`: rooms open at a default channel (`#general` else first) via an async `openConv` path that caches the detail; `timelineKey()` keys timelines per channel; `openChannel` switches/loads the active channel; `loadOlderMessages` pages before the oldest loaded message (per-channel cursor/has-more refs); `leaveRoom` updates client state directly (the `chatroom:left` echo from `chatroom:leave` is indistinguishable from the membership-removal emit, so no socket listener is added); `onNew` routes by `msg.channelId` (append only if that timeline is loaded, set `channelUnread` for non-active channels, `markReadNow` only for the active channel); `onEdited`/`onDeleted` patch every loaded `room:{id}:` timeline since edit/delete payloads carry no `channelId`; message send/voice/removeLocal are channel-aware; thread column renders `<RoomShell />` for rooms.
+- `types.ts`: `ModalName` gains `createChannel`/`createCategory`; new `HashIcon`/`SpeakerIcon`/`ChevronIcon` in `icons.tsx`.
+- `Modals.tsx`: registers both create modals (createChannel payload `{ roomId, categoryId? }`).
+
+**Why:** Roadmap Phase 2 — the community architecture needs a functional channel-based room UI (sidebar, per-channel timelines, unread heuristic, membership leave) before role/member management and voice channels land in later phases.
+
+**Impact:** `apps/web` (large: new room components + AppShell wiring; existing `ThreadPanel` now DM-only) and `apps/server` (additive leave endpoint). Unread counts are a client-side heuristic this phase — server-synced per-channel cursors land in Phase 6. Voice channels render as plain rows (participant presence is Phase 7). Room-level `markRoomRead` still drives room read receipts; per-channel read cursors are out of scope. Verification: `pnpm test` (664 tests / 97 files, incl. the 3 new leaveRoom tests), `pnpm check-types`, `pnpm lint` (0 warnings), `pnpm build` — all clean.
+
+**Follow-ups:** Phase 3/5 role & member management and channel tree live updates (channel created/deleted/reordered are currently reflected only after the create modals' manual refresh); per-channel typing; DM infinite scroll (only room channels page this phase).
+
 ## [2026-08-18] - Rooms → Community: categories, channels, and roomId normalization (Phase 1)
 
 **What changed:** Laid the data-model + API foundation for the "Rooms to Community" roadmap (see `Rooms to Community — Improved Implementation Prompt.md`, Phase 1 / §5.1–5.6, DB-safety §17). Rooms now contain a `Category → Channel` tree, existing rooms were migrated into a `GENERAL → #general` structure, all room API/socket/web payloads were normalized from `chatRoomId` to `roomId`, and a role-based permission layer now guards room mutations.

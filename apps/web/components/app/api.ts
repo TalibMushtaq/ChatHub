@@ -253,6 +253,11 @@ export const ChatAPI = {
     await api.delete(`/room/rooms/${roomId}`);
   },
 
+  /** Remove the current user's own membership (owner blocked server-side). */
+  async leaveRoom(roomId: string): Promise<void> {
+    await api.post(`/room/rooms/${roomId}/leave`);
+  },
+
   async getRoomMembers(roomId: string): Promise<RoomMember[]> {
     const { data } = await api.get(`/room/${roomId}/members`);
     return data.members;
@@ -558,11 +563,14 @@ export function emitRoomAck<T extends AckResult>(
 export const RoomSocket = {
   send(
     roomId: string,
+    channelId: string,
     body: { content?: string; messageType: string; attachmentIds?: string[] },
   ) {
-    // channelId is omitted until Phase 2; the server resolves #general.
+    // Phase 2 pins every room message to an explicit channel; the server still
+    // resolves a missing channelId to #general for older clients.
     return emitRoomAck<AckResult & { message?: Message }>("chatroom:message", {
       roomId,
+      channelId,
       content: body.content,
       messageType: body.messageType,
       attachmentIds: body.attachmentIds,

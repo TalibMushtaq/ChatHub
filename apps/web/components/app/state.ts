@@ -15,6 +15,7 @@ import type {
   ModalName,
   PresenceInfo,
   ReadReceipt,
+  RoomDetail,
   RoomInboxEntry,
   RoomMember,
   SearchUser,
@@ -40,6 +41,8 @@ export interface ActiveConv {
   description?: string | null;
   avatar?: string | null;
   myRole?: string;
+  /** Rooms only: the channel whose timeline is shown in the thread column. */
+  channelId?: string;
 }
 
 export interface ModalEntry {
@@ -67,6 +70,11 @@ export interface ShellCtx {
   readReceipts: Record<string, ReadReceipt[]>;
   /** convKey -> users currently typing in that conversation. */
   typing: Record<string, TypingUser[]>;
+  /** room channelKey -> client-side "has unread messages" flag (Phase 2
+      heuristic; server-synced per-channel cursors land in Phase 6). */
+  channelUnread: Record<string, boolean>;
+  /** roomId -> cached category/channel tree (GET /room/rooms/:roomId). */
+  roomDetails: Record<string, RoomDetail>;
   /** userId -> live presence/status, kept current by `presence:changed`. */
   presence: Record<string, PresenceInfo>;
   q: string;
@@ -83,6 +91,17 @@ export interface ShellCtx {
   search: (q: string) => Promise<void>;
   openConv: (c: ActiveConv) => void;
   closeConv: () => void;
+  /** Switch the active room's channel and load that channel's timeline. */
+  openChannel: (roomId: string, channelId: string) => void;
+  /** Remove the current user from a room (non-owner). */
+  leaveRoom: (roomId: string) => Promise<void>;
+  /** Re-fetch a room's category/channel tree (e.g. after creating a channel). */
+  refreshRoomDetail: (roomId: string) => Promise<void>;
+  /** Fetch the page of messages before a room channel's oldest loaded one. */
+  loadOlderMessages: (
+    roomId: string,
+    channelId: string,
+  ) => Promise<{ hasMore: boolean }>;
   navigateBack: () => void;
   refreshLists: () => Promise<void>;
   /** Re-fetch the current user (e.g. after an avatar update). */
@@ -143,6 +162,11 @@ export function useShell(): ShellCtx {
 /** Cache key for a conversation's message timeline. */
 export function convKey(kind: ConvKind, id: string): string {
   return `${kind}:${id}`;
+}
+
+/** Cache key for a room channel's message timeline (per-channel, Phase 2). */
+export function channelKey(roomId: string, channelId: string): string {
+  return `room:${roomId}:${channelId}`;
 }
 
 export type { SearchUser };

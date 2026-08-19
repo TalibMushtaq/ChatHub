@@ -39,6 +39,8 @@ import {
 import { useTheme } from "../../app/lib/useTheme";
 import { useNotificationSound } from "./useNotificationSound";
 import { useNotifications } from "./useNotifications";
+import { CreateChannelModal } from "./room/CreateChannelModal";
+import { CreateCategoryModal } from "./room/CreateCategoryModal";
 import {
   btn,
   btnPrimary,
@@ -67,6 +69,8 @@ const TITLES: Record<ModalEntry["name"], string> = {
   newDm: "New message",
   newRoom: "New room",
   roomInfo: "Room info",
+  createChannel: "Create channel",
+  createCategory: "Create category",
   invite: "Invite to room",
   joinRequests: "Join requests",
   joinLinks: "Join links",
@@ -259,6 +263,21 @@ function Body(entry: ModalEntry) {
       return <NewDmModal />;
     case "newRoom":
       return <NewRoomModal />;
+    case "createChannel": {
+      // Payload is either `{ roomId, categoryId? }` or a bare roomId string
+      // (kept for callers that predate the structured payload).
+      const p = entry.payload as
+        { roomId: string; categoryId?: string | null } | string;
+      const roomId = typeof p === "string" ? p : p.roomId;
+      const categoryId = typeof p === "string" ? null : (p.categoryId ?? null);
+      return (
+        <CreateChannelModal roomId={roomId} initialCategoryId={categoryId} />
+      );
+    }
+    case "createCategory": {
+      const roomId = String(entry.payload);
+      return <CreateCategoryModal roomId={roomId} />;
+    }
     case "roomInfo":
       return <RoomInfoModal />;
     case "invite":

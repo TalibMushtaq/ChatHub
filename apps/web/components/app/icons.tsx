@@ -286,6 +286,29 @@ export const BellIcon = (p: IconProps) => (
   </svg>
 );
 
+/** Hash glyph for text channels in the room sidebar (Phase 2 §6.3). */
+export const HashIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" />
+  </svg>
+);
+
+/** Speaker glyph for voice channels in the room sidebar (Phase 2 §6.3). */
+export const SpeakerIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+  </svg>
+);
+
+/** Chevron-down glyph for collapsing category sections (Phase 2 §6.2). */
+export const ChevronIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
 /** Returns the icon component for a MIME type (used in attachment chips). */
 export function iconForMime(mime: string | undefined): ReactNode {
   if (!mime) return <FileIcon />;
