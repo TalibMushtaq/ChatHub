@@ -59,6 +59,7 @@ export interface ServerToClientEvents {
     messageId: string;
     roomId: string;
     channelId: string;
+    channelName: string;
     senderId: string;
     senderName: string;
     content: string | null;
@@ -71,7 +72,7 @@ export interface ServerToClientEvents {
       categoryId: string | null;
       name: string;
       topic: string | null;
-      type: string;
+      type: "TEXT" | "VOICE" | "ANNOUNCEMENT" | "FORUM";
       position: number;
     };
   }) => void;
@@ -83,7 +84,7 @@ export interface ServerToClientEvents {
       categoryId: string | null;
       name: string;
       topic: string | null;
-      type: string;
+      type: "TEXT" | "VOICE" | "ANNOUNCEMENT" | "FORUM";
       position: number;
     };
   }) => void;

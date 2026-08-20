@@ -185,7 +185,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
         data.channelId ?? (await resolveDefaultChannelId(data.roomId));
       const channel = await prisma.channel.findFirst({
         where: { id: resolvedChannelId, roomId: data.roomId },
-        select: { id: true },
+        select: { id: true, name: true },
       });
       if (!channel) {
         throw new ApiError(
@@ -295,6 +295,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
             messageId: message.id,
             roomId: data.roomId,
             channelId: channel.id,
+            channelName: channel.name,
             senderId: userId,
             senderName: user.displayName ?? user.username,
             content: message.content,

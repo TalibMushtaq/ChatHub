@@ -1,3 +1,13 @@
+## [2026-08-20] - Phase 6 follow-up: socket event types + mention toast channel name
+
+**What changed:** Tightened `socket-events.ts` — `channel:created`/`channel:updated` payloads now declare `type` as the proper `"TEXT" | "VOICE" | "ANNOUNCEMENT" | "FORUM"` union instead of `string`. The `mention:new` payload and toast now carry `channelName` so the notification reads `#general` instead of `#a1b2c3d4`.
+
+**Why:** Observations from the Phase 6 audit.
+
+**Impact:** Server-only type tightening + one extra column (`name`) added to an existing channel query in `roomChat.ts` (zero additional round-trip). Backward-compatible — `channelName` is additive to the socket payload. Verification: `pnpm test` (server 721, web 78), `check-types`, `lint` (0 warnings), `build` — all clean.
+
+**Follow-ups:** None.
+
 ## [2026-08-20] - Phase 6 follow-up: mention extraction fix + service test coverage
 
 **What changed:** Fixed a boundary bug in `extractMentionedUsernames` (the regex matched `@` after any non-word char, but the parse used `m.trim().slice(1)`, so a boundary like `/` leaked into the username — `/@ghost` became `@ghost`). The parser now reads the capture group instead. Added unit tests for the three new Phase 6 services (`markChannelRead`, `channelUnread`, `mentions`) and for the notification-pref recipient filtering in `pushNewMessage` (MUTED excluded, MENTIONS only when mentioned) — the previous PR left those files at 0-43% coverage, which failed the 90% branch threshold.

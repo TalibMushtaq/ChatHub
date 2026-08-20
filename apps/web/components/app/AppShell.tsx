@@ -1029,6 +1029,7 @@ export default function AppShell() {
         messageId: string;
         roomId: string;
         channelId: string;
+        channelName: string;
         senderId: string;
         senderName: string;
         content: string | null;
@@ -1050,7 +1051,7 @@ export default function AppShell() {
         }
         const preview = (payload.content ?? "").slice(0, 80);
         toast(
-          `${payload.senderName} mentioned you in #${payload.channelId.slice(0, 8)}: ${preview}`,
+          `${payload.senderName} mentioned you in #${payload.channelName}: ${preview}`,
         );
       },
     );
