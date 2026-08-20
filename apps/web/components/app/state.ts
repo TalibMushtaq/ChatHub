@@ -6,6 +6,7 @@ import { createContext, useContext } from "react";
 import type {
   AppUser,
   BlockedUser,
+  ChannelUnreadState,
   DMInboxEntry,
   FriendRequest,
   JoinLink,
@@ -72,9 +73,10 @@ export interface ShellCtx {
   readReceipts: Record<string, ReadReceipt[]>;
   /** convKey -> users currently typing in that conversation. */
   typing: Record<string, TypingUser[]>;
-  /** room channelKey -> client-side "has unread messages" flag (Phase 2
-      heuristic; server-synced per-channel cursors land in Phase 6). */
-  channelUnread: Record<string, boolean>;
+  /** room channelKey -> per-channel unread state (server-synced, Phase 6). */
+  channelUnreads: Record<string, ChannelUnreadState>;
+  /** roomId -> the current user's room notification pref (ALL/MENTIONS/MUTED). */
+  roomNotificationPrefs: Record<string, "ALL" | "MENTIONS" | "MUTED">;
   /** roomId -> cached category/channel tree (GET /room/rooms/:roomId). */
   roomDetails: Record<string, RoomDetail>;
   /** roomId -> banned users (loaded when the ban-list modal opens). */
@@ -90,6 +92,12 @@ export interface ShellCtx {
   friendRequests: FriendRequest[];
   /** Users blocked by the current user (settings > privacy). */
   blockedUsers: BlockedUser[];
+  /** Update this user's room notification pref (mirrors ChannelContextMenu). */
+  setRoomNotificationPrefs: (
+    updater: (
+      prev: Record<string, "ALL" | "MENTIONS" | "MUTED">,
+    ) => Record<string, "ALL" | "MENTIONS" | "MUTED">,
+  ) => void;
   setTab: (t: Tab) => void;
   setQ: (q: string) => void;
   search: (q: string) => Promise<void>;

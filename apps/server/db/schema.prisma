@@ -122,9 +122,11 @@ model Channel {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
-  ChatRoom ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  Category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  Message  Message[]
+  ChatRoom          ChatRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  Category          Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  Message           Message[]
+  readReceipts      ChannelReadReceipt[]
+  MessageMention    MessageMention[]
 
   @@unique([roomId, name])
   @@index([roomId, position])
@@ -204,9 +206,11 @@ model Message {
   Channel      Channel?    @relation(fields: [channelId], references: [id], onDelete: Cascade)
   User         User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
   attachments  Attachment[]
+  mentions     MessageMention[]
 
   DirectChatReadReceipt DirectChatReadReceipt[] @relation("DirectChatReadReceiptLastMessage")
   ChatRoomReadReceipt   ChatRoomReadReceipt[]   @relation("ChatRoomReadReceiptLastMessage")
+  ChannelReadReceipt    ChannelReadReceipt[]    @relation("ChannelReadReceiptLastMessage")
 
   @@index([chatRoomId, createdAt])
   @@index([directChatId, createdAt])
@@ -348,6 +352,8 @@ model User {
   recoveryCodes                       RecoveryCode[]
   directChatReadReceipts              DirectChatReadReceipt[]
   chatRoomReadReceipts                ChatRoomReadReceipt[]
+  channelReadReceipts                 ChannelReadReceipt[]
+  mentions                           MessageMention[]
   pushSubscriptions                   PushSubscription[]
 
   friendRequestsSent                  FriendRequest[]  @relation("FriendRequestsSent")
@@ -508,4 +514,48 @@ model ChatRoomReadReceipt {
   @@unique([userId, chatRoomId])
   @@index([userId])
   @@index([chatRoomId])
+}
+
+// Same cursor pattern as ChatRoomReadReceipt but scoped to one channel, so each
+// channel in a Room tracks its own read position independently (Phase 6 §10.1).
+// The sidebar derives per-channel Unread/Mentioned/Read/Muted states from this
+// cursor plus the mentions stored on MessageMention.
+model ChannelReadReceipt {
+  id                       String    @id @default(cuid())
+  userId                   String
+  channelId                String
+  lastReadMessageId        String?
+  lastReadMessageCreatedAt DateTime?
+  updatedAt                DateTime  @updatedAt
+
+  User            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Channel         Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  LastReadMessage Message?  @relation("ChannelReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, channelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// A user mentioned in a room message (@username), stored at write time so the
+// sidebar can show a Mentioned badge and MENTIONS notification prefs can be
+// honored without re-parsing content on every read. Only the mentioned user's
+// own rows are meaningful for unread state; duplicates per message are allowed
+// (a user may be @-mentioned more than once) but unique per (message, user).
+model MessageMention {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  roomId    String
+  channelId String?
+  createdAt DateTime @default(now())
+
+  Message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  User    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Channel Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, channelId])
+  @@index([channelId])
+  @@index([roomId])
 }

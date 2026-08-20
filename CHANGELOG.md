@@ -1,4 +1,26 @@
-## [2026-08-19] - Rooms → Community: roles + member management (Phase 4)
+## [2026-08-20] - Rooms → Community: notifications + unread + realtime (Phase 6)
+
+**What changed:** Implemented the Phase 6 notifications/unread/realtime layer (§10): per-channel read cursors with server-computed unread/mention counts, @-mention extraction with a dedicated mention event, room-level notification preferences (All / Mentions / Muted) that gate both the sidebar indicators and push delivery, and realtime mirroring of channel/category/room CRUD so every member's sidebar stays live without refetching.
+
+Server (`apps/server` + `packages/validators`):
+
+- **Schema** (`db/schema.prisma`): new `ChannelReadReceipt` (`@@unique([userId, roomId, channelId])`, `lastReadMessageId`, `lastReadMessageCreatedAt`) and `MessageMention` (`@@unique([messageId, userId])`) models with relations back to `Channel`/`Message`/`User`. Migration `20260820000001_add_channel_read_receipts_mentions` backfills one receipt per user/room/channel from the coarsest existing `ChatRoomReadReceipt` cursor (idempotent).
+- **New services** (`services/room/markChannelRead.ts`, `channelUnread.ts`, `mentions.ts`): per-channel cursor upsert (`getChannelUnreadState` reads the cursor before counting so the `gt` filter stays scalar), `getRoomsChannelUnreads` (aggregate grouped unread/mention counts via `$queryRaw` `= ANY(${roomIds})`), `extractMentionedUsernames` (regex `(^|[^\w@])@([a-zA-Z0-9_]{3,20})`), `createMessageMentions`.
+- **Routes** (`routes/room/room.ts`): `POST /:roomId/channels/:channelId/mark-read` and `GET /:roomId/channels/:channelId/read-receipt` (rate-limited via the existing `createRateLimiter`/`setRateLimitHeaders` pattern); `GET /room/rooms` now returns `channelUnreads` per room. `services/message/mutations.ts` `MessageScopeField` and `markRead.ts` receiptModel union extended with the channel variants.
+- **Mentions + push** (`routes/room/roomChat.ts`, `services/push/push.ts`): message send detects mentions, persists `MessageMention`, emits `mention:new` per recipient, and passes `mentionedUserIds` to `pushNewMessage`, which now filters recipients by `notificationPref` (MUTED excluded entirely; MENTIONS only when the user is mentioned).
+- **Socket events** (`types/socket-events.ts`): added `channel:read`, `channel:readReceipt`, `mention:new`, `channel:created/updated/deleted/reordered`, `category:created/updated/deleted/reordered`, `room:updated`; emitted from the channel/category/room routes after each committed mutation.
+
+Web (`apps/web`):
+
+- `types.ts`: `ChannelUnreadState` (`unreadCount`/`mentionCount`); `RoomInboxEntry.channelUnreads`. `state.ts`/`AppShell.tsx`: `channelUnreads` replaces the Phase-2 boolean dot map (ref-synced `setChannelUnreadsBoth`), plus `roomNotificationPrefs` (roomId → ALL/MENTIONS/MUTED) seeded from the room detail/membership and updated via the channel menu; `markRead()` now calls the per-channel endpoint for the active channel only, clearing just that channel's state.
+- Realtime handlers: `channel:read` (cross-tab cursor sync), `mention:new` (flips the channel to Mentioned + toast), and the full `channel:*`/`category:*`/`room:updated` set (pure, module-level updaters; no refetch).
+- `room/ChannelItem.tsx` + `helpers.ts`: `channelUnreadStatus()` derives mentioned/unread/muted/read — mentioned renders a red `@N` badge, unread a dot, muted dims the row and suppresses both; `ListPanel.tsx` shows a red `@N` room badge when any channel has mentions. `room/ChannelContextMenu.tsx`: "Notification Settings" is now an inline All/Mentions/Muted selector (optimistic, reconciles via `updateRoomNotificationPref`, same prefs as `RoomSettingsModal`).
+
+**Why:** Roadmap Phase 6 — per-channel unread/mention indicators and live sidebar updates are the notification backbone; the per-channel cursor replaces the room-wide cursor so reading one channel no longer clears another's unread state, and the room-level pref gives members explicit control over what alerts them.
+
+**Impact:** DB (additive migration + backfill), server API surface (additive per-channel endpoints + unread fields + new socket events), web client (unread model reworked from boolean to counts). Room-wide read-receipts are untouched and still emitted; `chatroom:message` already carried `channelId`, so no new message event was needed. Verification: `pnpm test` (server 697 / 99 files incl. new services + route tests; web 78 / 8 files), `check-types`, `lint` (0 warnings), `build` — all clean. Run `prisma migrate dev` to apply `20260820000001_add_channel_read_receipts_mentions`.
+
+**Follow-ups:** `mention:new` toast content truncates the sender's message (could render a mini preview later); unread counts are reset on channel open but the cursor sync is best-effort (reconciled on the next `getRooms`). Per-room prefs gate push delivery now; a global per-channel override set is a possible extension point but intentionally out of scope.
 
 **What changed:** Implemented the Phase 4 roles + members layer (§8): a new `MODERATOR` role, a full member-management API (assign role, kick, ban/unban, timed mute, per-room nickname), live member events over the existing socket layer, and a member-management UI (member context menu, ban list, nickname/member-action modals). Banned users are blocked from re-entering via join links and invitations. The permission vocabulary also gained the voice permissions Phase 7 will consume.
 

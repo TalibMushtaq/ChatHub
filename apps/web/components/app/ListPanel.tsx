@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useShell } from "./state";
 import { ChatAPI, getErrorMessage } from "./api";
 import { displayName, fmtList, lastText } from "./helpers";
-import type { SearchUser } from "./types";
+import type { RoomInboxEntry, SearchUser } from "./types";
 import AppAvatar from "./AppAvatar";
 import { AvatarLink, NameLink } from "./UserLinks";
 import {
@@ -27,6 +27,14 @@ import {
   btnGhost,
   btnPrimary,
 } from "./styles";
+
+/** Sum of unread @-mentions across a room's channels (Phase 6 §10.1). */
+function mentionCountOf(r: RoomInboxEntry): number {
+  return Object.values(r.channelUnreads ?? {}).reduce(
+    (sum, s) => sum + s.mentionCount,
+    0,
+  );
+}
 
 export default function ListPanel() {
   const {
@@ -242,11 +250,17 @@ export default function ListPanel() {
                               ? lastText(r.lastMessage)
                               : `${r.memberCount} member${r.memberCount === 1 ? "" : "s"}`}
                         </span>
-                        {r.unreadCount > 0 && (
-                          <span className="unread inline-flex h-5 min-w-5 flex-none items-center justify-center rounded-full bg-accent-btn px-1.5 text-[11px] font-extrabold text-accent-on">
-                            {r.unreadCount > 9 ? "9+" : r.unreadCount}
-                          </span>
-                        )}
+                        {r.unreadCount > 0 &&
+                          (mentionCountOf(r) > 0 ? (
+                            <span className="unread inline-flex h-5 min-w-5 flex-none items-center justify-center gap-0.5 rounded-full bg-danger px-1.5 text-[11px] font-extrabold text-white">
+                              @
+                              {mentionCountOf(r) > 9 ? "9+" : mentionCountOf(r)}
+                            </span>
+                          ) : (
+                            <span className="unread inline-flex h-5 min-w-5 flex-none items-center justify-center rounded-full bg-accent-btn px-1.5 text-[11px] font-extrabold text-accent-on">
+                              {r.unreadCount > 9 ? "9+" : r.unreadCount}
+                            </span>
+                          ))}
                       </div>
                     </div>
                   </button>

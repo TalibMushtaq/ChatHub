@@ -369,6 +369,30 @@ export const ChatAPI = {
     return data.unreadCount;
   },
 
+  /** Per-channel read cursor (Phase 6 §10.1). */
+  async markChannelRead(
+    roomId: string,
+    channelId: string,
+    lastReadMessageId: string,
+  ): Promise<{ unreadCount: number }> {
+    const { data } = await api.post(
+      `/room/${roomId}/channels/${channelId}/mark-read`,
+      { lastReadMessageId },
+    );
+    return { unreadCount: data.unreadCount };
+  },
+
+  /** The calling user's own read cursor for a channel. */
+  async getChannelReadReceipt(
+    roomId: string,
+    channelId: string,
+  ): Promise<ReadReceipt | null> {
+    const { data } = await api.get(
+      `/room/${roomId}/channels/${channelId}/read-receipt`,
+    );
+    return data.receipt;
+  },
+
   /** Every member's read cursor for the room. */
   async getRoomReadReceipts(roomId: string): Promise<ReadReceipt[]> {
     const { data } = await api.get(`/room/${roomId}/read-receipts`);

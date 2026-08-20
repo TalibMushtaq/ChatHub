@@ -39,6 +39,81 @@ export interface ServerToClientEvents {
   "chatroom:message:edited": (payload: RoomMessageEditedPayload) => void;
   "chatroom:message:deleted": (payload: RoomMessageDeletedPayload) => void;
   "chatroom:read": (payload: { roomId: string; unreadCount: number }) => void;
+  /** Per-channel read cursor moved (Phase 6 §10.1). */
+  "channel:read": (payload: {
+    roomId: string;
+    channelId: string;
+    unreadCount: number;
+    mentionCount: number;
+  }) => void;
+  /** Another member advanced their read cursor in a channel. */
+  "channel:readReceipt": (payload: {
+    userId: string;
+    roomId: string;
+    channelId: string;
+    lastReadMessageId: string;
+    lastReadMessageCreatedAt: Date;
+  }) => void;
+  /** A message @-mentioned the recipient (Phase 6 §10.1/§10.2). */
+  "mention:new": (payload: {
+    messageId: string;
+    roomId: string;
+    channelId: string;
+    senderId: string;
+    senderName: string;
+    content: string | null;
+  }) => void;
+  "channel:created": (payload: {
+    roomId: string;
+    channel: {
+      id: string;
+      roomId: string;
+      categoryId: string | null;
+      name: string;
+      topic: string | null;
+      type: string;
+      position: number;
+    };
+  }) => void;
+  "channel:updated": (payload: {
+    roomId: string;
+    channel: {
+      id: string;
+      roomId: string;
+      categoryId: string | null;
+      name: string;
+      topic: string | null;
+      type: string;
+      position: number;
+    };
+  }) => void;
+  "channel:deleted": (payload: { roomId: string; channelId: string }) => void;
+  "channel:reordered": (payload: {
+    roomId: string;
+    items: { id: string; categoryId: string | null }[];
+  }) => void;
+  "category:created": (payload: {
+    roomId: string;
+    category: { id: string; roomId: string; name: string; position: number };
+  }) => void;
+  "category:updated": (payload: {
+    roomId: string;
+    category: { id: string; roomId: string; name: string; position: number };
+  }) => void;
+  "category:deleted": (payload: { roomId: string; categoryId: string }) => void;
+  "category:reordered": (payload: {
+    roomId: string;
+    orderedIds: string[];
+  }) => void;
+  "room:updated": (payload: {
+    roomId: string;
+    room: {
+      id: string;
+      name: string;
+      description: string | null;
+      avatar: string | null;
+    };
+  }) => void;
   "chatroom:member:added": (payload: {
     roomId: string;
     member: RoomMemberPayload;

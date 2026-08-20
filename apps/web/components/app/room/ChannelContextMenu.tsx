@@ -6,12 +6,12 @@
 // through the shared confirm modal; the server is the authorization authority.
 // Rendered through a portal with fixed coordinates because the sidebar's
 // channel list scrolls — an absolutely-positioned menu would be clipped.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useShell } from "../state";
 import { ChatAPI, getErrorMessage } from "../api";
 import type { Channel } from "../types";
-import { BellIcon, CopyIcon, EditIcon, TrashIcon } from "../icons";
+import { BellIcon, CheckIcon, CopyIcon, EditIcon, TrashIcon } from "../icons";
 import { channelLink } from "./sidebarReorder";
 import { MenuList, type MenuItem } from "./MenuList";
 
@@ -19,6 +19,14 @@ export interface MenuPosition {
   x: number;
   y: number;
 }
+
+type NotifPref = "ALL" | "MENTIONS" | "MUTED";
+
+const NOTIF_OPTIONS: { value: NotifPref; label: string }[] = [
+  { value: "ALL", label: "All messages" },
+  { value: "MENTIONS", label: "Only mentions" },
+  { value: "MUTED", label: "Muted" },
+];
 
 export function ChannelContextMenu({
   roomId,
@@ -40,8 +48,12 @@ export function ChannelContextMenu({
     roomDetails,
     patchRoomDetail,
     openChannel,
+    setRoomNotificationPrefs,
   } = useShell();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const [showNotifPrefs, setShowNotifPrefs] = useState(false);
+  const [currentPref, setCurrentPref] = useState<NotifPref | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -64,6 +76,39 @@ export function ChannelContextMenu({
       .then(() => toast("Channel link copied", "success"))
       .catch(() => toast("Couldn't copy the link", "error"));
     onClose();
+  }
+
+  // Notification prefs are stored per room (ChatRoomMember.notificationPref);
+  // the channel menu surfaces the same three choices so members can tune
+  // alerting without opening full Settings. Optimistic, reconciled by the server.
+  async function openNotifPrefs() {
+    setShowNotifPrefs(true);
+    try {
+      const { notificationPref } =
+        await ChatAPI.getRoomMemberNotificationPref(roomId);
+      setCurrentPref(notificationPref);
+    } catch {
+      setCurrentPref("ALL");
+    }
+  }
+
+  async function choosePref(pref: NotifPref) {
+    setSaving(true);
+    try {
+      await ChatAPI.updateRoomNotificationPref(roomId, pref);
+      setCurrentPref(pref);
+      // Mirror into the shell so the sidebar suppresses/dims unread state live.
+      setRoomNotificationPrefs((prev) => ({ ...prev, [roomId]: pref }));
+      toast(`Notifications set to ${pref.toLowerCase()}`, "success");
+      onClose();
+    } catch (err) {
+      toast(
+        getErrorMessage(err, "Couldn't update notification settings"),
+        "error",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   function askDelete() {
@@ -130,8 +175,8 @@ export function ChannelContextMenu({
     label: "Notification Settings",
     icon: <BellIcon className="h-4 w-4 flex-none" />,
     onClick: () => {
-      openModal("notifications");
-      onClose();
+      if (showNotifPrefs) onClose();
+      else void openNotifPrefs();
     },
   });
   items.push({
@@ -170,7 +215,29 @@ export function ChannelContextMenu({
       onClick={(e) => e.stopPropagation()}
       className="fixed z-[95] min-w-[210px] rounded-[14px] border border-border bg-surface p-0 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
     >
-      <MenuList items={items} />
+      <div className="max-h-[320px] overflow-y-auto">
+        <MenuList items={items} />
+        {showNotifPrefs && (
+          <div className="border-t border-border p-1.5">
+            <p className="px-2 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-muted">
+              Notify for
+            </p>
+            {NOTIF_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                className="flex w-full cursor-pointer items-center gap-2 rounded-[9px] px-2 py-1.5 text-left text-[13.5px] font-semibold text-fg transition-colors hover:bg-surface-2 disabled:opacity-50"
+                disabled={saving || currentPref === null}
+                onClick={() => void choosePref(opt.value)}
+              >
+                <span className="flex-1">{opt.label}</span>
+                {currentPref === opt.value && (
+                  <CheckIcon className="h-4 w-4 flex-none text-accent-solid" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>,
     document.body,
   );

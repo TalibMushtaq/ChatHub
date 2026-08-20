@@ -21,10 +21,14 @@ export interface PushNewMessageInput {
   senderName: string;
   messageType: MessageType;
   content?: string | null;
+  /** Room messages only: userIds @-mentioned by this message (Phase 6). */
+  mentionedUserIds?: string[];
 }
 
 // Resolve which users should receive a notification for this message
-// (everyone but the sender), plus the room name used in the title.
+// (everyone but the sender, minus muted members), plus the room name used in
+// the title. Members whose pref is MENTIONS only get a push when this message
+// mentions them; MUTED members never get one.
 async function resolveRecipients(input: PushNewMessageInput): Promise<{
   userIds: string[];
   roomName?: string | null;
@@ -42,10 +46,23 @@ async function resolveRecipients(input: PushNewMessageInput): Promise<{
 
   const members = await prisma.chatRoomMember.findMany({
     where: { chatRoomId: input.conversationId },
-    select: { userId: true, ChatRoom: { select: { name: true } } },
+    select: {
+      userId: true,
+      notificationPref: true,
+      ChatRoom: { select: { name: true } },
+    },
   });
+  const mentioned = new Set(input.mentionedUserIds ?? []);
+  const userIds = members
+    .filter((m) => m.userId !== input.senderId)
+    .filter((m) => {
+      if (m.notificationPref === "MUTED") return false;
+      if (m.notificationPref === "MENTIONS") return mentioned.has(m.userId);
+      return true;
+    })
+    .map((m) => m.userId);
   return {
-    userIds: members.map((m) => m.userId).filter((id) => id !== input.senderId),
+    userIds,
     roomName: members[0]?.ChatRoom?.name ?? null,
   };
 }

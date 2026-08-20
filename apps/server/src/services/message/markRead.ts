@@ -26,7 +26,8 @@ interface MarkReadOptions {
   /** Id of the conversation being marked as read. */
   scopeId: string;
   /** Receipt model holding the read cursor for this conversation type. */
-  receiptModel: "chatRoomReadReceipt" | "directChatReadReceipt";
+  receiptModel:
+    "chatRoomReadReceipt" | "directChatReadReceipt" | "channelReadReceipt";
   /** Compound unique key identifying this user's receipt. */
   receiptWhere: object;
   /** Error reported when the message belongs to a different conversation. */

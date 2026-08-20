@@ -20,6 +20,9 @@ import {
 import type {
   AppUser,
   BlockedUser,
+  Category,
+  Channel,
+  ChannelUnreadState,
   DMInboxEntry,
   FriendRequest,
   Invitation,
@@ -84,6 +87,29 @@ type AnyMsg = {
   attachments?: Message["attachments"];
 };
 
+/**
+ * Merge a rooms-list's per-channel unread counts into the global map without
+ * overwriting fresher state already set by realtime events (Phase 6 §10.1).
+ * Kept pure/module-level so it can be referenced from the once-registered
+ * socket effect without tripping exhaustive-deps.
+ */
+function mergeChannelUnreads(
+  prev: Record<string, ChannelUnreadState>,
+  rooms: RoomInboxEntry[],
+): Record<string, ChannelUnreadState> {
+  let next = prev;
+  for (const room of rooms) {
+    for (const [channelId, state] of Object.entries(
+      room.channelUnreads ?? {},
+    )) {
+      const key = channelKey(room.roomId, channelId);
+      if (next[key]) continue;
+      next = { ...next, [key]: state };
+    }
+  }
+  return next;
+}
+
 export default function AppShell() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [tab, setTab] = useState<Tab>("dm");
@@ -103,9 +129,12 @@ export default function AppShell() {
     {},
   );
   const [roomBans, setRoomBans] = useState<Record<string, RoomBan[]>>({});
-  const [channelUnread, setChannelUnread] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [channelUnreads, setChannelUnreads] = useState<
+    Record<string, ChannelUnreadState>
+  >({});
+  const [roomNotificationPrefs, setRoomNotificationPrefs] = useState<
+    Record<string, "ALL" | "MENTIONS" | "MUTED">
+  >({});
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchUser[]>([]);
   const [mStack, setMStack] = useState<ModalEntry[]>([]);
@@ -133,6 +162,7 @@ export default function AppShell() {
   const presenceRef = useRef<Record<string, PresenceInfo>>({});
   const roomBansRef = useRef<Record<string, RoomBan[]>>({});
   const friendRequestsRef = useRef<FriendRequest[]>([]);
+  const channelUnreadsRef = useRef<Record<string, ChannelUnreadState>>({});
   // conversation key -> userId -> pending "stopped typing" removal timer.
   const typingTimersRef = useRef<Record<string, Record<string, number>>>({});
   // Track whether we pushed a synthetic history entry for the mobile thread
@@ -193,6 +223,15 @@ export default function AppShell() {
   ) {
     roomBansRef.current = fn(roomBansRef.current);
     setRoomBans(roomBansRef.current);
+  }
+
+  function setChannelUnreadsBoth(
+    fn: (
+      prev: Record<string, ChannelUnreadState>,
+    ) => Record<string, ChannelUnreadState>,
+  ) {
+    channelUnreadsRef.current = fn(channelUnreadsRef.current);
+    setChannelUnreads(channelUnreadsRef.current);
   }
 
   /** Replace a member row in a room's member list (socket-driven Phase 4). */
@@ -477,6 +516,7 @@ export default function AppShell() {
           setDmList(dm);
           setRoomList(rooms);
           setFriendRequestsBoth(() => friendRequests);
+          setChannelUnreadsBoth((prev) => mergeChannelUnreads(prev, rooms));
         }),
         onUnauthorized: () => {
           window.location.href = "/auth";
@@ -691,8 +731,17 @@ export default function AppShell() {
       if (mine) return;
       if (a.kind === "dm") {
         ChatAPI.markDmRead(a.id, last.id).catch(() => {});
-      } else {
-        ChatAPI.markRoomRead(a.id, last.id).catch(() => {});
+      } else if (a.channelId) {
+        // Phase 6: mark the active channel read (not the whole room) and clear
+        // its client-side unread state.
+        ChatAPI.markChannelRead(a.id, a.channelId, last.id).catch(() => {});
+        setChannelUnreadsBoth((prev) => {
+          const key = channelKey(a.id, a.channelId!);
+          if (!prev[key]) return prev;
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
       }
     }
 
@@ -736,11 +785,17 @@ export default function AppShell() {
             [key]: upsert(prev[key] ?? [], norm),
           }));
         }
-        // Phase 2 unread heuristic: flag every channel the message isn't in.
-        // The active channel is read-on-delivery (markReadNow below), so only
-        // non-active channels accumulate the sidebar dot.
-        if (msg.channelId !== a.channelId) {
-          setChannelUnread((prev) => ({ ...prev, [key]: true }));
+        // Per-channel unread state (Phase 6 §10.1): bump the count for every
+        // channel the message isn't in. The active channel is read-on-delivery
+        // (markReadNow below), so only non-active channels accumulate.
+        if (!mine && msg.channelId !== a.channelId) {
+          setChannelUnreadsBoth((prev) => {
+            const cur = prev[key] ?? { unreadCount: 0, mentionCount: 0 };
+            return {
+              ...prev,
+              [key]: { ...cur, unreadCount: cur.unreadCount + 1 },
+            };
+          });
         }
         bumpRoomList(a.id, norm, mine);
         if (!mine) {
@@ -936,6 +991,310 @@ export default function AppShell() {
       },
     );
 
+    // Phase 6 §10.1: this user's other tabs/devices moved a channel cursor.
+    socket.on(
+      "channel:read",
+      (payload: {
+        roomId: string;
+        channelId: string;
+        unreadCount: number;
+        mentionCount: number;
+      }) => {
+        const key = channelKey(payload.roomId, payload.channelId);
+        // Only apply when the channel isn't active here — the active channel's
+        // state is cleared locally by markRead() and the cursor syncs via REST.
+        const a = activeRef.current;
+        if (
+          a?.kind === "room" &&
+          a.id === payload.roomId &&
+          a.channelId === payload.channelId
+        )
+          return;
+        setChannelUnreadsBoth((prev) => ({
+          ...prev,
+          [key]: {
+            unreadCount: payload.unreadCount,
+            mentionCount: payload.mentionCount,
+          },
+        }));
+      },
+    );
+
+    // Phase 6 §10.1: a message @-mentioned this user. Flip the channel to
+    // Mentioned (unless it's already active and being read) and surface a
+    // toast so the mention isn't missed while the channel is in the background.
+    socket.on(
+      "mention:new",
+      (payload: {
+        messageId: string;
+        roomId: string;
+        channelId: string;
+        senderId: string;
+        senderName: string;
+        content: string | null;
+      }) => {
+        const a = activeRef.current;
+        const activeInChannel =
+          a?.kind === "room" &&
+          a.id === payload.roomId &&
+          a.channelId === payload.channelId;
+        if (!activeInChannel) {
+          const key = channelKey(payload.roomId, payload.channelId);
+          setChannelUnreadsBoth((prev) => {
+            const cur = prev[key] ?? { unreadCount: 0, mentionCount: 0 };
+            return {
+              ...prev,
+              [key]: { ...cur, mentionCount: cur.mentionCount + 1 },
+            };
+          });
+        }
+        const preview = (payload.content ?? "").slice(0, 80);
+        toast(
+          `${payload.senderName} mentioned you in #${payload.channelId.slice(0, 8)}: ${preview}`,
+        );
+      },
+    );
+
+    // Channel + category lifecycle (Phase 6 §10.2): keep the sidebar tree live
+    // for every member without a refetch. The server is authoritative for
+    // permissions; these events just mirror the committed change.
+    socket.on(
+      "channel:created",
+      (payload: { roomId: string; channel: Channel }) => {
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          const categories = detail.categories.map((cat) =>
+            cat.id === payload.channel.categoryId
+              ? { ...cat, channels: [...(cat.channels ?? []), payload.channel] }
+              : cat,
+          );
+          return { ...prev, [payload.roomId]: { ...detail, categories } };
+        });
+      },
+    );
+    socket.on(
+      "channel:updated",
+      (payload: { roomId: string; channel: Channel }) => {
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          const apply = (c: Channel) =>
+            c.id === payload.channel.id ? { ...c, ...payload.channel } : c;
+          return {
+            ...prev,
+            [payload.roomId]: {
+              ...detail,
+              categories: detail.categories.map((cat) => ({
+                ...cat,
+                channels: (cat.channels ?? []).map(apply),
+              })),
+              uncategorized: detail.uncategorized.map(apply),
+            },
+          };
+        });
+      },
+    );
+    socket.on(
+      "channel:deleted",
+      (payload: { roomId: string; channelId: string }) => {
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          const remove = (c: Channel) => c.id !== payload.channelId;
+          return {
+            ...prev,
+            [payload.roomId]: {
+              ...detail,
+              categories: detail.categories.map((cat) => ({
+                ...cat,
+                channels: (cat.channels ?? []).filter(remove),
+              })),
+              uncategorized: detail.uncategorized.filter(remove),
+            },
+          };
+        });
+        setChannelUnreadsBoth((prev) => {
+          const key = channelKey(payload.roomId, payload.channelId);
+          if (!prev[key]) return prev;
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      },
+    );
+    socket.on(
+      "channel:reordered",
+      (payload: {
+        roomId: string;
+        items: { id: string; categoryId: string | null }[];
+      }) => {
+        // Reorder is applied optimistically by the drag layer already; this
+        // event reconciles a remote member's change by re-deriving positions.
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          const positionOf = new Map(
+            payload.items.map((item, i) => [item.id, i]),
+          );
+          const recat = (c: Channel) => {
+            const item = payload.items.find((i) => i.id === c.id);
+            if (!item) return c;
+            return {
+              ...c,
+              categoryId: item.categoryId,
+              position: positionOf.get(c.id) ?? c.position,
+            };
+          };
+          return {
+            ...prev,
+            [payload.roomId]: {
+              ...detail,
+              categories: detail.categories.map((cat) => ({
+                ...cat,
+                channels: (cat.channels ?? []).map(recat),
+              })),
+              uncategorized: detail.uncategorized.map(recat),
+            },
+          };
+        });
+      },
+    );
+    socket.on(
+      "category:created",
+      (payload: { roomId: string; category: Category }) => {
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          if (detail.categories.some((c) => c.id === payload.category.id))
+            return prev;
+          return {
+            ...prev,
+            [payload.roomId]: {
+              ...detail,
+              categories: [
+                ...detail.categories,
+                { ...payload.category, channels: [] },
+              ],
+            },
+          };
+        });
+      },
+    );
+    socket.on(
+      "category:updated",
+      (payload: { roomId: string; category: Category }) => {
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          return {
+            ...prev,
+            [payload.roomId]: {
+              ...detail,
+              categories: detail.categories.map((cat) =>
+                cat.id === payload.category.id
+                  ? { ...cat, ...payload.category }
+                  : cat,
+              ),
+            },
+          };
+        });
+      },
+    );
+    socket.on(
+      "category:deleted",
+      (payload: { roomId: string; categoryId: string }) => {
+        // The server moved the category's channels to Uncategorized before
+        // deleting, so move them client-side to match the committed state.
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          const removed = detail.categories.find(
+            (c) => c.id === payload.categoryId,
+          );
+          if (!removed) return prev;
+          return {
+            ...prev,
+            [payload.roomId]: {
+              ...detail,
+              categories: detail.categories.filter(
+                (c) => c.id !== payload.categoryId,
+              ),
+              uncategorized: [
+                ...(removed.channels ?? []).map((c) => ({
+                  ...c,
+                  categoryId: null,
+                })),
+                ...detail.uncategorized,
+              ],
+            },
+          };
+        });
+      },
+    );
+    socket.on(
+      "category:reordered",
+      (payload: { roomId: string; orderedIds: string[] }) => {
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          const positionOf = new Map(
+            payload.orderedIds.map((id, i) => [id, i]),
+          );
+          return {
+            ...prev,
+            [payload.roomId]: {
+              ...detail,
+              categories: detail.categories
+                .map((cat) => ({
+                  ...cat,
+                  position: positionOf.get(cat.id) ?? cat.position,
+                }))
+                .sort((a, b) => a.position - b.position),
+            },
+          };
+        });
+      },
+    );
+    socket.on(
+      "room:updated",
+      (payload: {
+        roomId: string;
+        room: {
+          id: string;
+          name: string;
+          description: string | null;
+          avatar: string | null;
+        };
+      }) => {
+        setRoomList((prev) =>
+          prev.map((r) =>
+            r.roomId === payload.roomId
+              ? {
+                  ...r,
+                  name: payload.room.name,
+                  description: payload.room.description,
+                  avatar: payload.room.avatar ?? r.avatar,
+                }
+              : r,
+          ),
+        );
+        setRoomDetails((prev) => {
+          const detail = prev[payload.roomId];
+          if (!detail) return prev;
+          return {
+            ...prev,
+            [payload.roomId]: {
+              ...detail,
+              name: payload.room.name,
+              description: payload.room.description,
+              avatar: payload.room.avatar,
+            },
+          };
+        });
+      },
+    );
+
     function clearTypingTimer(key: string, userId: string) {
       const byUser = typingTimersRef.current[key];
       if (!byUser?.[userId]) return;
@@ -1127,6 +1486,17 @@ export default function AppShell() {
       socket.off("chatroom:read");
       socket.off("directChat:readReceipt");
       socket.off("chatroom:readReceipt");
+      socket.off("channel:read");
+      socket.off("mention:new");
+      socket.off("channel:created");
+      socket.off("channel:updated");
+      socket.off("channel:deleted");
+      socket.off("channel:reordered");
+      socket.off("category:created");
+      socket.off("category:updated");
+      socket.off("category:deleted");
+      socket.off("category:reordered");
+      socket.off("room:updated");
       socket.off("directChat:typing");
       socket.off("chatroom:typing");
       socket.off("presence:changed", onPresenceChanged);
@@ -1287,10 +1657,12 @@ export default function AppShell() {
     if (mine) return;
     if (a.kind === "dm") {
       ChatAPI.markDmRead(a.id, last.id).catch(() => {});
-    } else {
-      ChatAPI.markRoomRead(a.id, last.id).catch(() => {});
-      // Viewing a channel clears its client-side unread dot (Phase 2).
-      setChannelUnread((prev) => {
+    } else if (a.channelId) {
+      // Phase 6: per-channel cursor — entering/reading a channel marks that
+      // channel read without clearing the room's other channels.
+      ChatAPI.markChannelRead(a.id, a.channelId, last.id).catch(() => {});
+      // Viewing a channel clears its per-channel unread state (Phase 6).
+      setChannelUnreadsBoth((prev) => {
         if (!prev[key]) return prev;
         const next = { ...prev };
         delete next[key];
@@ -1398,6 +1770,16 @@ export default function AppShell() {
           setRoomMembersBoth((prev) => ({ ...prev, [c.id]: members })),
         )
         .catch(() => {});
+      // Load this user's room notification pref so the sidebar can suppress
+      // unread indicators for muted rooms (Phase 6 §10.1). Best-effort.
+      ChatAPI.getRoomMemberNotificationPref(c.id)
+        .then(({ notificationPref }) =>
+          setRoomNotificationPrefs((prev) => ({
+            ...prev,
+            [c.id]: notificationPref,
+          })),
+        )
+        .catch(() => {});
     }
     // Load the current read cursors so per-message read ticks render as soon
     // as the timeline does. Best-effort: a failure just means ticks appear
@@ -1445,8 +1827,9 @@ export default function AppShell() {
     activeRef.current = updated;
     setActive(updated);
     setActiveConversation("room", roomId);
-    // Entering a channel marks it read (clears its unread dot).
-    setChannelUnread((prev) => {
+    // Entering a channel clears its per-channel unread state (Phase 6); the
+    // markRead() call below syncs the cursor with the server.
+    setChannelUnreadsBoth((prev) => {
       const key = channelKey(roomId, channelId);
       if (!prev[key]) return prev;
       const next = { ...prev };
@@ -1970,6 +2353,7 @@ export default function AppShell() {
       ]);
       setDmList(dm.items);
       setRoomList(rooms.items);
+      setChannelUnreadsBoth((prev) => mergeChannelUnreads(prev, rooms.items));
     } catch (err) {
       toast(getErrorMessage(err, "Failed to refresh"), "error");
     }
@@ -2078,7 +2462,9 @@ export default function AppShell() {
     readReceipts,
     typing,
     presence,
-    channelUnread,
+    channelUnreads,
+    roomNotificationPrefs,
+    setRoomNotificationPrefs,
     roomDetails,
     roomBans,
     q,

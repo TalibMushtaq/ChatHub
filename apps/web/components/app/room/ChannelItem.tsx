@@ -10,31 +10,42 @@ import { useRef, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useShell } from "../state";
-import type { Channel } from "../types";
+import type { Channel, ChannelUnreadState } from "../types";
+import { channelUnreadStatus } from "../helpers";
 import { GripIcon, HashIcon, MoreIcon, SpeakerIcon } from "../icons";
 import { ChannelContextMenu, type MenuPosition } from "./ChannelContextMenu";
 
 export function ChannelItem({
   channel,
   active,
-  unread,
+  unreadState,
   canManage,
   containerId,
   dragEnabled,
 }: {
   channel: Channel;
   active: boolean;
-  unread: boolean;
+  unreadState?: ChannelUnreadState;
   canManage: boolean;
   /** Which drag container (category) this row belongs to. */
   containerId: string;
   /** Reorder is enabled for admins; members render a plain row. */
   dragEnabled: boolean;
 }) {
-  const { openChannel } = useShell();
+  const { openChannel, roomNotificationPrefs } = useShell();
   const [menu, setMenu] = useState<MenuPosition | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const Icon = channel.type === "VOICE" ? SpeakerIcon : HashIcon;
+
+  // Phase 6 §10.1: derive the visual unread state from the server-synced
+  // counts plus this user's room notification pref (muted suppresses dots).
+  const status = channelUnreadStatus(
+    unreadState,
+    roomNotificationPrefs[channel.roomId],
+  );
+  const mentioned = status === "mentioned";
+  const unread = status === "unread" || mentioned;
+  const muted = status === "muted";
 
   const {
     attributes,
@@ -94,7 +105,9 @@ export function ChannelItem({
             ? "bg-accent-soft text-accent-solid"
             : unread
               ? "text-fg"
-              : "text-muted hover:bg-surface-2 hover:text-fg"
+              : muted
+                ? "text-muted/60"
+                : "text-muted hover:bg-surface-2 hover:text-fg"
         }`}
         onClick={() => openChannel(channel.roomId, channel.id)}
         aria-current={active ? "true" : undefined}
@@ -108,12 +121,24 @@ export function ChannelItem({
         >
           {channel.name}
         </span>
-        {unread && !active && (
-          <span
-            className="h-2 w-2 flex-none rounded-full bg-accent-solid"
-            aria-label="Unread"
-          />
-        )}
+        {unread &&
+          !active &&
+          (mentioned ? (
+            <span
+              className="flex h-4 flex-none items-center gap-0.5 rounded-full bg-danger px-1.5 text-[10px] font-extrabold leading-none text-white"
+              aria-label={`${unreadState?.mentionCount ?? 1} mention${(unreadState?.mentionCount ?? 1) === 1 ? "" : "s"}`}
+            >
+              @
+              {(unreadState?.mentionCount ?? 1) > 9
+                ? "9+"
+                : (unreadState?.mentionCount ?? 1)}
+            </span>
+          ) : (
+            <span
+              className="h-2 w-2 flex-none rounded-full bg-accent-solid"
+              aria-label="Unread"
+            />
+          ))}
       </button>
       <button
         className="flex h-5 w-5 flex-none cursor-pointer items-center justify-center rounded-md text-muted opacity-100 transition-opacity duration-150 ease-app hover:bg-surface-2 hover:text-fg md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"

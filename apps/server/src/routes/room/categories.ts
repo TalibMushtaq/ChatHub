@@ -25,6 +25,7 @@ router.post(
     const roomId = roomIdParamSchema.parse(req.params).roomId;
     const input = createCategorySchema.parse(req.body);
     const category = await createCategory(req.user!.id, roomId, input);
+    req.io.to(`room:${roomId}`).emit("category:created", { roomId, category });
     res.status(201).json({ ok: true, category });
   }),
 );
@@ -45,6 +46,7 @@ router.patch(
       categoryId,
       input,
     );
+    req.io.to(`room:${roomId}`).emit("category:updated", { roomId, category });
     res.json({ ok: true, category });
   }),
 );
@@ -60,6 +62,9 @@ router.delete(
       ...categoryIdParamSchema.parse(req.params),
     };
     await deleteCategory(req.user!.id, roomId, categoryId);
+    req.io
+      .to(`room:${roomId}`)
+      .emit("category:deleted", { roomId, categoryId });
     res.json({ ok: true });
   }),
 );
@@ -72,6 +77,9 @@ router.patch(
     const roomId = roomIdParamSchema.parse(req.params).roomId;
     const { orderedIds } = reorderSchema.parse(req.body);
     await reorderCategories(req.user!.id, roomId, orderedIds);
+    req.io
+      .to(`room:${roomId}`)
+      .emit("category:reordered", { roomId, orderedIds });
     res.json({ ok: true });
   }),
 );

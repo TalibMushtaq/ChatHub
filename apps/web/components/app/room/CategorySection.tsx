@@ -49,7 +49,7 @@ export function CategorySection({
   /** Whether individual channels can be dragged out of / into this section. */
   channelReorderEnabled: boolean;
 }) {
-  const { openModal, channelUnread } = useShell();
+  const { openModal, channelUnreads } = useShell();
   const [menu, setMenu] = useState<MenuPosition | null>(null);
   const headRef = useRef<HTMLButtonElement>(null);
 
@@ -170,7 +170,7 @@ export function CategorySection({
                 key={c.id}
                 channel={c}
                 active={c.id === activeChannelId}
-                unread={!!channelUnread[`room:${c.roomId}:${c.id}`]}
+                unreadState={channelUnreads[`room:${c.roomId}:${c.id}`]}
                 canManage={canManage}
                 containerId={category.id}
                 dragEnabled={channelReorderEnabled}

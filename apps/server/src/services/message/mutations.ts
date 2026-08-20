@@ -3,11 +3,11 @@ import { prisma } from "../../../db/prisma";
 import { ApiError } from "../../lib/ApiError";
 
 /**
- * Field that scopes a message to its conversation: a chat room or a direct chat.
- * Both contexts share the `Message` table, so the only difference between the
- * room and direct-chat mutations is which scope column is read back.
+ * Field that scopes a message to its conversation: a chat room, a direct chat,
+ * or a room channel. All contexts share the `Message` table, so the only
+ * difference between the mutations is which scope column is read back.
  */
-export type MessageScopeField = "chatRoomId" | "directChatId";
+export type MessageScopeField = "chatRoomId" | "directChatId" | "channelId";
 
 /** The scope column plus the fields each mutation reads back. */
 type Scoped<F extends MessageScopeField> = { [K in F]: string | null };

@@ -1,7 +1,7 @@
 // Pure formatting/derivation helpers used across the app shell. Kept free of
 // React so every panel can import them without pulling in a component tree.
 
-import type { PresenceInfo, ReadReceipt } from "./types";
+import type { PresenceInfo, ReadReceipt, ChannelUnreadState } from "./types";
 
 export type ConvKind = "dm" | "room";
 
@@ -175,5 +175,25 @@ export function readStatusOf(
   ).length;
   if (readCount === 0) return "sent";
   if (isRoom) return readCount >= others.length ? "readAll" : "readSome";
+  return "read";
+}
+
+export type ChannelUnreadStatus = "read" | "unread" | "mentioned" | "muted";
+
+/**
+ * Derive a channel's visual unread state (Phase 6 §10.1):
+ * - "muted" when the user muted the room (indicator suppressed entirely);
+ * - "mentioned" when any unread message @-mentions the user (highest priority);
+ * - "unread" when messages from others exist after the read cursor;
+ * - "read" otherwise.
+ */
+export function channelUnreadStatus(
+  state: ChannelUnreadState | undefined,
+  notificationPref: "ALL" | "MENTIONS" | "MUTED" | undefined,
+): ChannelUnreadStatus {
+  if (notificationPref === "MUTED") return "muted";
+  if (!state) return "read";
+  if (state.mentionCount > 0) return "mentioned";
+  if (state.unreadCount > 0) return "unread";
   return "read";
 }

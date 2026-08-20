@@ -39,6 +39,8 @@ router.post(
     const roomId = roomIdParamSchema.parse(req.params).roomId;
     const input = createChannelSchema.parse(req.body);
     const channel = await createChannel(req.user!.id, roomId, input);
+    // Everyone in the room sees the new channel appear live in the sidebar.
+    req.io.to(`room:${roomId}`).emit("channel:created", { roomId, channel });
     res.status(201).json({ ok: true, channel });
   }),
 );
@@ -54,6 +56,7 @@ router.patch(
     };
     const input = updateChannelSchema.parse(req.body);
     const channel = await updateChannel(req.user!.id, roomId, channelId, input);
+    req.io.to(`room:${roomId}`).emit("channel:updated", { roomId, channel });
     res.json({ ok: true, channel });
   }),
 );
@@ -68,6 +71,7 @@ router.delete(
       ...channelIdParamSchema.parse(req.params),
     };
     await deleteChannel(req.user!.id, roomId, channelId);
+    req.io.to(`room:${roomId}`).emit("channel:deleted", { roomId, channelId });
     res.json({ ok: true });
   }),
 );
@@ -80,6 +84,7 @@ router.patch(
     const roomId = roomIdParamSchema.parse(req.params).roomId;
     const { items } = channelReorderSchema.parse(req.body);
     await reorderChannels(req.user!.id, roomId, items);
+    req.io.to(`room:${roomId}`).emit("channel:reordered", { roomId, items });
     res.json({ ok: true });
   }),
 );

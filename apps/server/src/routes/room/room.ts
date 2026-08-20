@@ -12,6 +12,8 @@ import {
 import { assertRoomAccess } from "../../middleware/socketAccess";
 import { asyncHandler } from "../../middleware/async-handler";
 import { markRoomRead } from "../../services/room/markRead";
+import { markChannelRead } from "../../services/room/markChannelRead";
+import { getRoomsChannelUnreads } from "../../services/room/channelUnread";
 import { getMessages } from "../../services/room/getMessages";
 import { getMembers } from "../../services/room/getMembers";
 import {
@@ -214,6 +216,10 @@ router.get(
         unreadRows.map((row) => [row.chatRoomId, Number(row.count)]),
       );
 
+      // Per-channel unread + mention counts so the sidebar can render
+      // Unread/Mentioned badges without a per-channel round-trip (Phase 6).
+      const channelUnreads = await getRoomsChannelUnreads(userId, roomIds);
+
       const inbox = sliced.map((room) => ({
         roomId: room.id,
         name: room.name,
@@ -226,6 +232,8 @@ router.get(
         lastMessage: room.Message[0] ?? null,
         memberCount: room._count.ChatRoomMember,
         unreadCount: unreadMap.get(room.id) ?? 0,
+        channelUnreads:
+          channelUnreads.find((c) => c.roomId === room.id)?.channels ?? {},
       }));
 
       return res.json({
@@ -381,6 +389,16 @@ router.patch(
     }
 
     const room = await updateRoom(userId, roomId, input.data);
+    // Live-profile sync: everyone in the room sees the header/settings change.
+    req.io.to(`room:${roomId}`).emit("room:updated", {
+      roomId,
+      room: {
+        id: room.id,
+        name: room.name,
+        description: room.description,
+        avatar: room.avatar,
+      },
+    });
     res.json({ ok: true, room });
   }),
 );
@@ -527,6 +545,117 @@ router.get(
     });
 
     res.json({ ok: true, receipts });
+  }),
+);
+
+const channelMarkReadLimiter = createRateLimiter({
+  maxAttempts: 120,
+  windowMs: 60_000,
+  prefix: "channel:markread",
+});
+
+// POST /:roomId/channels/:channelId/mark-read
+// Per-channel read cursor (Phase 6 §10.1): entering a channel marks that
+// channel's messages read without touching the other channels' cursors. Reuses
+// the shared read-receipt transaction; emits to the user's sessions plus the
+// room so other members' read ticks and the sidebar unread state stay in sync.
+router.post(
+  "/:roomId/channels/:channelId/mark-read",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = {
+      ...roomIdParamSchema.safeParse(req.params).data,
+      ...channelIdParamSchema.safeParse(req.params).data,
+    };
+    if (!params?.roomId || !params.channelId) {
+      res
+        .status(400)
+        .json({ ok: false, error: "roomId and channelId required" });
+      return;
+    }
+    const { roomId, channelId } = params;
+
+    const rate = await channelMarkReadLimiter(`channel:markread:${userId}`);
+    setRateLimitHeaders(res, rate);
+    if (!rate.allowed) {
+      res.status(429).json({ ok: false, error: "Rate limit exceeded" });
+      return;
+    }
+
+    const body = markReadSchema.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({
+        ok: false,
+        error: body.error.issues[0]?.message ?? "Invalid input",
+      });
+      return;
+    }
+
+    await assertRoomAccess(userId, roomId);
+
+    const result = await markChannelRead(
+      userId,
+      channelId,
+      body.data.lastReadMessageId,
+    );
+
+    // Sync this user's other tabs/devices with the new per-channel unread state.
+    req.io.to(`user:${userId}`).emit("channel:read", {
+      roomId,
+      channelId,
+      unreadCount: result.unreadCount,
+      mentionCount: 0,
+    });
+
+    // Broadcast the read cursor to the room so senders' read ticks update.
+    req.io.to(`room:${roomId}`).emit("channel:readReceipt", {
+      userId,
+      roomId,
+      channelId,
+      lastReadMessageId: result.lastReadMessageId,
+      lastReadMessageCreatedAt: result.lastReadMessageCreatedAt,
+    });
+
+    res.json({ ok: true, ...result });
+  }),
+);
+
+// GET /:roomId/channels/:channelId/read-receipt
+// The calling user's own read cursor for a channel (loaded when a channel
+// timeline opens so per-message read ticks render immediately).
+router.get(
+  "/:roomId/channels/:channelId/read-receipt",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+
+    const params = {
+      ...roomIdParamSchema.safeParse(req.params).data,
+      ...channelIdParamSchema.safeParse(req.params).data,
+    };
+    if (!params?.roomId || !params.channelId) {
+      res
+        .status(400)
+        .json({ ok: false, error: "roomId and channelId required" });
+      return;
+    }
+
+    await assertRoomAccess(userId, params.roomId);
+
+    const receipt = await prisma.channelReadReceipt.findUnique({
+      where: {
+        userId_channelId: { userId, channelId: params.channelId },
+      },
+      select: {
+        userId: true,
+        lastReadMessageId: true,
+        lastReadMessageCreatedAt: true,
+      },
+    });
+
+    res.json({ ok: true, receipt: receipt ?? null });
   }),
 );
 

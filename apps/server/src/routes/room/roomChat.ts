@@ -20,6 +20,7 @@ import { getOptionalS3Service, getRequiredS3Service } from "../../lib/s3";
 import { deleteMessageAttachments } from "../../services/attachment/deleteMessageAttachments";
 import { onAck } from "../../lib/socketAck";
 import { pushNewMessage } from "../../services/push/push";
+import { createMessageMentions } from "../../services/room/mentions";
 import {
   messageWithAttachmentsSelect,
   toRoomMessagePayload,
@@ -275,6 +276,37 @@ export function registerRoomChat(io: Server, socket: Socket) {
 
       io.to(`room:${data.roomId}`).emit("chatroom:message", payload);
 
+      // Detect @-mentions (Phase 6 §10.1) and notify each mentioned member via
+      // a targeted socket event so their sidebar can light up the Mentioned
+      // badge even when the room isn't focused. Best-effort: a mention-parse
+      // failure must never fail the message send.
+      let mentionedUserIds: string[] = [];
+      try {
+        const mentioned = await createMessageMentions({
+          messageId: message.id,
+          roomId: data.roomId,
+          channelId: channel.id,
+          senderId: userId,
+          content: data.content,
+        });
+        mentionedUserIds = mentioned.map((m) => m.userId);
+        for (const m of mentioned) {
+          io.to(`user:${m.userId}`).emit("mention:new", {
+            messageId: message.id,
+            roomId: data.roomId,
+            channelId: channel.id,
+            senderId: userId,
+            senderName: user.displayName ?? user.username,
+            content: message.content,
+          });
+        }
+      } catch (err) {
+        log.error("mention detection failed", err, {
+          userId,
+          roomId: data.roomId,
+        });
+      }
+
       // Fire-and-forget OS notifications to the other room members via Web
       // Push. A push failure must never fail a message the sender already saw
       // deliver. SYSTEM messages are filtered inside pushNewMessage.
@@ -286,6 +318,7 @@ export function registerRoomChat(io: Server, socket: Socket) {
         senderName: user.displayName ?? user.username,
         messageType: message.messageType,
         content: message.content,
+        mentionedUserIds,
       });
 
       ack({ ok: true, message: payload });

@@ -224,6 +224,18 @@ export interface RoomInboxEntry {
   } | null;
   memberCount: number;
   unreadCount: number;
+  /** channelId -> per-channel unread/mention counts (Phase 6 §10.1). */
+  channelUnreads?: Record<string, ChannelUnreadState>;
+}
+
+/**
+ * Per-channel unread state (Phase 6 §10.1). Server computes the counts; the
+ * sidebar derives the visual state — mentioned beats unread, muted suppresses
+ * both (the pref lives on the room membership and is resolved at render time).
+ */
+export interface ChannelUnreadState {
+  unreadCount: number;
+  mentionCount: number;
 }
 
 export interface RoomMember {
