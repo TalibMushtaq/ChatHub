@@ -1,3 +1,13 @@
+## [2026-08-20] - Phase 6 follow-up: mention extraction fix + service test coverage
+
+**What changed:** Fixed a boundary bug in `extractMentionedUsernames` (the regex matched `@` after any non-word char, but the parse used `m.trim().slice(1)`, so a boundary like `/` leaked into the username — `/@ghost` became `@ghost`). The parser now reads the capture group instead. Added unit tests for the three new Phase 6 services (`markChannelRead`, `channelUnread`, `mentions`) and for the notification-pref recipient filtering in `pushNewMessage` (MUTED excluded, MENTIONS only when mentioned) — the previous PR left those files at 0-43% coverage, which failed the 90% branch threshold.
+
+**Why:** CI failed on the coverage gate after the Phase 6 feature landed; the extraction fix is a correctness issue surfaced while writing the tests.
+
+**Impact:** Server-only. Branch coverage back above the 90% threshold (90.59%). Verification: `pnpm test` (server 721 / 102 files), `check-types`, `lint` (0 warnings), `build` — all clean.
+
+**Follow-ups:** None.
+
 ## [2026-08-20] - Rooms → Community: notifications + unread + realtime (Phase 6)
 
 **What changed:** Implemented the Phase 6 notifications/unread/realtime layer (§10): per-channel read cursors with server-computed unread/mention counts, @-mention extraction with a dedicated mention event, room-level notification preferences (All / Mentions / Muted) that gate both the sidebar indicators and push delivery, and realtime mirroring of channel/category/room CRUD so every member's sidebar stays live without refetching.
