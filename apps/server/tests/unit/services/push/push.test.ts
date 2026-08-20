@@ -96,6 +96,94 @@ describe("pushNewMessage", () => {
     });
   });
 
+  it("excludes MUTED members from room pushes", async () => {
+    prismaMock.chatRoomMember.findMany.mockResolvedValue([
+      { userId: "u2", notificationPref: "MUTED", ChatRoom: { name: "Games" } },
+      { userId: "u3", notificationPref: "ALL", ChatRoom: { name: "Games" } },
+    ] as any);
+    prismaMock.pushSubscription.findMany.mockResolvedValue([] as any);
+
+    await pushNewMessage({
+      kind: "room",
+      conversationId: "r1",
+      messageId: "m2",
+      senderId: "u1",
+      senderName: "Bob",
+      messageType: "TEXT",
+      content: "yo",
+    });
+
+    expect(prismaMock.pushSubscription.findMany).toHaveBeenCalledWith({
+      where: { userId: { in: ["u3"] } },
+    });
+  });
+
+  it("only pushes MENTIONS-pref members when this message mentions them", async () => {
+    prismaMock.chatRoomMember.findMany.mockResolvedValue([
+      {
+        userId: "u2",
+        notificationPref: "MENTIONS",
+        ChatRoom: { name: "Games" },
+      },
+      {
+        userId: "u3",
+        notificationPref: "MENTIONS",
+        ChatRoom: { name: "Games" },
+      },
+    ] as any);
+    prismaMock.pushSubscription.findMany.mockImplementation(
+      async ({ where }) => {
+        const { userId } = where as { userId: { in: string[] } };
+        return userId.in.map((id) => ({
+          endpoint: `https://push.example/sub-${id}`,
+          p256dh: "a",
+          auth: "b",
+        })) as any;
+      },
+    );
+
+    await pushNewMessage({
+      kind: "room",
+      conversationId: "r1",
+      messageId: "m5",
+      senderId: "u1",
+      senderName: "Bob",
+      messageType: "TEXT",
+      content: "hey @u2",
+      mentionedUserIds: ["u2"],
+    });
+
+    // Only u2 is targeted; the push only fetches u2's subscriptions.
+    expect(prismaMock.pushSubscription.findMany).toHaveBeenCalledWith({
+      where: { userId: { in: ["u2"] } },
+    });
+    expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(
+        vi.mocked(webpush.sendNotification).mock.calls[0]![1] as string,
+      ),
+    ).toMatchObject({ tag: "chathubby:m5" });
+  });
+
+  it("sends nothing when all members are muted", async () => {
+    prismaMock.chatRoomMember.findMany.mockResolvedValue([
+      { userId: "u2", notificationPref: "MUTED", ChatRoom: { name: "Games" } },
+    ] as any);
+
+    await pushNewMessage({
+      kind: "room",
+      conversationId: "r1",
+      messageId: "m6",
+      senderId: "u1",
+      senderName: "Bob",
+      messageType: "TEXT",
+      content: "yo",
+    });
+
+    expect(prismaMock.pushSubscription.findMany).not.toHaveBeenCalled();
+    expect(webpush.sendNotification).not.toHaveBeenCalled();
+  });
+
   it("prunes subscriptions that return 404/410", async () => {
     const err = new Error("gone");
     (err as { statusCode?: number }).statusCode = 410;

@@ -18,10 +18,12 @@ export function extractMentionedUsernames(
   if (!content) return [];
   // Match @ followed by 3-20 word chars; require a non-word char (or start) on
   // the left so `foo@bar` (email) and `abc@def` are not treated as mentions.
-  const matches = content.match(/(^|[^\w@])@([a-zA-Z0-9_]{3,20})/g) ?? [];
   const seen = new Set<string>();
+  const matches = content.matchAll(/(^|[^\w@])@([a-zA-Z0-9_]{3,20})/g);
   for (const m of matches) {
-    const username = m.trim().slice(1);
+    // Group 2 is the captured username; group 1 is the boundary char that
+    // `match` would have mixed into a slice()-based parse.
+    const username = m[2];
     if (username) seen.add(username);
   }
   return [...seen];
