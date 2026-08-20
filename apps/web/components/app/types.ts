@@ -321,6 +321,7 @@ export type ModalName =
   | "newDm"
   | "newRoom"
   | "roomInfo"
+  | "roomSettings"
   | "createChannel"
   | "createCategory"
   | "editChannel"

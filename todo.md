@@ -53,10 +53,10 @@
 
 ### Phase 5 — Room Settings
 
-- [ ] Settings layout: Overview/Profile/Channels/Roles/Members/Notifications/Moderation/Danger Zone (§9)
-- [ ] Overview: edit name/description/icon with preview (§9.1)
-- [ ] Notifications preferences: all/mentions/muted, per user per Room/channel (§9.2)
-- [ ] Danger Zone: leave + delete Room with explicit confirmation (§9.3)
+- [x] Settings layout: Overview/Profile/Channels/Roles/Members/Notifications/Moderation/Danger Zone (§9)
+- [x] Overview: edit name/description/icon with preview (§9.1)
+- [x] Notifications preferences: all/mentions/muted, per user per Room/channel (§9.2)
+- [x] Danger Zone: leave + delete Room with explicit confirmation (§9.3)
 
 ### Phase 6 — Notifications + Unread + Realtime
 

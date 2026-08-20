@@ -29,6 +29,7 @@ import updateRoomAvatarRouter from "./updateRoomAvatar";
 import categoriesRouter from "./categories";
 import channelsRouter from "./channels";
 import membersRouter from "./members";
+import { notificationPrefsRouter } from "./notificationPrefs";
 
 const router = Router();
 
@@ -44,6 +45,9 @@ router.use(channelsRouter);
 
 // Member + role management (Phase 4 §8)
 router.use(membersRouter);
+
+// Room notification preferences (Phase 5 §9.2)
+router.use("/:roomId/notification-prefs", notificationPrefsRouter);
 
 /**
  * POST /rooms

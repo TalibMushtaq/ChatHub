@@ -21,6 +21,7 @@ import { profileActionSet } from "./profileActions";
 import AppAvatar from "./AppAvatar";
 import { AvatarLink, NameLink } from "./UserLinks";
 import AvatarSelector from "./AvatarSelector";
+import RoomSettingsModal from "./room/RoomSettingsModal";
 import { STATUS_OPTIONS, TONE_BG } from "./statusTones";
 import {
   BackIcon,
@@ -77,6 +78,7 @@ const TITLES: Record<ModalEntry["name"], string> = {
   newDm: "New message",
   newRoom: "New room",
   roomInfo: "Room info",
+  roomSettings: "Room settings",
   createChannel: "Create channel",
   createCategory: "Create category",
   editChannel: "Edit channel",
@@ -324,6 +326,10 @@ function Body(entry: ModalEntry) {
       return <PrivacyModal />;
     case "notifications":
       return <NotificationsModal />;
+    case "roomSettings": {
+      const p = entry.payload as { roomId: string };
+      return <RoomSettingsModal roomId={p.roomId} />;
+    }
     case "recovery":
       return <RecoveryModal />;
     case "confirm": {

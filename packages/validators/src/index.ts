@@ -55,6 +55,7 @@ export {
   muteMemberSchema,
   setNicknameSchema,
   memberUserIdParamSchema,
+  roomNotificationPrefSchema,
 } from "./room";
 export {
   RELATIONSHIP_VALUES,

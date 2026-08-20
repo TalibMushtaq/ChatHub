@@ -260,6 +260,26 @@ export const ChatAPI = {
     await api.post(`/room/rooms/${roomId}/leave`);
   },
 
+  async getRoomMemberNotificationPref(
+    roomId: string,
+  ): Promise<{ ok: boolean; notificationPref: "ALL" | "MENTIONS" | "MUTED" }> {
+    const { data } = await api.get(`/room/rooms/${roomId}/notification-prefs`);
+    return data;
+  },
+
+  async updateRoomNotificationPref(
+    roomId: string,
+    notificationPref: "ALL" | "MENTIONS" | "MUTED",
+  ): Promise<{ ok: boolean; notificationPref: "ALL" | "MENTIONS" | "MUTED" }> {
+    const { data } = await api.patch(
+      `/room/rooms/${roomId}/notification-prefs`,
+      {
+        notificationPref,
+      },
+    );
+    return data;
+  },
+
   async getRoomMembers(roomId: string): Promise<RoomMember[]> {
     const { data } = await api.get(`/room/${roomId}/members`);
     return data.members;

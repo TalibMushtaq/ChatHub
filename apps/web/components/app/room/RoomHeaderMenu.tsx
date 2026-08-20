@@ -99,7 +99,7 @@ export function RoomHeaderMenu({
       {
         label: "Room Settings",
         icon: <GearIcon className="h-4 w-4 flex-none" />,
-        onClick: () => openModal("roomInfo"),
+        onClick: () => openModal("roomSettings", roomId),
       },
       {
         label: "Invite People",

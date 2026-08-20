@@ -248,6 +248,12 @@ export const setNicknameSchema = z.object({
     .nullable(),
 });
 
+export const roomNotificationPrefSchema = z.object({
+  notificationPref: z.enum(["ALL", "MENTIONS", "MUTED"], {
+    message: "Notification preference must be ALL, MENTIONS, or MUTED",
+  }),
+});
+
 /** Param schema for `:userId` in member-management routes. */
 export const memberUserIdParamSchema = z.object({
   userId: z.string().min(1),
