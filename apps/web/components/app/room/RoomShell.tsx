@@ -14,6 +14,13 @@ import { ChannelHeader } from "./ChannelHeader";
 import { ChannelMessageArea } from "./ChannelMessageArea";
 import { MemberSidebar } from "./MemberSidebar";
 import { btnPrimary } from "../styles";
+import { lazy, Suspense } from "react";
+import { useCallStore } from "../callStore";
+import PreJoinPreview from "./PreJoinPreview";
+
+// Lazy-load CallView to avoid pulling livekit-client into the main bundle
+// when no voice channels are being used.
+const CallView = lazy(() => import("./CallView"));
 
 function findChannel(
   detail: RoomDetail,
@@ -28,7 +35,7 @@ function findChannel(
 }
 
 export default function RoomShell() {
-  const { active, roomMembers, openModal, typing } = useShell();
+  const { active, roomMembers, openChannel, openModal, typing } = useShell();
   const room = active && active.kind === "room" ? active : null;
   const roomId = room?.id ?? "";
   const { detail, loading, error, refresh } = useRoomDetail(roomId);
@@ -36,8 +43,15 @@ export default function RoomShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
 
+  const isPreviewOpen = useCallStore((s) => s.isPreviewOpen);
+  const activeCallChannelId = useCallStore((s) => s.activeChannelId);
+
   if (!room) return null;
   const channel = detail ? findChannel(detail, room.channelId) : undefined;
+  const targetPreviewChannel =
+    detail && activeCallChannelId
+      ? findChannel(detail, activeCallChannelId)
+      : undefined;
   const members = roomMembers[roomId] ?? [];
   const typers = typing[`room:${roomId}`] ?? [];
   const canManage = room.myRole === "OWNER" || room.myRole === "ADMIN";
@@ -95,7 +109,23 @@ export default function RoomShell() {
               onOpenSidebar={() => setSidebarOpen(true)}
               typers={typers}
             />
-            <ChannelMessageArea key={channel.id} channel={channel} />
+            {channel.type === "VOICE" ? (
+              <Suspense
+                fallback={
+                  <div className="flex flex-1 items-center justify-center text-sm text-muted">
+                    Loading voice channel...
+                  </div>
+                }
+              >
+                <CallView
+                  roomId={roomId}
+                  channelId={channel.id}
+                  channelName={channel.name}
+                />
+              </Suspense>
+            ) : (
+              <ChannelMessageArea key={channel.id} channel={channel} />
+            )}
           </>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -125,6 +155,21 @@ export default function RoomShell() {
         open={memberOpen}
         onClose={() => setMemberOpen(false)}
       />
+
+      {/* Pre-join preview for voice channels */}
+      {isPreviewOpen && targetPreviewChannel && (
+        <PreJoinPreview
+          channelName={targetPreviewChannel.name}
+          onJoin={() => {
+            useCallStore.getState().setPreviewOpen(false);
+            openChannel(targetPreviewChannel.roomId, targetPreviewChannel.id);
+          }}
+          onCancel={() => {
+            useCallStore.getState().setPreviewOpen(false);
+            useCallStore.getState().clearActiveCall();
+          }}
+        />
+      )}
     </div>
   );
 }

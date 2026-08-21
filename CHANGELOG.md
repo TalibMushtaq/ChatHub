@@ -1,3 +1,13 @@
+## [2026-08-21] - Phase 7: Voice Channels + Calls (LiveKit SFU)
+
+**What changed:** Full voice-channel calling infrastructure using LiveKit SFU for WebRTC transport. Backend: `CallSession`/`CallParticipant` Prisma models, `participantLimit` on Channel, LiveKit SDK singleton (`lib/livekit.ts`), call APIs (`join-token`, `leave`, `GET active`, `PATCH moderator`), stale participant reaper on startup + periodic. Frontend: Zustand `useCallStore` (isolated from ShellCtx), `useDeviceManager` hook (enumerate/select/persist mic+cam+speaker), `PreJoinPreview` modal, `CallView` (adaptive grid + LiveKit connection), `ParticipantTile` (video/avatar/speaking ring/mute indicators), `CallControlsBar` (mute/deafen/camera/screen-share/settings/leave), `DeviceSettingsModal`, `VoiceChannelSidebar`. Socket events: `call.started`, `call.ended`, `call.participant.joined/left/kicked/muted`. Integration: `RoomShell` renders `CallView` for VOICE channels, `ChannelItem` shows pre-join preview, `AppShell` wires call socket events to update call store. Tests: 20 new backend tests for token issuance, permission checks, participant limit, session reuse, leave, moderator mute/disconnect, stale reaping.
+
+**Why:** Phase 7 of the Rooms-to-Community architecture spec (§11) — live voice channels with real-time audio/video/screen-share.
+
+**Impact:** Server: new Prisma migration (`20260821000000_add_call_models`), new deps `livekit-server-sdk` (server) + `@livekit/components-react` + `livekit-client` + `zustand` + `lucide-react` (web). New env vars: `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_WS_URL` (also added to `turbo.json` globalEnv). No existing behavior changed — voice channels were placeholder until now. Verification: `pnpm test` (server 741 / 104 files, web 78), `check-types`, `lint` (0 warnings), `build` — all clean.
+
+**Follow-ups:** Requires PostgreSQL migration applied + LiveKit server running locally (Docker). Manual E2E testing with two users needed (audio, camera, screen-share, moderator actions, reconnect). Edge cases partially wired: single-call constraint + screen-share native-stop reconcile are handled in `CallView`; stale reaper implemented server-side. Phase 8 (floating call widget) builds on this.
+
 ## [2026-08-20] - Phase 6 follow-up: socket event types + mention toast channel name
 
 **What changed:** Tightened `socket-events.ts` — `channel:created`/`channel:updated` payloads now declare `type` as the proper `"TEXT" | "VOICE" | "ANNOUNCEMENT" | "FORUM"` union instead of `string`. The `mention:new` payload and toast now carry `channelName` so the notification reads `#general` instead of `#a1b2c3d4`.

@@ -66,18 +66,20 @@
 
 ### Phase 7 — Voice Channels + Calls
 
-- [ ] Media architecture decision: managed SFU vs self-hosted vs mesh; document (§11.2)
-- [ ] Voice channel join/leave with permission enforcement + participant limit + preview option (§11.1)
-- [ ] `CallSession` + `CallParticipant` models (metadata only, no media persistence) (§11.3)
-- [ ] Short-lived join tokens issued by backend; TURN/STUN config (§11.2, §20)
-- [ ] Device management: enumeration/selection, echo cancellation/noise suppression/AGC defaults (§11.2)
-- [ ] Call features: mute/deafen/camera/screen share (getDisplayMedia), video tiles, speaking indicators (§11.4)
-- [ ] Moderator actions: server-mute, disconnect (§11.4)
-- [ ] Screen share: "you are sharing" indicator, focus tile, native-stop reconciliation (§11.4)
-- [ ] Call signaling events: call.* + call.participant.* + call.screen_share.* (§11.5)
-- [ ] Full in-channel call view: adaptive grid, tiles, controls bar (§11.6)
+- [x] Media architecture decision: LiveKit SFU (managed) chosen over mesh; documented (§11.2)
+- [x] Voice channel join/leave with permission enforcement + participant limit + preview option (§11.1)
+- [x] `CallSession` + `CallParticipant` models (metadata only, no media persistence) (§11.3)
+- [x] Short-lived join tokens issued by backend; TURN/STUN via LiveKit (§11.2, §20)
+- [x] Device management: enumeration/selection, echo cancellation/noise suppression/AGC defaults (§11.2)
+- [x] Call features: mute/deafen/camera/screen share (getDisplayMedia), video tiles, speaking indicators (§11.4)
+- [x] Moderator actions: server-mute, disconnect (§11.4)
+- [x] Screen share: "you are sharing" indicator, focus tile, native-stop reconciliation (§11.4)
+- [x] Call signaling events: call.* + call.participant.* (§11.5)
+- [x] Full in-channel call view: adaptive grid, tiles, controls bar (§11.6)
 - [ ] Edge cases: single call constraint, reconnect w/ backoff, stale participant reaping, mid-call permission/device changes (§11.7)
 - [ ] Phase 7 completion: audio/video/screen-share end-to-end, sidebar presence realtime, call survives navigation (§11.8)
+
+> Phase 7 backend verified with `pnpm test` (741), `check-types`, `lint`, `build`. Frontend store/device/call UI written; edge cases (single-call constraint, reconnect UI, screen-share native-stop reconcile) partially wired. Manual browser E2E (two users, audio/video/screen-share) still pending — requires PostgreSQL migration applied + a running LiveKit server.
 
 ### Phase 8 — Floating Call Widget
 

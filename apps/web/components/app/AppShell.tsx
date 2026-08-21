@@ -17,6 +17,7 @@ import {
   type ModalEntry,
   type ToastItem,
 } from "./state";
+import { useCallStore } from "./callStore";
 import type {
   AppUser,
   BlockedUser,
@@ -1404,6 +1405,55 @@ export default function AppShell() {
           fromName: payload.blockedBy.displayName ?? payload.blockedBy.username,
         },
         "socket",
+      );
+    });
+
+    // Voice channel call events (Phase 7): update the call store's participant
+    // list when others join/leave/get kicked from a call in the same room.
+    socket.on("call.participant.joined", (payload) => {
+      const call = useCallStore.getState();
+      if (call.activeChannelId !== payload.channelId) return;
+      const existing = call.participants.find(
+        (p) => p.userId === payload.userId,
+      );
+      if (!existing) {
+        call.setParticipants([
+          ...call.participants,
+          {
+            userId: payload.userId,
+            username: payload.user.username,
+            displayName: payload.user.displayName,
+            avatar: payload.user.avatar,
+          },
+        ]);
+      }
+    });
+    socket.on("call.participant.left", (payload) => {
+      const call = useCallStore.getState();
+      if (call.activeChannelId !== payload.channelId) return;
+      call.setParticipants(
+        call.participants.filter((p) => p.userId !== payload.userId),
+      );
+    });
+    socket.on("call.participant.kicked", (payload) => {
+      const call = useCallStore.getState();
+      if (call.activeChannelId !== payload.channelId) return;
+      if (payload.userId === userRef.current?.id) {
+        // This user was kicked — tear down the call.
+        call.clearActiveCall();
+      } else {
+        call.setParticipants(
+          call.participants.filter((p) => p.userId !== payload.userId),
+        );
+      }
+    });
+    socket.on("call.participant.muted", (payload) => {
+      const call = useCallStore.getState();
+      if (call.activeChannelId !== payload.channelId) return;
+      call.setParticipants(
+        call.participants.map((p) =>
+          p.userId === payload.userId ? { ...p, isMuted: true } : p,
+        ),
       );
     });
 

@@ -32,6 +32,7 @@ import categoriesRouter from "./categories";
 import channelsRouter from "./channels";
 import membersRouter from "./members";
 import { notificationPrefsRouter } from "./notificationPrefs";
+import callRouter from "./call";
 
 const router = Router();
 
@@ -50,6 +51,9 @@ router.use(membersRouter);
 
 // Room notification preferences (Phase 5 §9.2)
 router.use("/:roomId/notification-prefs", notificationPrefsRouter);
+
+// Voice channel call APIs (Phase 7 §11)
+router.use(callRouter);
 
 /**
  * POST /rooms

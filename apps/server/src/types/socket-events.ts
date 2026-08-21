@@ -178,6 +178,33 @@ export interface ServerToClientEvents {
   "friend-request:accepted": (payload: FriendRequestAcceptedPayload) => void;
   "friend-request:declined": (payload: FriendRequestDeclinedPayload) => void;
   "friend-request:blocked": (payload: FriendRequestBlockedPayload) => void;
+  // Phase 7 — Voice channel call events (application-level only; LiveKit owns RTC state).
+  "call.started": (payload: { channelId: string; sessionId: string }) => void;
+  "call.ended": (payload: { channelId: string; sessionId: string }) => void;
+  "call.participant.joined": (payload: {
+    channelId: string;
+    userId: string;
+    user: {
+      id: string;
+      username: string;
+      displayName: string | null;
+      avatar: string | null;
+    };
+  }) => void;
+  "call.participant.left": (payload: {
+    channelId: string;
+    userId: string;
+  }) => void;
+  "call.participant.kicked": (payload: {
+    channelId: string;
+    userId: string;
+    by: string;
+  }) => void;
+  "call.participant.muted": (payload: {
+    channelId: string;
+    userId: string;
+    by: string;
+  }) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
 // Role hierarchy (Phase 4 §8.1): OWNER > ADMIN > MODERATOR > MEMBER. The
 // permission map in services/room/permissions.ts is the single source of truth
 // for what each role can actually do.
@@ -66,16 +67,16 @@ enum FriendRequestStatus {
 }
 
 model ChatRoom {
-  id             String                 @id @default(cuid())
-  name           String
-  description    String?
-  createdBy      String
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  lastMessageAt  DateTime?
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastMessageAt DateTime?
   avatar        String?
 
-  User           User                   @relation(fields: [createdBy], references: [id])
+  User User @relation(fields: [createdBy], references: [id])
 
   ChatRoomMember ChatRoomMember[]
   Message        Message[]
@@ -112,21 +113,24 @@ model Category {
 // voice channels (Phase 7) hold call sessions instead. Names are unique per
 // Room (Discord-style), normalized to lowercase-hyphen form by the validator.
 model Channel {
-  id         String      @id @default(cuid())
-  roomId     String
-  categoryId String?
-  name       String
-  topic      String?
-  type       ChannelType @default(TEXT)
-  position   Int         @default(0)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id               String      @id @default(cuid())
+  roomId           String
+  categoryId       String?
+  name             String
+  topic            String?
+  type             ChannelType @default(TEXT)
+  position         Int         @default(0)
+  // Max participants allowed in a voice channel. Ignored for TEXT channels.
+  participantLimit Int         @default(25)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
-  ChatRoom          ChatRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  Category          Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  Message           Message[]
-  readReceipts      ChannelReadReceipt[]
-  MessageMention    MessageMention[]
+  ChatRoom       ChatRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  Category       Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  Message        Message[]
+  readReceipts   ChannelReadReceipt[]
+  MessageMention MessageMention[]
+  callSessions   CallSession[]
 
   @@unique([roomId, name])
   @@index([roomId, position])
@@ -140,21 +144,21 @@ enum ChatRoomNotificationPref {
 }
 
 model ChatRoomMember {
-  id                 String               @id @default(cuid())
-  userId             String
-  chatRoomId         String
-  role               ChatRoomRole @default(MEMBER)
-  joinedAt           DateTime     @default(now())
+  id               String                   @id @default(cuid())
+  userId           String
+  chatRoomId       String
+  role             ChatRoomRole             @default(MEMBER)
+  joinedAt         DateTime                 @default(now())
   // Per-room display name shown instead of the global display name (Phase 4).
-  nickname           String?
+  nickname         String?
   // Notification preferences for this room (Phase 5).
-  notificationPref   ChatRoomNotificationPref @default(ALL)
+  notificationPref ChatRoomNotificationPref @default(ALL)
   // Temporary mute: while set (and in the future), the member cannot send
   // messages. Null means "not muted". Expired mutes are treated as unmuted.
-  mutedUntil         DateTime?
+  mutedUntil       DateTime?
 
-  ChatRoom           ChatRoom     @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  User               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ChatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  User     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chatRoomId])
   @@index([chatRoomId])
@@ -172,19 +176,17 @@ model RoomBan {
   reason     String?
   createdAt  DateTime @default(now())
 
-  ChatRoom  ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bannedBy  User     @relation("RoomBanBannedBy", fields: [bannedById], references: [id], onDelete: Cascade)
+  ChatRoom ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  User     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bannedBy User     @relation("RoomBanBannedBy", fields: [bannedById], references: [id], onDelete: Cascade)
 
   @@unique([roomId, userId])
   @@index([roomId])
   @@index([userId])
 }
 
-
-
 model Message {
-  id           String      @id @default(cuid())
+  id           String  @id @default(cuid())
   content      String?
   senderId     String
   chatRoomId   String?
@@ -193,20 +195,20 @@ model Message {
   // messages that predate the channels migration (backfilled to #general).
   channelId    String?
 
-  messageType  MessageType @default(TEXT)
+  messageType MessageType @default(TEXT)
 
-  createdAt    DateTime    @default(now())
+  createdAt DateTime @default(now())
 
-  isDeleted    Boolean     @default(false)
-  deletedAt    DateTime?
-  editedAt     DateTime?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  editedAt  DateTime?
 
-  ChatRoom     ChatRoom?   @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  DirectChat   DirectChat? @relation(fields: [directChatId], references: [id], onDelete: Cascade)
-  Channel      Channel?    @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  User         User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  attachments  Attachment[]
-  mentions     MessageMention[]
+  ChatRoom    ChatRoom?        @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  DirectChat  DirectChat?      @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  Channel     Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  User        User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+  mentions    MessageMention[]
 
   DirectChatReadReceipt DirectChatReadReceipt[] @relation("DirectChatReadReceiptLastMessage")
   ChatRoomReadReceipt   ChatRoomReadReceipt[]   @relation("ChatRoomReadReceiptLastMessage")
@@ -235,21 +237,21 @@ model Attachment {
   status        AttachmentStatus @default(PENDING)
   createdAt     DateTime         @default(now())
 
-  Message       Message?         @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  User          User             @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  Message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  User    User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
   @@index([uploaderId, status])
 }
 
 model DirectChat {
-  id                            String    @id @default(cuid())
+  id                            String                  @id @default(cuid())
   user1Id                       String
   user2Id                       String
-  createdAt                     DateTime  @default(now())
+  createdAt                     DateTime                @default(now())
   lastMessageAt                 DateTime?
-  User_DirectChat_user1IdToUser User      @relation("DirectChat_user1IdToUser", fields: [user1Id], references: [id], onDelete: Cascade)
-  User_DirectChat_user2IdToUser User      @relation("DirectChat_user2IdToUser", fields: [user2Id], references: [id], onDelete: Cascade)
+  User_DirectChat_user1IdToUser User                    @relation("DirectChat_user1IdToUser", fields: [user1Id], references: [id], onDelete: Cascade)
+  User_DirectChat_user2IdToUser User                    @relation("DirectChat_user2IdToUser", fields: [user2Id], references: [id], onDelete: Cascade)
   Message                       Message[]
   readReceipts                  DirectChatReadReceipt[]
 
@@ -273,8 +275,8 @@ model FriendRequest {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  sender     User @relation("FriendRequestsSent", fields: [senderId], references: [id], onDelete: Cascade)
-  recipient  User @relation("FriendRequestsReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+  sender    User @relation("FriendRequestsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("FriendRequestsReceived", fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, status])
   @@index([senderId, status])
@@ -314,10 +316,10 @@ model UserBlock {
 }
 
 model User {
-  id                                  String           @id
-  email                               String           @unique
+  id                                  String            @id
+  email                               String            @unique
   displayName                         String?
-  username                            String           @unique
+  username                            String            @unique
   passwordHash                        String?
   avatar                              String?
   bio                                 String?
@@ -326,44 +328,44 @@ model User {
   // Manual status chosen by the user (AVAILABLE/BUSY/DND/AWAY/INVISIBLE).
   // Stored as String (not an enum) so new statuses never require a migration;
   // the API validator enforces the allowed set at the boundary.
-  status                              String           @default("AVAILABLE")
+  status                              String            @default("AVAILABLE")
   // Optional free-text status shown alongside the manual status; kept separate
   // from `status` so clearing the text never changes the selected status.
   customStatus                        String?
   // Privacy: what THIS user exposes to others (never what they can see).
-  showOnlineStatus                    Boolean          @default(true)
-  showTypingStatus                    Boolean          @default(true)
-  createdAt                           DateTime         @default(now())
-  updatedAt                           DateTime         @updatedAt
+  showOnlineStatus                    Boolean           @default(true)
+  showTypingStatus                    Boolean           @default(true)
+  createdAt                           DateTime          @default(now())
+  updatedAt                           DateTime          @updatedAt
   sessions                            Session[]
   ChatRoom                            ChatRoom[]
   ChatRoomMember                      ChatRoomMember[]
-  DirectChat_DirectChat_user1IdToUser DirectChat[]     @relation("DirectChat_user1IdToUser")
-  DirectChat_DirectChat_user2IdToUser DirectChat[]     @relation("DirectChat_user2IdToUser")
+  DirectChat_DirectChat_user1IdToUser DirectChat[]      @relation("DirectChat_user1IdToUser")
+  DirectChat_DirectChat_user2IdToUser DirectChat[]      @relation("DirectChat_user2IdToUser")
   Message                             Message[]
   Attachment                          Attachment[]
   joinRequests                        RoomJoinRequest[]
   reviewedJoinRequests                RoomJoinRequest[] @relation("JoinRequestReviewedBy")
 
+  receivedInvitations    RoomInvitation[]        @relation("InvitedUser")
+  sentInvitations        RoomInvitation[]        @relation("InvitedBy")
+  createdJoinLinks       RoomJoinLink[]
+  recoveryCodes          RecoveryCode[]
+  directChatReadReceipts DirectChatReadReceipt[]
+  chatRoomReadReceipts   ChatRoomReadReceipt[]
+  channelReadReceipts    ChannelReadReceipt[]
+  mentions               MessageMention[]
+  pushSubscriptions      PushSubscription[]
 
-  receivedInvitations                 RoomInvitation[] @relation("InvitedUser")
-  sentInvitations                     RoomInvitation[] @relation("InvitedBy")
-  createdJoinLinks                    RoomJoinLink[]
-  recoveryCodes                       RecoveryCode[]
-  directChatReadReceipts              DirectChatReadReceipt[]
-  chatRoomReadReceipts                ChatRoomReadReceipt[]
-  channelReadReceipts                 ChannelReadReceipt[]
-  mentions                           MessageMention[]
-  pushSubscriptions                   PushSubscription[]
-
-  friendRequestsSent                  FriendRequest[]  @relation("FriendRequestsSent")
-  friendRequestsReceived              FriendRequest[]  @relation("FriendRequestsReceived")
-  friendshipsA                        Friendship[]     @relation("FriendshipsUserA")
-  friendshipsB                        Friendship[]     @relation("FriendshipsUserB")
-  userBlocksCreated                   UserBlock[]      @relation("UserBlocksCreated")
-  userBlocksReceived                  UserBlock[]      @relation("UserBlocksReceived")
-  roomBansCreated                     RoomBan[]        @relation("RoomBanBannedBy")
-  roomBansReceived                    RoomBan[]
+  friendRequestsSent     FriendRequest[]   @relation("FriendRequestsSent")
+  friendRequestsReceived FriendRequest[]   @relation("FriendRequestsReceived")
+  friendshipsA           Friendship[]      @relation("FriendshipsUserA")
+  friendshipsB           Friendship[]      @relation("FriendshipsUserB")
+  userBlocksCreated      UserBlock[]       @relation("UserBlocksCreated")
+  userBlocksReceived     UserBlock[]       @relation("UserBlocksReceived")
+  roomBansCreated        RoomBan[]         @relation("RoomBanBannedBy")
+  roomBansReceived       RoomBan[]
+  callParticipations     CallParticipant[]
 }
 
 model Session {
@@ -371,48 +373,46 @@ model Session {
   userId    String
   expiresAt DateTime
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model RoomInvitation {
-  id              String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  roomId          String
-  room            ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId String
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
-  invitedUserId   String
-  invitedUser     User     @relation("InvitedUser", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedUserId String
+  invitedUser   User   @relation("InvitedUser", fields: [invitedUserId], references: [id], onDelete: Cascade)
 
-  invitedById     String
-  invitedBy       User     @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  invitedById String
+  invitedBy   User   @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
 
-  status          InvitationStatus @default(PENDING)
+  status InvitationStatus @default(PENDING)
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([roomId, invitedUserId, status], name: "unique_pending_invitation")
   @@index([roomId])
   @@index([invitedUserId])
 }
 
-
-
 model RoomJoinRequest {
-  id                    String                  @id @default(uuid())
+  id String @id @default(uuid())
 
-  roomId                String  
-  room                  ChatRoom                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId String
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
-  userId                String
-  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  status                JoinRequestStatus       @default(PENDING)
+  status JoinRequestStatus @default(PENDING)
 
-  reviewedById          String?
-  reviewedBy            User?                   @relation("JoinRequestReviewedBy", fields: [reviewedById], references: [id])
+  reviewedById String?
+  reviewedBy   User?   @relation("JoinRequestReviewedBy", fields: [reviewedById], references: [id])
 
-  createdAt             DateTime                @default(now())
-  reviewedAt            DateTime?
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
 
   @@unique([roomId, userId, status], name: "unique_pending_join_request")
   @@index([roomId])
@@ -420,37 +420,37 @@ model RoomJoinRequest {
 }
 
 model RoomJoinLink {
-  id                    String                  @id @default(uuid())
+  id String @id @default(uuid())
 
-  token                 String                  @unique
-  roomId                String
-  room                  ChatRoom                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  token  String   @unique
+  roomId String
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
-  createdById           String
-  createdBy             User                    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
-  maxUses               Int?
-  usedCount             Int                     @default(0)
+  maxUses   Int?
+  usedCount Int  @default(0)
 
-  expiresAt             DateTime?
-  isActive              Boolean                 @default(true)
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
 
-  createdAt             DateTime                @default(now())
+  createdAt DateTime @default(now())
 
   @@index([roomId])
   @@index([createdById])
 }
 
 model RecoveryCode {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  userId    String
-  codeId    String
+  userId String
+  codeId String
 
-  hash      String
+  hash String
 
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  used      Boolean   @default(false)
+  createdAt DateTime  @default(now())
   usedAt    DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -471,7 +471,7 @@ model PushSubscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -489,9 +489,9 @@ model DirectChatReadReceipt {
   lastReadMessageCreatedAt DateTime?
   updatedAt                DateTime  @updatedAt
 
-  User              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  DirectChat        DirectChat @relation(fields: [directChatId], references: [id], onDelete: Cascade)
-  LastReadMessage   Message?   @relation("DirectChatReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+  User            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  DirectChat      DirectChat @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  LastReadMessage Message?   @relation("DirectChatReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
 
   @@unique([userId, directChatId])
   @@index([userId])
@@ -507,9 +507,9 @@ model ChatRoomReadReceipt {
   lastReadMessageCreatedAt DateTime?
   updatedAt                DateTime  @updatedAt
 
-  User              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ChatRoom          ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  LastReadMessage   Message? @relation("ChatRoomReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+  User            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ChatRoom        ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  LastReadMessage Message? @relation("ChatRoomReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
 
   @@unique([userId, chatRoomId])
   @@index([userId])
@@ -528,9 +528,9 @@ model ChannelReadReceipt {
   lastReadMessageCreatedAt DateTime?
   updatedAt                DateTime  @updatedAt
 
-  User            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  Channel         Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  LastReadMessage Message?  @relation("ChannelReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+  User            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Channel         Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  LastReadMessage Message? @relation("ChannelReadReceiptLastMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
 
   @@unique([userId, channelId])
   @@index([userId])
@@ -550,12 +550,47 @@ model MessageMention {
   channelId String?
   createdAt DateTime @default(now())
 
-  Message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  User    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Message Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  User    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   Channel Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([userId, channelId])
   @@index([channelId])
   @@index([roomId])
+}
+
+// Persistent record of a voice-call instance in a channel.
+// LiveKit owns real-time state (speaking, track publish, etc.); this table
+// tracks history, participant count, and stale-session cleanup.
+model CallSession {
+  id        String    @id @default(cuid())
+  channelId String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  Channel      Channel           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  participants CallParticipant[]
+
+  @@index([channelId])
+  @@index([endedAt])
+}
+
+// A user who joined a CallSession. Records join/leave timestamps for
+// participant count queries and stale reaping. Transient media state
+// (mute, camera, screen-share) lives in LiveKit, not here.
+model CallParticipant {
+  id        String    @id @default(cuid())
+  sessionId String
+  userId    String
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+
+  session CallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([leftAt])
 }

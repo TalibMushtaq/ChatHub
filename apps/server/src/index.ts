@@ -29,6 +29,10 @@ import healthRoute from "./routes/health";
 import { errorHandler } from "./middleware/error-handler";
 import { createLogger } from "./lib/logger";
 import { testS3Connection } from "./lib/s3HealthCheck";
+import {
+  endAllActiveSessions,
+  reapStaleParticipants,
+} from "./services/room/call";
 
 const log = createLogger("server");
 
@@ -108,6 +112,10 @@ async function main() {
     log.info("postgres/prisma db connected");
     // Run a lightweight S3 connectivity test at startup
     await testS3Connection();
+    // End any stale call sessions left from a previous crash/restart.
+    await endAllActiveSessions().catch((err) =>
+      log.error("Failed to end stale call sessions on startup", err),
+    );
   }
   app.get("/", (req, res) => {
     res.send("Chathub server running");
@@ -115,6 +123,15 @@ async function main() {
   const Port = Number(3100);
   httpServer.listen(Port, () => {
     log.info(`web socket server running on ${Port}`);
+    // Periodic stale-participant cleanup every 5 min.
+    setInterval(
+      () => {
+        reapStaleParticipants().catch((err) =>
+          log.error("Stale participant reap failed", err),
+        );
+      },
+      5 * 60 * 1000,
+    );
   });
 }
 

@@ -14,6 +14,7 @@ import type { Channel, ChannelUnreadState } from "../types";
 import { channelUnreadStatus } from "../helpers";
 import { GripIcon, HashIcon, MoreIcon, SpeakerIcon } from "../icons";
 import { ChannelContextMenu, type MenuPosition } from "./ChannelContextMenu";
+import { useCallStore } from "../callStore";
 
 export function ChannelItem({
   channel,
@@ -109,7 +110,24 @@ export function ChannelItem({
                 ? "text-muted/60"
                 : "text-muted hover:bg-surface-2 hover:text-fg"
         }`}
-        onClick={() => openChannel(channel.roomId, channel.id)}
+        onClick={() => {
+          if (channel.type === "VOICE") {
+            // For voice channels, show the pre-join preview instead of directly navigating.
+            // The preview handles LiveKit device setup before joining.
+            const call = useCallStore.getState();
+            if (call.activeChannelId === channel.id) {
+              // Already in this channel's call — just navigate to it.
+              openChannel(channel.roomId, channel.id);
+            } else {
+              // Set preview state: activeSessionId stays null until the user
+              // actually joins and the server returns a real session ID.
+              call.setPreviewOpen(true);
+              call.setActiveCall(null, channel.id, channel.roomId);
+            }
+          } else {
+            openChannel(channel.roomId, channel.id);
+          }
+        }}
         aria-current={active ? "true" : undefined}
         title={channel.topic ?? channel.name}
       >

@@ -714,5 +714,76 @@ export const RoomSocket = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Voice channels / calls (Phase 7)
+// ---------------------------------------------------------------------------
+
+export interface CallJoinResult {
+  token: string;
+  livekitUrl: string;
+  roomName: string;
+  /** Real DB session ID — use this to update callStore.activeSessionId. */
+  sessionId: string;
+  /** True when this join created a brand-new session (first participant). */
+  isNewSession: boolean;
+}
+
+export interface CallParticipantInfo {
+  id: string;
+  sessionId: string;
+  userId: string;
+  joinedAt: string;
+  leftAt: string | null;
+  user: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatar: string | null;
+  };
+}
+
+export interface ActiveCallSession {
+  id: string;
+  channelId: string;
+  startedAt: string;
+  endedAt: string | null;
+  participants: CallParticipantInfo[];
+}
+
+export const CallAPI = {
+  async joinToken(roomId: string, channelId: string): Promise<CallJoinResult> {
+    const { data } = await api.post(
+      `/room/rooms/${roomId}/channels/${channelId}/call/join-token`,
+    );
+    return data;
+  },
+
+  async leave(roomId: string, channelId: string): Promise<void> {
+    await api.post(`/room/rooms/${roomId}/channels/${channelId}/call/leave`);
+  },
+
+  async getActive(
+    roomId: string,
+    channelId: string,
+  ): Promise<ActiveCallSession | null> {
+    const { data } = await api.get(
+      `/room/rooms/${roomId}/channels/${channelId}/call`,
+    );
+    return data.session;
+  },
+
+  async moderate(
+    roomId: string,
+    channelId: string,
+    targetUserId: string,
+    action: "mute" | "disconnect",
+  ): Promise<void> {
+    await api.patch(
+      `/room/rooms/${roomId}/channels/${channelId}/call/participants/${targetUserId}`,
+      { action },
+    );
+  },
+};
+
 export { getErrorMessage };
 export type { Attachment };
