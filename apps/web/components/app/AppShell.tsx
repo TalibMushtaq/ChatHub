@@ -1562,7 +1562,7 @@ export default function AppShell() {
           setChannelUnreadsBoth((prev) => mergeChannelUnreads(prev, items));
         })
         .catch(() => {});
-        
+
       if (a?.kind === "room") {
         void ChatAPI.getRoomDetail(a.id)
           .then((detail) => {
@@ -1571,7 +1571,8 @@ export default function AppShell() {
           .catch(() => {});
 
         // Resync live call presence across all voice channels.
-        void CallAPI.getActiveCalls(a.id).then((calls) => {
+        void CallAPI.getActiveCalls(a.id)
+          .then((calls) => {
             const callStore = useCallStore.getState();
             for (const c of calls) {
               callStore.setParticipantsForChannel(c.channelId, (prev) => {

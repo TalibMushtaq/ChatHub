@@ -165,7 +165,9 @@ export function RoomHeaderMenu({
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const buttons = Array.from(wrapRef.current?.querySelectorAll("button") ?? []);
+    const buttons = Array.from(
+      wrapRef.current?.querySelectorAll("button") ?? [],
+    );
     if (!buttons.length) return;
     const idx = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (e.key === "ArrowDown") {

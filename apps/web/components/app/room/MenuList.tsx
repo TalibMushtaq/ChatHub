@@ -25,7 +25,9 @@ export function MenuList({ items }: { items: MenuItem[] }) {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const buttons = Array.from(containerRef.current?.querySelectorAll("button") ?? []);
+    const buttons = Array.from(
+      containerRef.current?.querySelectorAll("button") ?? [],
+    );
     if (!buttons.length) return;
     const idx = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (e.key === "ArrowDown") {
@@ -40,7 +42,12 @@ export function MenuList({ items }: { items: MenuItem[] }) {
   };
 
   return (
-    <div className="p-1.5" ref={containerRef} onKeyDown={handleKeyDown} role="menu">
+    <div
+      className="p-1.5"
+      ref={containerRef}
+      onKeyDown={handleKeyDown}
+      role="menu"
+    >
       {items.map((it) => (
         <button
           key={it.label}

@@ -104,7 +104,9 @@ export function ChannelMessageArea({ channel }: { channel: Channel }) {
               #
             </div>
             <div>
-              <p className="font-extrabold text-fg">Welcome to #{channel.name}</p>
+              <p className="font-extrabold text-fg">
+                Welcome to #{channel.name}
+              </p>
               <p className="mt-0.5 text-[13px] text-muted">
                 This is the very beginning of this channel.
               </p>

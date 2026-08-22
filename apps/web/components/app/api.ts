@@ -784,9 +784,7 @@ export const CallAPI = {
     );
   },
 
-  async getActiveCalls(
-    roomId: string,
-  ): Promise<
+  async getActiveCalls(roomId: string): Promise<
     {
       channelId: string;
       sessionId: string;

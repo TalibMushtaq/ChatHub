@@ -13,7 +13,7 @@ export function ReconnectBanner() {
     function onConnect() {
       setOffline(false);
     }
-    
+
     // Initial state
     if (socket.disconnected) {
       setOffline(true);

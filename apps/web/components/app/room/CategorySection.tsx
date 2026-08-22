@@ -156,9 +156,11 @@ export function CategorySection({
           onClose={() => setMenu(null)}
         />
       )}
-      <div 
+      <div
         className={`grid transition-[grid-template-rows,opacity] duration-200 ease-app ${
-          collapsible && collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+          collapsible && collapsed
+            ? "grid-rows-[0fr] opacity-0"
+            : "grid-rows-[1fr] opacity-100"
         }`}
       >
         <div className="overflow-hidden">

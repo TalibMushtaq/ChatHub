@@ -17,10 +17,14 @@ export class CallErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-          <p className="font-extrabold text-danger">Something went wrong with the voice channel.</p>
-          <p className="text-[13px] text-muted">Try rejoining or refreshing the page.</p>
-          <button 
-            className={btnPrimary} 
+          <p className="font-extrabold text-danger">
+            Something went wrong with the voice channel.
+          </p>
+          <p className="text-[13px] text-muted">
+            Try rejoining or refreshing the page.
+          </p>
+          <button
+            className={btnPrimary}
             onClick={() => this.setState({ hasError: false })}
           >
             Try Again

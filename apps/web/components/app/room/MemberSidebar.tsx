@@ -8,7 +8,13 @@ import { useState } from "react";
 import { useShell } from "../state";
 import { AvatarLink, NameLink } from "../UserLinks";
 import { CloseIcon, MoreIcon } from "../icons";
-import { chipAdmin, chipMember, chipModerator, chipOwner, btnPrimary } from "../styles";
+import {
+  chipAdmin,
+  chipMember,
+  chipModerator,
+  chipOwner,
+  btnPrimary,
+} from "../styles";
 import { MemberContextMenu, type MenuPosition } from "./MemberContextMenu";
 import type { RoomMember, RoomRole } from "../types";
 
@@ -93,8 +99,12 @@ export function MemberSidebar({
         <div className="members min-h-0 flex-1 overflow-y-auto p-2.5">
           {members.length === 0 && (
             <div className="flex flex-col items-center gap-3 p-6 text-center">
-              <p className="text-[13px] font-extrabold text-fg">No members yet</p>
-              <p className="text-[12px] text-muted">Invite people to start building this community.</p>
+              <p className="text-[13px] font-extrabold text-fg">
+                No members yet
+              </p>
+              <p className="text-[12px] text-muted">
+                Invite people to start building this community.
+              </p>
               {(myRole === "OWNER" || myRole === "ADMIN") && (
                 <button
                   className={`${btnPrimary} min-h-8 px-[13px] py-[5px] text-[12.5px]`}

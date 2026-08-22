@@ -224,7 +224,10 @@ export const useCallStore = create<CallState>((set, get) => ({
     set((state) => ({
       participantsByChannel: {
         ...state.participantsByChannel,
-        [channelId]: typeof p === "function" ? p(state.participantsByChannel[channelId] ?? []) : p,
+        [channelId]:
+          typeof p === "function"
+            ? p(state.participantsByChannel[channelId] ?? [])
+            : p,
       },
     })),
   setWidgetExpanded: (v) => set({ isWidgetExpanded: v }),

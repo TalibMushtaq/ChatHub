@@ -112,7 +112,9 @@ export default function WidgetMinimized({
 
       <div className="flex items-center justify-between px-3 py-2 cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1">
-          <Tooltip label={isMuted ? "Unmute (Ctrl+Shift+M)" : "Mute (Ctrl+Shift+M)"}>
+          <Tooltip
+            label={isMuted ? "Unmute (Ctrl+Shift+M)" : "Mute (Ctrl+Shift+M)"}
+          >
             <button
               onClick={toggleMute}
               aria-pressed={isMuted}
@@ -125,7 +127,11 @@ export default function WidgetMinimized({
             </button>
           </Tooltip>
 
-          <Tooltip label={isDeafened ? "Undeafen (Ctrl+Shift+D)" : "Deafen (Ctrl+Shift+D)"}>
+          <Tooltip
+            label={
+              isDeafened ? "Undeafen (Ctrl+Shift+D)" : "Deafen (Ctrl+Shift+D)"
+            }
+          >
             <button
               onClick={toggleDeafen}
               aria-pressed={isDeafened}

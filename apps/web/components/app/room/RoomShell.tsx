@@ -136,7 +136,9 @@ export default function RoomShell() {
               #
             </div>
             <div>
-              <p className="text-[15px] font-extrabold text-fg">No channels yet</p>
+              <p className="text-[15px] font-extrabold text-fg">
+                No channels yet
+              </p>
               <p className="mt-1 max-w-[300px] text-[13px] text-muted">
                 {canManage
                   ? "Create your first channel to start organizing conversations in this Room."
