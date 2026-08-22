@@ -48,6 +48,8 @@ import RoomShell from "./room/RoomShell";
 import { parseConvParam as parseConvParamHelper } from "./room/sidebarReorder";
 import Modals from "./Modals";
 import { Toasts } from "./Toasts";
+import CallProvider from "./CallProvider";
+import FloatingCallWidget from "./room/FloatingCallWidget";
 import {
   ChatIcon,
   UsersIcon,
@@ -2576,194 +2578,209 @@ export default function AppShell() {
 
   return (
     <ShellContext.Provider value={ctx}>
-      <div
-        data-thread-open={active ? "" : undefined}
-        className="app group h-full overflow-hidden bg-bg font-body text-fg antialiased"
-      >
-        <div className="shell grid h-dvh grid-cols-[76px_330px_1fr] max-md:grid-cols-1">
-          {/* Rail */}
-          <aside className="rail flex flex-col items-center border-r border-border bg-surface px-0 py-4 pb-3 max-md:hidden">
-            <div className="logo flex items-center justify-center">
-              <AppAvatar
-                name="ChatHubby"
-                src="/chathubby-v2.webp"
-                size={38}
-                square
-              />
-            </div>
-            <div className="nav flex w-full flex-1 flex-col gap-2 px-2.5 py-[22px]">
-              {navItem(
-                "dm",
-                "Chat",
-                <ChatIcon className="h-[21px] w-[21px]" />,
-                dmUnread,
-              )}
-              {navItem(
-                "room",
-                "Rooms",
-                <UsersIcon className="h-[21px] w-[21px]" />,
-                roomUnread,
-              )}
-              {navItem(
-                "search",
-                "Search",
-                <SearchIcon className="h-[21px] w-[21px]" />,
-                0,
-              )}
-            </div>
-            <div className="me flex flex-col items-center gap-1.5">
-              <button
-                className={`${iconBtn} h-[34px] w-[34px] hover:bg-surface-2 hover:text-danger`}
-                onClick={toggleTheme}
-                aria-label="Toggle theme"
-                title="Toggle theme"
-              >
-                {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-              </button>
-              <button
-                className={`${iconBtn} h-[34px] w-[34px]`}
-                onClick={() => setFmenu((f) => !f)}
-                aria-label="Profile menu"
-                title="Profile"
-              >
+      <CallProvider>
+        <div
+          data-thread-open={active ? "" : undefined}
+          className="app group h-full overflow-hidden bg-bg font-body text-fg antialiased"
+        >
+          <div className="shell grid h-dvh grid-cols-[76px_330px_1fr] max-md:grid-cols-1">
+            {/* Rail */}
+            <aside className="rail flex flex-col items-center border-r border-border bg-surface px-0 py-4 pb-3 max-md:hidden">
+              <div className="logo flex items-center justify-center">
                 <AppAvatar
-                  name={user.displayName ?? user.username}
-                  src={user.avatar}
-                  size={34}
-                  presence={presence[user.id]}
+                  name="ChatHubby"
+                  src="/chathubby-v2.webp"
+                  size={38}
+                  square
                 />
-              </button>
-              {fmenu && (
-                <div
-                  className="fmenu fixed z-[90] min-w-[190px] rounded-[14px] border border-border bg-surface p-1.5 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
-                  style={{ left: 68, bottom: 12 }}
-                  onClick={(e) => e.stopPropagation()}
+              </div>
+              <div className="nav flex w-full flex-1 flex-col gap-2 px-2.5 py-[22px]">
+                {navItem(
+                  "dm",
+                  "Chat",
+                  <ChatIcon className="h-[21px] w-[21px]" />,
+                  dmUnread,
+                )}
+                {navItem(
+                  "room",
+                  "Rooms",
+                  <UsersIcon className="h-[21px] w-[21px]" />,
+                  roomUnread,
+                )}
+                {navItem(
+                  "search",
+                  "Search",
+                  <SearchIcon className="h-[21px] w-[21px]" />,
+                  0,
+                )}
+              </div>
+              <div className="me flex flex-col items-center gap-1.5">
+                <button
+                  className={`${iconBtn} h-[34px] w-[34px] hover:bg-surface-2 hover:text-danger`}
+                  onClick={toggleTheme}
+                  aria-label="Toggle theme"
+                  title="Toggle theme"
                 >
-                  <button
-                    className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
-                    onClick={() => {
-                      setFmenu(false);
-                      openModal("status");
-                    }}
+                  {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+                </button>
+                <button
+                  className={`${iconBtn} h-[34px] w-[34px]`}
+                  onClick={() => setFmenu((f) => !f)}
+                  aria-label="Profile menu"
+                  title="Profile"
+                >
+                  <AppAvatar
+                    name={user.displayName ?? user.username}
+                    src={user.avatar}
+                    size={34}
+                    presence={presence[user.id]}
+                  />
+                </button>
+                {fmenu && (
+                  <div
+                    className="fmenu fixed z-[90] min-w-[190px] rounded-[14px] border border-border bg-surface p-1.5 shadow-lg animate-[pop_.13s_cubic-bezier(.2,.8,.2,1)]"
+                    style={{ left: 68, bottom: 12 }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <SmileyIcon className="h-4 w-4 flex-none" /> Status
-                  </button>
-                  <button
-                    className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
-                    onClick={() => {
-                      setFmenu(false);
-                      openModal("profile");
-                    }}
-                  >
-                    <UserIcon className="h-4 w-4 flex-none" /> Profile
-                  </button>
-                  <button
-                    className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
-                    onClick={() => {
-                      setFmenu(false);
-                      setTab("settings");
-                    }}
-                  >
-                    <GearIcon className="h-4 w-4 flex-none" /> Settings
-                  </button>
-                  <button
-                    className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
-                    onClick={() => {
-                      setFmenu(false);
-                      void logout();
-                    }}
-                  >
-                    <LogoutIcon className="h-4 w-4 flex-none" /> Sign out
-                  </button>
-                </div>
-              )}
-            </div>
-          </aside>
+                    <button
+                      className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
+                      onClick={() => {
+                        setFmenu(false);
+                        openModal("status");
+                      }}
+                    >
+                      <SmileyIcon className="h-4 w-4 flex-none" /> Status
+                    </button>
+                    <button
+                      className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
+                      onClick={() => {
+                        setFmenu(false);
+                        openModal("profile");
+                      }}
+                    >
+                      <UserIcon className="h-4 w-4 flex-none" /> Profile
+                    </button>
+                    <button
+                      className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-fg transition-colors duration-150 ease-app hover:bg-surface-2"
+                      onClick={() => {
+                        setFmenu(false);
+                        setTab("settings");
+                      }}
+                    >
+                      <GearIcon className="h-4 w-4 flex-none" /> Settings
+                    </button>
+                    <button
+                      className="flex w-full cursor-pointer items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
+                      onClick={() => {
+                        setFmenu(false);
+                        void logout();
+                      }}
+                    >
+                      <LogoutIcon className="h-4 w-4 flex-none" /> Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </aside>
 
-          {/* List column */}
-          <section className="list flex min-w-0 flex-col border-r border-border bg-surface max-md:pb-[70px] max-md:group-data-[thread-open]:hidden">
-            <ListPanel />
-          </section>
+            {/* List column */}
+            <section className="list flex min-w-0 flex-col border-r border-border bg-surface max-md:pb-[70px] max-md:group-data-[thread-open]:hidden">
+              <ListPanel />
+            </section>
 
-          {/* Thread column: slides in as a full-screen sheet on mobile. */}
-          <aside
-            className={`thread flex min-h-0 min-w-0 flex-col bg-bg max-md:fixed max-md:inset-0 max-md:z-30 max-md:translate-x-full max-md:transition-transform max-md:duration-[260ms] max-md:ease-app ${active ? "max-md:group-data-[thread-open]:translate-x-0" : ""}`}
-          >
-            {active?.kind === "room" ? (
-              <RoomShell key={active.id} />
-            ) : (
-              <ThreadPanel />
-            )}
-          </aside>
-        </div>
-
-        {/* Mobile bottom nav */}
-        <nav className="bottomnav fixed inset-x-0 bottom-0 z-20 hidden border-t border-border bg-surface px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 max-md:block">
-          <div className="bn-row grid grid-cols-4 gap-1.5">
-            <button
-              className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "dm" ? "bg-accent-soft text-accent-solid" : ""}`}
-              onClick={() => {
-                setTab("dm");
-                if (typeof window !== "undefined" && window.innerWidth < 768) {
-                  navigateBack();
-                }
-              }}
+            {/* Thread column: slides in as a full-screen sheet on mobile. */}
+            <aside
+              className={`thread flex min-h-0 min-w-0 flex-col bg-bg max-md:fixed max-md:inset-0 max-md:z-30 max-md:translate-x-full max-md:transition-transform max-md:duration-[260ms] max-md:ease-app ${active ? "max-md:group-data-[thread-open]:translate-x-0" : ""}`}
             >
-              <ChatIcon className="h-[21px] w-[21px]" />
-              {dmUnread > 0 && (
-                <span className="nab absolute right-[calc(50%-18px)] top-0 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
-                  {dmUnread > 9 ? "9+" : dmUnread}
-                </span>
+              {active?.kind === "room" ? (
+                <RoomShell key={active.id} />
+              ) : (
+                <ThreadPanel />
               )}
-              Chat
-            </button>
-            <button
-              className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "room" ? "bg-accent-soft text-accent-solid" : ""}`}
-              onClick={() => {
-                setTab("room");
-                if (typeof window !== "undefined" && window.innerWidth < 768) {
-                  navigateBack();
-                }
-              }}
-            >
-              <UsersIcon className="h-[21px] w-[21px]" />
-              {roomUnread > 0 && (
-                <span className="nab absolute right-[calc(50%-18px)] top-0 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
-                  {roomUnread > 9 ? "9+" : roomUnread}
-                </span>
-              )}
-              Rooms
-            </button>
-            <button
-              className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "search" ? "bg-accent-soft text-accent-solid" : ""}`}
-              onClick={() => {
-                setTab("search");
-                if (typeof window !== "undefined" && window.innerWidth < 768) {
-                  navigateBack();
-                }
-              }}
-            >
-              <SearchIcon className="h-[21px] w-[21px]" />
-              Search
-            </button>
-            <button
-              className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "settings" ? "bg-accent-soft text-accent-solid" : ""}`}
-              onClick={() => {
-                setTab("settings");
-                if (typeof window !== "undefined" && window.innerWidth < 768) {
-                  navigateBack();
-                }
-              }}
-            >
-              <GearIcon className="h-[21px] w-[21px]" />
-              Settings
-            </button>
+            </aside>
           </div>
-        </nav>
 
-        <Modals />
-        <Toasts />
-      </div>
+          {/* Mobile bottom nav */}
+          <nav className="bottomnav fixed inset-x-0 bottom-0 z-20 hidden border-t border-border bg-surface px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 max-md:block">
+            <div className="bn-row grid grid-cols-4 gap-1.5">
+              <button
+                className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "dm" ? "bg-accent-soft text-accent-solid" : ""}`}
+                onClick={() => {
+                  setTab("dm");
+                  if (
+                    typeof window !== "undefined" &&
+                    window.innerWidth < 768
+                  ) {
+                    navigateBack();
+                  }
+                }}
+              >
+                <ChatIcon className="h-[21px] w-[21px]" />
+                {dmUnread > 0 && (
+                  <span className="nab absolute right-[calc(50%-18px)] top-0 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
+                    {dmUnread > 9 ? "9+" : dmUnread}
+                  </span>
+                )}
+                Chat
+              </button>
+              <button
+                className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "room" ? "bg-accent-soft text-accent-solid" : ""}`}
+                onClick={() => {
+                  setTab("room");
+                  if (
+                    typeof window !== "undefined" &&
+                    window.innerWidth < 768
+                  ) {
+                    navigateBack();
+                  }
+                }}
+              >
+                <UsersIcon className="h-[21px] w-[21px]" />
+                {roomUnread > 0 && (
+                  <span className="nab absolute right-[calc(50%-18px)] top-0 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
+                    {roomUnread > 9 ? "9+" : roomUnread}
+                  </span>
+                )}
+                Rooms
+              </button>
+              <button
+                className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "search" ? "bg-accent-soft text-accent-solid" : ""}`}
+                onClick={() => {
+                  setTab("search");
+                  if (
+                    typeof window !== "undefined" &&
+                    window.innerWidth < 768
+                  ) {
+                    navigateBack();
+                  }
+                }}
+              >
+                <SearchIcon className="h-[21px] w-[21px]" />
+                Search
+              </button>
+              <button
+                className={`bn-item relative flex cursor-pointer flex-col items-center gap-[3px] rounded-[12px] py-[7px] text-[10.5px] font-extrabold text-muted transition-colors duration-150 ease-app ${tab === "settings" ? "bg-accent-soft text-accent-solid" : ""}`}
+                onClick={() => {
+                  setTab("settings");
+                  if (
+                    typeof window !== "undefined" &&
+                    window.innerWidth < 768
+                  ) {
+                    navigateBack();
+                  }
+                }}
+              >
+                <GearIcon className="h-[21px] w-[21px]" />
+                Settings
+              </button>
+            </div>
+          </nav>
+
+          <FloatingCallWidget />
+          <Modals />
+          <Toasts />
+        </div>
+      </CallProvider>
     </ShellContext.Provider>
   );
 }

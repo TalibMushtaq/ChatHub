@@ -38,6 +38,11 @@ export interface CallState {
   // UI toggles
   isDeviceSettingsOpen: boolean;
 
+  // Widget UI state (Phase 8)
+  isWidgetExpanded: boolean;
+  widgetPosition: { x: number; y: number } | null;
+  callStartedAt: number | null;
+
   // Participants (application-level; LiveKit is authoritative for media state)
   participants: CallParticipant[];
 
@@ -63,9 +68,13 @@ export interface CallState {
   setSelectedSpeaker: (id: string | null) => void;
   setDeviceSettingsOpen: (v: boolean) => void;
   setParticipants: (p: CallParticipant[]) => void;
+  setWidgetExpanded: (v: boolean) => void;
+  setWidgetPosition: (pos: { x: number; y: number } | null) => void;
+  setCallStartedAt: (t: number | null) => void;
 }
 
 const DEVICE_STORAGE_KEY = "chathubby:call-devices";
+const WIDGET_POS_KEY = "chathubby:widget-pos";
 
 function loadDevicePrefs(): {
   selectedMicrophone?: string | null;
@@ -100,6 +109,29 @@ function saveDevicePrefs(
 }
 
 const devicePrefs = loadDevicePrefs();
+const initialWidgetPos = (function loadWidgetPos(): {
+  x: number;
+  y: number;
+} | null {
+  try {
+    const raw = localStorage.getItem(WIDGET_POS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+})();
+
+function saveWidgetPos(pos: { x: number; y: number } | null): void {
+  try {
+    if (pos) {
+      localStorage.setItem(WIDGET_POS_KEY, JSON.stringify(pos));
+    } else {
+      localStorage.removeItem(WIDGET_POS_KEY);
+    }
+  } catch {
+    // non-fatal
+  }
+}
 
 export const useCallStore = create<CallState>((set, get) => ({
   activeSessionId: null,
@@ -121,6 +153,9 @@ export const useCallStore = create<CallState>((set, get) => ({
   selectedSpeaker: devicePrefs.selectedSpeaker ?? null,
 
   isDeviceSettingsOpen: false,
+  isWidgetExpanded: false,
+  widgetPosition: initialWidgetPos,
+  callStartedAt: null,
 
   participants: [],
 
@@ -143,6 +178,7 @@ export const useCallStore = create<CallState>((set, get) => ({
       isCameraEnabled: false,
       isScreenSharing: false,
       participants: [],
+      callStartedAt: null,
     }),
   setJoining: (v) => set({ isJoining: v }),
   setConnected: (v) => set({ isConnected: v }),
@@ -169,4 +205,10 @@ export const useCallStore = create<CallState>((set, get) => ({
   },
   setDeviceSettingsOpen: (v) => set({ isDeviceSettingsOpen: v }),
   setParticipants: (p) => set({ participants: p }),
+  setWidgetExpanded: (v) => set({ isWidgetExpanded: v }),
+  setWidgetPosition: (pos) => {
+    set({ widgetPosition: pos });
+    saveWidgetPos(pos);
+  },
+  setCallStartedAt: (t) => set({ callStartedAt: t }),
 }));

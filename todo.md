@@ -83,18 +83,18 @@
 
 ### Phase 8 — Floating Call Widget
 
-- [ ] Widget rendered at app shell level, persists across all navigation (§12.1)
-- [ ] Draggable on desktop, clamped to viewport, session/localStorage position (§12.1)
-- [ ] Minimized state: connection indicator, channel/room name, timer, controls, avatar stack (§12.2)
-- [ ] Expanded state: adaptive tile grid + footer controls; ✕ collapses, only 📞 leaves (§12.2)
-- [ ] Screen-share focus / PiP mode + optional native Document PiP (§12.2)
-- [ ] Controls: mute/deafen/camera/screen share/settings/expand/disconnect, optimistic + real-state-synced, shortcuts (§12.3)
-- [ ] Status/feedback: speaking indicators, reconnecting state, screen-share self-indicator, "you're muted" nudge (§12.4)
-- [ ] App interaction: navigates to voice channel on click, coexists with DMs, no click swallowing (§12.5)
-- [ ] Mobile: docked bar above composer + bottom sheet, keyboard/safe-area aware (§12.6)
-- [ ] Accessibility: keyboard operable, live-region announcements, shortcuts, reduced-motion (§12.7)
-- [ ] Performance: isolated state subscription, pause remote video when minimized, throttle speaking updates (§12.8)
-- [ ] Phase 8 completion criteria + E2E widget scenario (§12.9)
+- [x] Widget rendered at app shell level, persists across all navigation (§12.1)
+- [x] Draggable on desktop, clamped to viewport, session/localStorage position (§12.1)
+- [x] Minimized state: connection indicator, channel/room name, timer, controls, avatar stack (§12.2)
+- [x] Expanded state: adaptive tile grid + footer controls; ✕ collapses, only 📞 leaves (§12.2)
+- [x] Screen-share focus / PiP mode + optional native Document PiP (§12.2)
+- [x] Controls: mute/deafen/camera/screen share/settings/expand/disconnect, optimistic + real-state-synced, shortcuts (§12.3)
+- [x] Status/feedback: speaking indicators, reconnecting state, screen-share self-indicator, "you're muted" nudge (§12.4)
+- [x] App interaction: navigates to voice channel on click, coexists with DMs, no click swallowing (§12.5)
+- [x] Mobile: docked bar above composer + bottom sheet, keyboard/safe-area aware (§12.6)
+- [x] Accessibility: keyboard operable, live-region announcements, shortcuts, reduced-motion (§12.7)
+- [x] Performance: isolated state subscription, pause remote video when minimized, throttle speaking updates (§12.8)
+- [x] Phase 8 completion criteria + E2E widget scenario (§12.9)
 
 ### Phase 9 — UX Polish
 
