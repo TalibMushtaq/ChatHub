@@ -50,6 +50,7 @@ import Modals from "./Modals";
 import { Toasts } from "./Toasts";
 import CallProvider from "./CallProvider";
 import FloatingCallWidget from "./room/FloatingCallWidget";
+import { ReconnectBanner } from "./ReconnectBanner";
 import {
   ChatIcon,
   UsersIcon,
@@ -286,6 +287,9 @@ export default function AppShell() {
       () => setToasts((prev) => prev.filter((t) => t.id !== id)),
       4000,
     );
+  };
+  const dismissToast = (id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   };
   const openModal = (name: ModalEntry["name"], payload?: unknown) =>
     setMStack((prev) => [...prev, { name, payload }]);
@@ -1524,6 +1528,22 @@ export default function AppShell() {
       joinedRef.current.clear();
       const a = activeRef.current;
       if (a) joinSocket(a);
+
+      // Resync state that may have changed while disconnected.
+      void ChatAPI.getRooms()
+        .then(({ items }) => {
+          setRoomList(items);
+          setChannelUnreadsBoth((prev) => mergeChannelUnreads(prev, items));
+        })
+        .catch(() => {});
+        
+      if (a?.kind === "room") {
+        void ChatAPI.getRoomDetail(a.id)
+          .then((detail) => {
+            setRoomDetails((prev) => ({ ...prev, [a.id]: detail }));
+          })
+          .catch(() => {});
+      }
     });
     socket.on("disconnect", () => joinedRef.current.clear());
 
@@ -2552,6 +2572,7 @@ export default function AppShell() {
     popModal,
     clearModals,
     toast,
+    dismissToast,
     sendMessage,
     sendVoiceMessage,
     editMessage,
@@ -2699,6 +2720,8 @@ export default function AppShell() {
               )}
             </aside>
           </div>
+
+          <ReconnectBanner />
 
           {/* Mobile bottom nav */}
           <nav className="bottomnav fixed inset-x-0 bottom-0 z-20 hidden border-t border-border bg-surface px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 max-md:block">

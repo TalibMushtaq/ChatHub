@@ -17,6 +17,7 @@ import { btnPrimary } from "../styles";
 import { lazy, Suspense } from "react";
 import { useCallStore } from "../callStore";
 import PreJoinPreview from "./PreJoinPreview";
+import { CallErrorBoundary } from "./CallErrorBoundary";
 
 // Lazy-load CallView to avoid pulling livekit-client into the main bundle
 // when no voice channels are being used.
@@ -110,39 +111,44 @@ export default function RoomShell() {
               typers={typers}
             />
             {channel.type === "VOICE" ? (
-              <Suspense
-                fallback={
-                  <div className="flex flex-1 items-center justify-center text-sm text-muted">
-                    Loading voice channel...
-                  </div>
-                }
-              >
-                <CallView
-                  roomId={roomId}
-                  channelId={channel.id}
-                  channelName={channel.name}
-                />
-              </Suspense>
+              <CallErrorBoundary>
+                <Suspense
+                  fallback={
+                    <div className="flex flex-1 items-center justify-center text-sm text-muted">
+                      Loading voice channel...
+                    </div>
+                  }
+                >
+                  <CallView
+                    roomId={roomId}
+                    channelId={channel.id}
+                    channelName={channel.name}
+                  />
+                </Suspense>
+              </CallErrorBoundary>
             ) : (
               <ChannelMessageArea key={channel.id} channel={channel} />
             )}
           </>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-            <p className="text-[14.5px] font-extrabold text-fg">
-              {detail ? `Welcome to ${detail.name}` : "This room is empty"}
-            </p>
-            <p className="max-w-[320px] text-[13px] text-muted">
-              {canManage
-                ? "Create a channel to start the conversation."
-                : "No channels here yet. Ask an owner or admin to set one up."}
-            </p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-2 text-3xl">
+              #
+            </div>
+            <div>
+              <p className="text-[15px] font-extrabold text-fg">No channels yet</p>
+              <p className="mt-1 max-w-[300px] text-[13px] text-muted">
+                {canManage
+                  ? "Create your first channel to start organizing conversations in this Room."
+                  : "No channels here yet. Ask an owner or admin to set one up."}
+              </p>
+            </div>
             {canManage && (
               <button
-                className={`${btnPrimary} mt-1`}
+                className={`${btnPrimary} mt-2`}
                 onClick={() => openModal("createChannel", { roomId })}
               >
-                Create your first channel
+                Create Channel
               </button>
             )}
           </div>

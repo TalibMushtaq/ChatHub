@@ -38,6 +38,10 @@ export function ChannelItem({
   const rowRef = useRef<HTMLDivElement>(null);
   const Icon = channel.type === "VOICE" ? SpeakerIcon : HashIcon;
 
+  const callActiveChannelId = useCallStore((s) => s.activeChannelId);
+  const callParticipants = useCallStore((s) => s.participants);
+  const isInCall = callActiveChannelId === channel.id;
+
   // Phase 6 §10.1: derive the visual unread state from the server-synced
   // counts plus this user's room notification pref (muted suppresses dots).
   const status = channelUnreadStatus(
@@ -134,11 +138,18 @@ export function ChannelItem({
         <Icon
           className={`h-[17px] w-[17px] flex-none ${active ? "" : "opacity-70"}`}
         />
-        <span
-          className={`min-w-0 flex-1 truncate ${unread && !active ? "font-extrabold" : ""}`}
-        >
-          {channel.name}
-        </span>
+        <div className="flex flex-col min-w-0 flex-1 justify-center leading-tight">
+          <span
+            className={`truncate ${unread && !active ? "font-extrabold" : ""}`}
+          >
+            {channel.name}
+          </span>
+          {channel.type === "VOICE" && isInCall && callParticipants.length > 0 && (
+            <span className="text-[10.5px] text-muted tabular-nums">
+              {callParticipants.length} in call
+            </span>
+          )}
+        </div>
         {unread &&
           !active &&
           (mentioned ? (

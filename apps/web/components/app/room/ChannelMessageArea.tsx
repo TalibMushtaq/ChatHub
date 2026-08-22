@@ -99,11 +99,17 @@ export function ChannelMessageArea({ channel }: { channel: Channel }) {
         hasMore={hasMore}
         loadingOlder={loadingOlder}
         empty={
-          <p className="text-[13px] text-muted">
-            This is the start of{" "}
-            <span className="font-extrabold">#{channel.name}</span>. Say
-            something nice.
-          </p>
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-2 text-2xl">
+              #
+            </div>
+            <div>
+              <p className="font-extrabold text-fg">Welcome to #{channel.name}</p>
+              <p className="mt-0.5 text-[13px] text-muted">
+                This is the very beginning of this channel.
+              </p>
+            </div>
+          </div>
         }
       />
       {activeNow && (

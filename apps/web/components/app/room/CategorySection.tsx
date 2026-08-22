@@ -123,7 +123,7 @@ export function CategorySection({
         </button>
         {canManage && (
           <button
-            className="flex h-5 w-5 flex-none cursor-pointer items-center justify-center rounded-md text-muted transition-colors duration-150 ease-app hover:bg-surface-2 hover:text-fg"
+            className="flex h-5 w-5 flex-none cursor-pointer items-center justify-center rounded-md text-muted opacity-100 transition-opacity duration-150 ease-app hover:bg-surface-2 hover:text-fg md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
             onClick={() =>
               openModal("createChannel", { roomId, categoryId: category.id })
             }
@@ -156,29 +156,35 @@ export function CategorySection({
           onClose={() => setMenu(null)}
         />
       )}
-      {(!collapsible || !collapsed) && (
-        <div
-          ref={droppable.setNodeRef}
-          className="mt-0.5 flex min-h-[4px] flex-col gap-px pl-1"
-        >
-          <SortableContext
-            items={channelIds}
-            strategy={verticalListSortingStrategy}
+      <div 
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-app ${
+          collapsible && collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div
+            ref={droppable.setNodeRef}
+            className="mt-0.5 flex min-h-[4px] flex-col gap-px pl-1"
           >
-            {channels.map((c) => (
-              <ChannelItem
-                key={c.id}
-                channel={c}
-                active={c.id === activeChannelId}
-                unreadState={channelUnreads[`room:${c.roomId}:${c.id}`]}
-                canManage={canManage}
-                containerId={category.id}
-                dragEnabled={channelReorderEnabled}
-              />
-            ))}
-          </SortableContext>
+            <SortableContext
+              items={channelIds}
+              strategy={verticalListSortingStrategy}
+            >
+              {channels.map((c) => (
+                <ChannelItem
+                  key={c.id}
+                  channel={c}
+                  active={c.id === activeChannelId}
+                  unreadState={channelUnreads[`room:${c.roomId}:${c.id}`]}
+                  canManage={canManage}
+                  containerId={category.id}
+                  dragEnabled={channelReorderEnabled}
+                />
+              ))}
+            </SortableContext>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

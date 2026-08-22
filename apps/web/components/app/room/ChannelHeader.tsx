@@ -7,6 +7,7 @@ import type { Channel, TypingUser } from "../types";
 import { useShell } from "../state";
 import { BellIcon, ChevronIcon, UsersIcon } from "../icons";
 import { iconBtn } from "../styles";
+import { Tooltip } from "../Tooltip";
 
 export function ChannelHeader({
   channel,
@@ -54,26 +55,28 @@ export function ChannelHeader({
           </div>
         ) : null}
       </div>
-      <button
-        className={`${iconBtn} h-9 w-9`}
-        onClick={() => openModal("notifications")}
-        aria-label="Channel notifications"
-        title="Channel notifications"
-      >
-        <BellIcon className="h-[18px] w-[18px]" />
-      </button>
-      <button
-        className={`${iconBtn} relative h-9 w-9 ${memberOpen ? "bg-accent-soft text-accent-solid" : ""}`}
-        onClick={onToggleMember}
-        aria-label="Toggle member list"
-        aria-expanded={memberOpen}
-        title="Members"
-      >
-        <UsersIcon className="h-[18px] w-[18px]" />
-        <span className="absolute -right-0.5 -top-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-danger px-[3px] text-[9.5px] font-extrabold text-white">
-          {memberCount > 99 ? "99+" : memberCount}
-        </span>
-      </button>
+      <Tooltip label="Channel notifications">
+        <button
+          className={`${iconBtn} h-9 w-9`}
+          onClick={() => openModal("notifications")}
+          aria-label="Channel notifications"
+        >
+          <BellIcon className="h-[18px] w-[18px]" />
+        </button>
+      </Tooltip>
+      <Tooltip label="Members">
+        <button
+          className={`${iconBtn} relative h-9 w-9 ${memberOpen ? "bg-accent-soft text-accent-solid" : ""}`}
+          onClick={onToggleMember}
+          aria-label="Toggle member list"
+          aria-expanded={memberOpen}
+        >
+          <UsersIcon className="h-[18px] w-[18px]" />
+          <span className="absolute -right-0.5 -top-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-danger px-[3px] text-[9.5px] font-extrabold text-white">
+            {memberCount > 99 ? "99+" : memberCount}
+          </span>
+        </button>
+      </Tooltip>
     </div>
   );
 }

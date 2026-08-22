@@ -12,6 +12,7 @@ import {
   typeLabel,
 } from "../helpers";
 import type { Attachment, Message, ReadReceipt } from "../types";
+import { useShell } from "../state";
 import { AvatarLink, NameLink } from "../UserLinks";
 import { ChatAPI } from "../api";
 import {
@@ -48,6 +49,7 @@ export function MessageRow({
   onDelete: () => void;
   onDismissFailed: (messageId: string) => void;
 }) {
+  const { sendMessage } = useShell();
   const [menu, setMenu] = useState(false);
   const [menuDir, setMenuDir] = useState<"left" | "right">("left");
   const [tapReveal, setTapReveal] = useState(false);
@@ -123,13 +125,24 @@ export function MessageRow({
           </span>
         )}
         {status === "failed" && (
-          <button
-            className="cursor-pointer rounded-[8px] px-1.5 py-[1px] text-[11px] font-extrabold text-danger transition-colors duration-150 ease-app hover:bg-surface-2"
-            onClick={() => onDismissFailed(m.id)}
-            title="Not sent — tap to remove"
-          >
-            Not sent
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-danger font-extrabold">Not sent</span>
+            <button
+              className="cursor-pointer text-[11px] font-bold text-accent-solid hover:underline"
+              onClick={() => {
+                onDismissFailed(m.id);
+                if (m.content) void sendMessage(m.content, []);
+              }}
+            >
+              Retry
+            </button>
+            <button
+              className="cursor-pointer text-[11px] text-muted hover:text-fg"
+              onClick={() => onDismissFailed(m.id)}
+            >
+              Dismiss
+            </button>
+          </div>
         )}
       </div>
     ) : null;

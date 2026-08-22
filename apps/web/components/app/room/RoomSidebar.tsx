@@ -286,8 +286,11 @@ export function RoomSidebarSkeleton() {
               {[0, 1, 2].map((j) => (
                 <div
                   key={j}
-                  className="h-[30px] animate-pulse rounded-[9px] bg-surface-2"
-                />
+                  className="flex h-[30px] animate-pulse items-center gap-2 rounded-[9px] px-2.5 bg-surface-2/50"
+                >
+                  <div className="h-[14px] w-[14px] rounded-full bg-surface-2" />
+                  <div className="h-[10px] w-2/3 rounded-sm bg-surface-2" />
+                </div>
               ))}
             </div>
           </div>

@@ -14,6 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { iconBtn } from "../styles";
+import { Tooltip } from "../Tooltip";
 
 function CallTimer() {
   const startedAt = useCallStore((s) => s.callStartedAt);
@@ -134,78 +135,80 @@ export default function WidgetMinimized({
 
       <div className="flex items-center justify-between px-3 py-2 cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1">
-          <button
-            onClick={toggleMute}
-            aria-pressed={isMuted}
-            aria-label={
-              isMuted ? "Unmute (Ctrl+Shift+M)" : "Mute (Ctrl+Shift+M)"
-            }
-            title={isMuted ? "Unmute (Ctrl+Shift+M)" : "Mute (Ctrl+Shift+M)"}
-            className={`${iconBtn} p-1.5 rounded-full ${isMuted ? "bg-danger-soft text-danger" : ""}`}
-          >
-            {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
-          </button>
+          <Tooltip label={isMuted ? "Unmute (Ctrl+Shift+M)" : "Mute (Ctrl+Shift+M)"}>
+            <button
+              onClick={toggleMute}
+              aria-pressed={isMuted}
+              aria-label={
+                isMuted ? "Unmute (Ctrl+Shift+M)" : "Mute (Ctrl+Shift+M)"
+              }
+              className={`${iconBtn} p-1.5 rounded-full ${isMuted ? "bg-danger-soft text-danger" : ""}`}
+            >
+              {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
+            </button>
+          </Tooltip>
 
-          <button
-            onClick={toggleDeafen}
-            aria-pressed={isDeafened}
-            aria-label={
-              isDeafened ? "Undeafen (Ctrl+Shift+D)" : "Deafen (Ctrl+Shift+D)"
-            }
-            title={
-              isDeafened ? "Undeafen (Ctrl+Shift+D)" : "Deafen (Ctrl+Shift+D)"
-            }
-            className={`${iconBtn} p-1.5 rounded-full ${isDeafened ? "bg-danger-soft text-danger" : ""}`}
-          >
-            {isDeafened ? (
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18.36 5.64a9 9 0 0 1 0 12.73" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.08" />
-                <line x1="2" y1="2" x2="22" y2="22" />
-              </svg>
-            ) : (
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18.36 5.64a9 9 0 0 1 0 12.73" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.08" />
-              </svg>
-            )}
-          </button>
+          <Tooltip label={isDeafened ? "Undeafen (Ctrl+Shift+D)" : "Deafen (Ctrl+Shift+D)"}>
+            <button
+              onClick={toggleDeafen}
+              aria-pressed={isDeafened}
+              aria-label={
+                isDeafened ? "Undeafen (Ctrl+Shift+D)" : "Deafen (Ctrl+Shift+D)"
+              }
+              className={`${iconBtn} p-1.5 rounded-full ${isDeafened ? "bg-danger-soft text-danger" : ""}`}
+            >
+              {isDeafened ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18.36 5.64a9 9 0 0 1 0 12.73" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.08" />
+                  <line x1="2" y1="2" x2="22" y2="22" />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18.36 5.64a9 9 0 0 1 0 12.73" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.08" />
+                </svg>
+              )}
+            </button>
+          </Tooltip>
 
-          <button
-            onClick={() => setWidgetExpanded(true)}
-            aria-label="Expand call"
-            title="Expand"
-            className={`${iconBtn} p-1.5 rounded-full`}
-          >
-            <Maximize2 size={14} />
-          </button>
+          <Tooltip label="Expand">
+            <button
+              onClick={() => setWidgetExpanded(true)}
+              aria-label="Expand call"
+              className={`${iconBtn} p-1.5 rounded-full`}
+            >
+              <Maximize2 size={14} />
+            </button>
+          </Tooltip>
 
-          <button
-            onClick={leaveCall}
-            className="p-1.5 rounded-full bg-danger text-white hover:bg-danger/80 ml-1"
-            aria-label="Leave call"
-            title="Leave call"
-          >
-            <PhoneOff size={14} />
-          </button>
+          <Tooltip label="Leave call">
+            <button
+              onClick={leaveCall}
+              className="p-1.5 rounded-full bg-danger text-white hover:bg-danger/80 ml-1"
+              aria-label="Leave call"
+            >
+              <PhoneOff size={14} />
+            </button>
+          </Tooltip>
         </div>
 
         <AvatarStack />

@@ -8,7 +8,7 @@ import { useState } from "react";
 import { useShell } from "../state";
 import { AvatarLink, NameLink } from "../UserLinks";
 import { CloseIcon, MoreIcon } from "../icons";
-import { chipAdmin, chipMember, chipModerator, chipOwner } from "../styles";
+import { chipAdmin, chipMember, chipModerator, chipOwner, btnPrimary } from "../styles";
 import { MemberContextMenu, type MenuPosition } from "./MemberContextMenu";
 import type { RoomMember, RoomRole } from "../types";
 
@@ -32,7 +32,7 @@ export function MemberSidebar({
   open: boolean;
   onClose: () => void;
 }) {
-  const { roomMembers, presence, user, active } = useShell();
+  const { roomMembers, presence, user, active, openModal } = useShell();
   const members = roomMembers[roomId] ?? [];
   // Role chip is shown under the group header; the current user's role drives
   // which management actions appear in the per-member context menu.
@@ -91,6 +91,20 @@ export function MemberSidebar({
           </button>
         </div>
         <div className="members min-h-0 flex-1 overflow-y-auto p-2.5">
+          {members.length === 0 && (
+            <div className="flex flex-col items-center gap-3 p-6 text-center">
+              <p className="text-[13px] font-extrabold text-fg">No members yet</p>
+              <p className="text-[12px] text-muted">Invite people to start building this community.</p>
+              {(myRole === "OWNER" || myRole === "ADMIN") && (
+                <button
+                  className={`${btnPrimary} min-h-8 px-[13px] py-[5px] text-[12.5px]`}
+                  onClick={() => openModal("invite", { roomId })}
+                >
+                  Invite People
+                </button>
+              )}
+            </div>
+          )}
           {groups.map((g) => (
             <div key={g.role} className="mb-3">
               <div className="mb-1 flex items-center gap-1.5 px-1.5 text-[11.5px] font-extrabold tracking-[0.06em] text-muted uppercase">

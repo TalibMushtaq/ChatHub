@@ -127,8 +127,13 @@ export function MessageList({
       className="msgs min-h-0 flex flex-1 flex-col overflow-y-auto"
     >
       {loadingOlder && (
-        <div className="py-2 text-center text-[12px] font-semibold text-muted">
-          Loading older messages…
+        <div className="flex flex-col gap-3 px-4 pt-4 pb-2 animate-pulse">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-end gap-[9px]">
+              <div className="h-[30px] w-[30px] rounded-[12px] bg-surface-2 flex-none" />
+              <div className="h-[36px] w-[180px] rounded-[18px] rounded-bl-[6px] bg-surface-2" />
+            </div>
+          ))}
         </div>
       )}
       <div className="msgs-inner w-full px-4 pt-4 pb-2">

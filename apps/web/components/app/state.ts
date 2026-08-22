@@ -156,6 +156,7 @@ export interface ShellCtx {
   popModal: () => void;
   clearModals: () => void;
   toast: (text: string, type?: ToastType) => void;
+  dismissToast: (id: number) => void;
   sendMessage: (content: string, files: File[]) => Promise<void>;
   /** Upload + send a voice recording (optional text caption alongside). */
   sendVoiceMessage: (

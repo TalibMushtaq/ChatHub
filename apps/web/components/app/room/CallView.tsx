@@ -5,7 +5,7 @@ import { useCallStore } from "../callStore";
 import ParticipantTile from "./ParticipantTile";
 import CallControlsBar from "./CallControlsBar";
 import DeviceSettingsModal from "./DeviceSettingsModal";
-import { Mic, Loader2 } from "lucide-react";
+import { PhoneOff, Mic, Loader2 } from "lucide-react";
 import { btnPrimary } from "../styles";
 
 import { useCallCtx } from "../CallProvider";
@@ -60,7 +60,7 @@ export default function CallView({
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
         <div className="text-danger font-bold">Call Error</div>
-        <div className="text-sm text-muted">{error}</div>
+        <div className="text-[13px] text-muted">{error}</div>
         <button onClick={handleJoin} className={btnPrimary}>
           Try Again
         </button>
@@ -70,14 +70,18 @@ export default function CallView({
 
   if (!isConnected && !isJoining) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
-        <Mic size={48} className="text-muted mb-2" />
-        <div className="font-bold text-lg">{channelName}</div>
-        <div className="text-sm text-muted max-w-sm mb-4">
-          Ready to join the voice channel?
+      <div className="flex flex-col items-center gap-3 py-8 text-center px-4 max-w-sm">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 text-2xl text-muted mb-2">
+          <PhoneOff size={28} />
+        </div>
+        <div>
+          <p className="font-extrabold text-fg text-lg">No one&apos;s here</p>
+          <p className="mt-1 text-[13px] text-muted">
+            Be the first to join the call and start the conversation.
+          </p>
         </div>
         <button onClick={handleJoin} className={btnPrimary}>
-          Join Call
+          Join Voice Channel
         </button>
       </div>
     );
