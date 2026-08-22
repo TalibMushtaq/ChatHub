@@ -109,8 +109,12 @@
 
 ### Phase 10 — Performance
 
-- [ ] Cursor pagination everywhere, virtualize large lists, lazy-load media stack (§14)
-- [ ] Cache stable Room/channel metadata, optimistic reorder, debounce search, prune WS subscriptions, isolate widget from rerenders (§14)
+- [x] LiveKit lazy-loaded via dynamic import() — only loaded on first call join (§14)
+- [x] DM cursor pagination implemented — older messages load on scroll-to-top (§14)
+- [x] WebSocket audit — 5 missing socket.off() cleanup handlers added for call events (§14)
+- [x] Shell context value memoized — children using useShell() only re-render when state changes (§14)
+- [ ] Virtualize large lists (gated on Chrome DevTools profiling evidence) (§14)
+- [ ] Cache stable Room/channel metadata, optimistic reorder, debounce search (§14)
 
 ### Phase 11 — Accessibility
 
