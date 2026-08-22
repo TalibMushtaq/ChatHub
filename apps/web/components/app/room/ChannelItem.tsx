@@ -15,6 +15,7 @@ import { channelUnreadStatus } from "../helpers";
 import { GripIcon, HashIcon, MoreIcon, SpeakerIcon } from "../icons";
 import { ChannelContextMenu, type MenuPosition } from "./ChannelContextMenu";
 import { useCallStore } from "../callStore";
+import { AvatarStack } from "../AvatarStack";
 
 export function ChannelItem({
   channel,
@@ -38,9 +39,9 @@ export function ChannelItem({
   const rowRef = useRef<HTMLDivElement>(null);
   const Icon = channel.type === "VOICE" ? SpeakerIcon : HashIcon;
 
-  const callActiveChannelId = useCallStore((s) => s.activeChannelId);
-  const callParticipants = useCallStore((s) => s.participants);
-  const isInCall = callActiveChannelId === channel.id;
+  const callParticipants = useCallStore(
+    (s) => s.participantsByChannel[channel.id] ?? [],
+  );
 
   // Phase 6 §10.1: derive the visual unread state from the server-synced
   // counts plus this user's room notification pref (muted suppresses dots).
@@ -144,10 +145,13 @@ export function ChannelItem({
           >
             {channel.name}
           </span>
-          {channel.type === "VOICE" && isInCall && callParticipants.length > 0 && (
-            <span className="text-[10.5px] text-muted tabular-nums">
-              {callParticipants.length} in call
-            </span>
+          {channel.type === "VOICE" && callParticipants.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <AvatarStack participants={callParticipants} max={3} size={14} />
+              <span className="text-[10.5px] text-muted tabular-nums">
+                {callParticipants.length} in call
+              </span>
+            </div>
           )}
         </div>
         {unread &&

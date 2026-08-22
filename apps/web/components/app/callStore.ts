@@ -46,6 +46,9 @@ export interface CallState {
   // Participants (application-level; LiveKit is authoritative for media state)
   participants: CallParticipant[];
 
+  // Per-channel participant lists for sidebar presence (all channels, not just active).
+  participantsByChannel: Record<string, CallParticipant[]>;
+
   // Actions
   setActiveCall: (
     sessionId: string | null,
@@ -68,6 +71,10 @@ export interface CallState {
   setSelectedSpeaker: (id: string | null) => void;
   setDeviceSettingsOpen: (v: boolean) => void;
   setParticipants: (p: CallParticipant[]) => void;
+  setParticipantsForChannel: (
+    channelId: string,
+    p: CallParticipant[] | ((prev: CallParticipant[]) => CallParticipant[]),
+  ) => void;
   setWidgetExpanded: (v: boolean) => void;
   setWidgetPosition: (pos: { x: number; y: number } | null) => void;
   setCallStartedAt: (t: number | null) => void;
@@ -158,6 +165,7 @@ export const useCallStore = create<CallState>((set, get) => ({
   callStartedAt: null,
 
   participants: [],
+  participantsByChannel: {},
 
   setActiveCall: (sessionId, channelId, roomId) =>
     set({
@@ -166,19 +174,26 @@ export const useCallStore = create<CallState>((set, get) => ({
       activeRoomId: roomId,
     }),
   clearActiveCall: () =>
-    set({
-      activeSessionId: null,
-      activeChannelId: null,
-      activeRoomId: null,
-      isJoining: false,
-      isConnected: false,
-      connectionState: "disconnected",
-      isMuted: false,
-      isDeafened: false,
-      isCameraEnabled: false,
-      isScreenSharing: false,
-      participants: [],
-      callStartedAt: null,
+    set((state) => {
+      const id = state.activeChannelId;
+      const entries = Object.entries(state.participantsByChannel).filter(
+        ([k]) => k !== id,
+      );
+      return {
+        activeSessionId: null,
+        activeChannelId: null,
+        activeRoomId: null,
+        isJoining: false,
+        isConnected: false,
+        connectionState: "disconnected",
+        isMuted: false,
+        isDeafened: false,
+        isCameraEnabled: false,
+        isScreenSharing: false,
+        participants: [],
+        participantsByChannel: Object.fromEntries(entries),
+        callStartedAt: null,
+      };
     }),
   setJoining: (v) => set({ isJoining: v }),
   setConnected: (v) => set({ isConnected: v }),
@@ -205,6 +220,13 @@ export const useCallStore = create<CallState>((set, get) => ({
   },
   setDeviceSettingsOpen: (v) => set({ isDeviceSettingsOpen: v }),
   setParticipants: (p) => set({ participants: p }),
+  setParticipantsForChannel: (channelId, p) =>
+    set((state) => ({
+      participantsByChannel: {
+        ...state.participantsByChannel,
+        [channelId]: typeof p === "function" ? p(state.participantsByChannel[channelId] ?? []) : p,
+      },
+    })),
   setWidgetExpanded: (v) => set({ isWidgetExpanded: v }),
   setWidgetPosition: (pos) => {
     set({ widgetPosition: pos });

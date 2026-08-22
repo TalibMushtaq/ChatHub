@@ -24,8 +24,8 @@
 - [x] Room sidebar with header dropdown menu (authorized vs member menus) (§6.1)
 - [x] Categories render (collapse/expand, channels) + functional Create Channel/Category modals (§6.2)
 - [x] Channel appearance: # / 🔊 icons, active/unread states (§6.3)
-- [ ] Channel appearance: mentioned-state indicator (needs per-channel mention/unread system — Phase 6) (§6.3)
-- [ ] Channel appearance: voice participant count + avatar stack (needs call presence — Phase 7) (§6.3)
+- [x] Channel appearance: mentioned-state indicator (needs per-channel mention/unread system — Phase 6) (§6.3)
+- [x] Channel appearance: voice participant count + avatar stack (needs call presence — Phase 7) (§6.3)
 - [x] Channel header: name + topic, notification + member toggle, stays visible while scrolling (§6.4; search deferred — message search is a Backlog item)
 - [x] Message area: cursor pagination, grouping, timestamps/avatar/content, edited/deleted states, context menu (§6.5; reactions/reply N/A — app has neither)
 - [x] Message composer: anchored, multiline, Enter/Shift+Enter, failure handling, preserves text, attachments (§6.6)
@@ -102,10 +102,10 @@
 
 ### Phase 9 — UX Polish
 
-- [ ] Interaction polish: hover/active/focus/keyboard/context menus/tooltips/confirmation/toasts/skeletons/empty states (§13.1)
-- [ ] Empty states: no channels, empty channel, empty voice channel, member CTA (§13.2)
-- [ ] Error states incl. mic/camera/screen-share/call failures; no raw backend errors (§13.3)
-- [ ] Offline/reconnect: subtle indicator, resync channels/unread/messages/call state, no duplicates (§13.4)
+- [x] Interaction polish: hover/active/focus/keyboard/context menus/tooltips/confirmation/toasts/skeletons/empty states (§13.1)
+- [x] Empty states: no channels, empty channel, empty voice channel, member CTA (§13.2)
+- [x] Error states incl. mic/camera/screen-share/call failures; no raw backend errors (§13.3)
+- [x] Offline/reconnect: subtle indicator, resync channels/unread/messages/call state, no duplicates (§13.4)
 
 ### Phase 10 — Performance
 

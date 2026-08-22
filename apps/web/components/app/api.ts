@@ -783,6 +783,24 @@ export const CallAPI = {
       { action },
     );
   },
+
+  async getActiveCalls(
+    roomId: string,
+  ): Promise<
+    {
+      channelId: string;
+      sessionId: string;
+      participants: {
+        userId: string;
+        username: string;
+        displayName: string | null;
+        avatar: string | null;
+      }[];
+    }[]
+  > {
+    const { data } = await api.get(`/room/rooms/${roomId}/calls/active`);
+    return data.calls;
+  },
 };
 
 export { getErrorMessage };

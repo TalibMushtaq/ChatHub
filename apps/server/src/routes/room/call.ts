@@ -6,6 +6,7 @@ import {
   getJoinToken,
   leaveCall,
   getActiveCall,
+  getActiveCallsForRoom,
   moderatorAction,
 } from "../../services/room/call";
 import { assertRoomAccess } from "../../middleware/socketAccess";
@@ -83,6 +84,19 @@ router.get(
     await assertRoomAccess(req.user!.id, roomId);
     const session = await getActiveCall(channelId);
     res.json({ ok: true, session });
+  }),
+);
+
+// GET /rooms/:roomId/calls/active
+// Returns all active calls across every channel in the room (sidebar presence).
+router.get(
+  "/rooms/:roomId/calls/active",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { roomId } = roomIdParamSchema.parse(req.params);
+    await assertRoomAccess(req.user!.id, roomId);
+    const calls = await getActiveCallsForRoom(roomId);
+    res.json({ ok: true, calls });
   }),
 );
 

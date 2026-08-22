@@ -7,7 +7,7 @@ import { socket } from "../../app/lib/socket";
 import { getErrorMessage } from "../../app/lib/errors";
 import { loadInitialState } from "../../app/lib/initialLoad";
 import { mergePresence } from "./helpers";
-import { ChatAPI, RoomSocket } from "./api";
+import { ChatAPI, CallAPI, RoomSocket } from "./api";
 import { uploadVoiceAttachment } from "../../app/lib/attachments";
 import {
   ShellContext,
@@ -1416,38 +1416,51 @@ export default function AppShell() {
 
     // Voice channel call events (Phase 7): update the call store's participant
     // list when others join/leave/get kicked from a call in the same room.
+    // Events are broadcast room-wide; we update both the active call's flat
+    // list and the per-channel map so the sidebar shows live counts everywhere.
     socket.on("call.participant.joined", (payload) => {
       const call = useCallStore.getState();
-      if (call.activeChannelId !== payload.channelId) return;
-      const existing = call.participants.find(
-        (p) => p.userId === payload.userId,
-      );
-      if (!existing) {
-        call.setParticipants([
-          ...call.participants,
-          {
-            userId: payload.userId,
-            username: payload.user.username,
-            displayName: payload.user.displayName,
-            avatar: payload.user.avatar,
-          },
-        ]);
+      const participant = {
+        userId: payload.userId,
+        username: payload.user.username,
+        displayName: payload.user.displayName,
+        avatar: payload.user.avatar,
+      };
+
+      // Per-channel map: append if not already present.
+      call.setParticipantsForChannel(payload.channelId, (prev) => {
+        if (prev.some((p) => p.userId === payload.userId)) return prev;
+        return [...prev, participant];
+      });
+
+      // Active call flat list (kept for widget/CallView).
+      if (call.activeChannelId === payload.channelId) {
+        if (!call.participants.some((p) => p.userId === payload.userId)) {
+          call.setParticipants([...call.participants, participant]);
+        }
       }
     });
     socket.on("call.participant.left", (payload) => {
       const call = useCallStore.getState();
-      if (call.activeChannelId !== payload.channelId) return;
-      call.setParticipants(
-        call.participants.filter((p) => p.userId !== payload.userId),
+      call.setParticipantsForChannel(payload.channelId, (prev) =>
+        prev.filter((p) => p.userId !== payload.userId),
       );
+      if (call.activeChannelId === payload.channelId) {
+        call.setParticipants(
+          call.participants.filter((p) => p.userId !== payload.userId),
+        );
+      }
     });
     socket.on("call.participant.kicked", (payload) => {
       const call = useCallStore.getState();
-      if (call.activeChannelId !== payload.channelId) return;
       if (payload.userId === userRef.current?.id) {
-        // This user was kicked — tear down the call.
         call.clearActiveCall();
-      } else {
+        return;
+      }
+      call.setParticipantsForChannel(payload.channelId, (prev) =>
+        prev.filter((p) => p.userId !== payload.userId),
+      );
+      if (call.activeChannelId === payload.channelId) {
         call.setParticipants(
           call.participants.filter((p) => p.userId !== payload.userId),
         );
@@ -1455,12 +1468,25 @@ export default function AppShell() {
     });
     socket.on("call.participant.muted", (payload) => {
       const call = useCallStore.getState();
-      if (call.activeChannelId !== payload.channelId) return;
-      call.setParticipants(
-        call.participants.map((p) =>
+      call.setParticipantsForChannel(payload.channelId, (prev) =>
+        prev.map((p) =>
           p.userId === payload.userId ? { ...p, isMuted: true } : p,
         ),
       );
+      if (call.activeChannelId === payload.channelId) {
+        call.setParticipants(
+          call.participants.map((p) =>
+            p.userId === payload.userId ? { ...p, isMuted: true } : p,
+          ),
+        );
+      }
+    });
+    socket.on("call.ended", (payload) => {
+      const call = useCallStore.getState();
+      call.setParticipantsForChannel(payload.channelId, []);
+      if (call.activeChannelId === payload.channelId) {
+        call.clearActiveCall();
+      }
     });
 
     // Member lifecycle events (Phase 4 §8): keep the sidebar's member list and
@@ -1541,6 +1567,29 @@ export default function AppShell() {
         void ChatAPI.getRoomDetail(a.id)
           .then((detail) => {
             setRoomDetails((prev) => ({ ...prev, [a.id]: detail }));
+          })
+          .catch(() => {});
+
+        // Resync live call presence across all voice channels.
+        void CallAPI.getActiveCalls(a.id).then((calls) => {
+            const callStore = useCallStore.getState();
+            for (const c of calls) {
+              callStore.setParticipantsForChannel(c.channelId, (prev) => {
+                // Merge: keep existing participants (may have fresher data from
+                // socket events), add any new ones from the server snapshot.
+                let next = prev;
+                for (const p of c.participants) {
+                  if (!next.some((x) => x.userId === p.userId)) {
+                    next = [...next, p];
+                  }
+                }
+                // Remove participants no longer on the server.
+                next = next.filter((x) =>
+                  c.participants.some((p) => p.userId === x.userId),
+                );
+                return next;
+              });
+            }
           })
           .catch(() => {});
       }

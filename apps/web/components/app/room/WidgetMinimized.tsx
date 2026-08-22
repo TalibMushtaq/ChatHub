@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useShell } from "../state";
 import { useCallStore } from "../callStore";
 import { useCallCtx } from "../CallProvider";
-import AppAvatar from "../AppAvatar";
+import { AvatarStack } from "../AvatarStack";
 import {
   Mic,
   MicOff,
@@ -39,30 +39,6 @@ function CallTimer() {
   );
 }
 
-function AvatarStack() {
-  const participants = useCallStore((s) => s.participants);
-  const shown = participants.slice(0, 4);
-  const overflow = participants.length - 4;
-  return (
-    <div className="flex items-center">
-      {shown.map((p, i) => (
-        <AppAvatar
-          key={p.userId}
-          name={p.displayName ?? p.username}
-          src={p.avatar}
-          size={20}
-          className={i > 0 ? "-ml-1.5" : ""}
-        />
-      ))}
-      {overflow > 0 && (
-        <span className="ml-1 text-[10px] text-muted font-bold">
-          +{overflow}
-        </span>
-      )}
-    </div>
-  );
-}
-
 export default function WidgetMinimized({
   roomId,
   channelId,
@@ -78,6 +54,7 @@ export default function WidgetMinimized({
   const setWidgetExpanded = useCallStore((s) => s.setWidgetExpanded);
   const connectionState = useCallStore((s) => s.connectionState);
   const isScreenSharing = useCallStore((s) => s.isScreenSharing);
+  const participants = useCallStore((s) => s.participants);
 
   const room = roomList.find((r) => r.roomId === roomId);
   const roomName = room?.name ?? "Room";
@@ -211,7 +188,7 @@ export default function WidgetMinimized({
           </Tooltip>
         </div>
 
-        <AvatarStack />
+        <AvatarStack participants={participants} max={4} />
       </div>
     </div>
   );

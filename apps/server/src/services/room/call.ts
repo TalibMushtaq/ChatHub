@@ -190,6 +190,41 @@ export async function getActiveCall(channelId: string) {
 }
 
 /**
+ * Return all active call sessions (with participants) for a room.
+ * Used by the sidebar to show live activity across every voice channel.
+ */
+export async function getActiveCallsForRoom(roomId: string) {
+  const sessions = await prisma.callSession.findMany({
+    where: { endedAt: null, Channel: { roomId } },
+    include: {
+      participants: {
+        where: { leftAt: null },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatar: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  return sessions.map((s) => ({
+    channelId: s.channelId,
+    sessionId: s.id,
+    participants: s.participants.map((p) => ({
+      userId: p.user.id,
+      username: p.user.username,
+      displayName: p.user.displayName,
+      avatar: p.user.avatar,
+    })),
+  }));
+}
+
+/**
  * Moderator action: server-mute or disconnect a participant.
  * Verifies MOVE_MEMBERS_VOICE and uses LiveKit server API for enforcement.
  */
