@@ -60,9 +60,11 @@
 
 ### Phase 6 — Notifications + Unread + Realtime
 
-- [ ] Per-channel unread states (Unread/Mentioned/Read/Muted) with `lastReadMessageId` cursor (§10.1)
-- [ ] Mark read on channel switch, server sync, no background-marking (§10.1)
-- [ ] Real-time events: message/channel/category/member/room events (§10.2)
+- [x] Per-channel unread states (Unread/Mentioned/Read/Muted) with `lastReadMessageId` cursor (§10.1)
+- [x] Mark read on channel switch, server sync, no background-marking (§10.1)
+- [x] Real-time events: message/channel/category/member/room events (§10.2)
+
+> Phase 6 verified with `pnpm test` (server 697 / web 78), `check-types`, `lint` (0 warnings), `build` — all clean. New `ChannelReadReceipt` + `MessageMention` models + migration. Per-channel cursor replaces room-wide receipt; `@mention` extraction, `mention:new` socket event + push gating by notification pref (All/Mentions/Muted); full `channel:*/category:*/room:updated` realtime set; `ChannelItem` mentioned/unread/muted badges; `ListPanel` room-level `@N` badge. Run `prisma migrate dev` to apply `20260820000001_add_channel_read_receipts_mentions` (commit `6069a9d`, with follow-ups `a4d3120` + `c55f5e1`).
 
 ### Phase 7 — Voice Channels + Calls
 
@@ -95,6 +97,8 @@
 - [x] Accessibility: keyboard operable, live-region announcements, shortcuts, reduced-motion (§12.7)
 - [x] Performance: isolated state subscription, pause remote video when minimized, throttle speaking updates (§12.8)
 - [x] Phase 8 completion criteria + E2E widget scenario (§12.9)
+
+> Phase 8 verified with `pnpm test` (85), `check-types`, `lint` (0 warnings), `build` (server + web) — all clean. LiveKit `Room` lifetime lifted to `CallProvider` above routing; `CallView` refactored to pure display consumer. Widget survives all navigation, draggable desktop shell with localStorage position persistence, minimized pill + expanded grid + mobile bottom-sheet. Global keyboard shortcuts (Ctrl+Shift+M/D). Manual browser E2E (call-survives-navigation, drag, PiP, mobile sheet) still pending — requires PostgreSQL migration applied + a running LiveKit server.
 
 ### Phase 9 — UX Polish
 
