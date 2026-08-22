@@ -2,7 +2,7 @@
 
 // Main messenger shell: owns all conversation state, wires the socket events,
 // and composes the rail / list / thread columns plus the modal + toast systems.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { socket } from "../../app/lib/socket";
 import { getErrorMessage } from "../../app/lib/errors";
 import { loadInitialState } from "../../app/lib/initialLoad";
@@ -75,6 +75,14 @@ import {
   clearActiveConversation,
 } from "./notifications";
 import { btnPrimary, iconBtn } from "./styles";
+
+/** Pure API wrappers — hoisted to module level so they never trigger ctx ref changes. */
+const inviteRows = (list: Invitation[]) => list;
+const joinRequests = (roomId: string) => ChatAPI.getJoinRequests(roomId);
+const joinLinks = () => ChatAPI.myJoinLinks();
+const createLink = (roomId: string) => ChatAPI.createJoinLink(roomId);
+const deactivateLink = (roomId: string, linkId: string) =>
+  ChatAPI.deactivateJoinLink(roomId, linkId);
 
 type AnyMsg = {
   id: string;
@@ -156,9 +164,11 @@ export default function AppShell() {
   const joinedRef = useRef<Set<string>>(new Set());
   const loadedKeysRef = useRef<Set<string>>(new Set());
   // Per-channel pagination cursors (channelKey -> nextCursor / has-more flag).
-  // Only room channels page; DMs load in full as before.
   const channelCursorRef = useRef<Record<string, string | null>>({});
   const channelHasMoreRef = useRef<Record<string, boolean>>({});
+  // Per-DM pagination cursors (dmKey -> nextCursor / has-more flag).
+  const dmCursorRef = useRef<Record<string, string | null>>({});
+  const dmHasMoreRef = useRef<Record<string, boolean>>({});
   const msgsRef = useRef<Record<string, Message[]>>({});
   const roomMembersRef = useRef<Record<string, RoomMember[]>>({});
   const readReceiptsRef = useRef<Record<string, ReadReceipt[]>>({});
@@ -1627,6 +1637,11 @@ export default function AppShell() {
       socket.off("friend-request:accepted");
       socket.off("friend-request:declined");
       socket.off("friend-request:blocked");
+      socket.off("call.participant.joined");
+      socket.off("call.participant.left");
+      socket.off("call.participant.kicked");
+      socket.off("call.participant.muted");
+      socket.off("call.ended");
       socket.off("chatroom:member:added");
       socket.off("chatroom:member:removed");
       socket.off("chatroom:member:roleChanged");
@@ -1798,8 +1813,12 @@ export default function AppShell() {
     const key = timelineKey(c);
     try {
       if (c.kind === "dm") {
-        const { messages: list } = await ChatAPI.getDmMessages(c.id);
+        const { messages: list, nextCursor } = await ChatAPI.getDmMessages(
+          c.id,
+        );
         setMsgsBoth((prev) => ({ ...prev, [key]: list }));
+        dmCursorRef.current[key] = nextCursor;
+        dmHasMoreRef.current[key] = !!nextCursor;
       } else if (c.channelId) {
         const { messages: list, nextCursor } = await ChatAPI.getChannelMessages(
           c.id,
@@ -1835,6 +1854,32 @@ export default function AppShell() {
       });
       channelCursorRef.current[key] = nextCursor;
       channelHasMoreRef.current[key] = !!nextCursor;
+      return { hasMore: !!nextCursor };
+    } catch (err) {
+      toast(getErrorMessage(err, "Failed to load older messages"), "error");
+      return { hasMore: false };
+    }
+  }
+
+  /** Fetch the page of messages before a DM conversation's oldest loaded one. */
+  async function loadOlderDmMessages(directChatId: string) {
+    const key = convKey("dm", directChatId);
+    if (!dmHasMoreRef.current[key]) return { hasMore: false };
+    const cursor = dmCursorRef.current[key] ?? undefined;
+    try {
+      const { messages, nextCursor } = await ChatAPI.getDmMessages(
+        directChatId,
+        { cursor },
+      );
+      setMsgsBoth((prev) => {
+        const existing = prev[key] ?? [];
+        const known = new Set(existing.map((m) => m.id));
+        const fresh = messages.filter((m) => !known.has(m.id));
+        if (fresh.length === 0) return prev;
+        return { ...prev, [key]: [...fresh, ...existing] };
+      });
+      dmCursorRef.current[key] = nextCursor;
+      dmHasMoreRef.current[key] = !!nextCursor;
       return { hasMore: !!nextCursor };
     } catch (err) {
       toast(getErrorMessage(err, "Failed to load older messages"), "error");
@@ -2512,6 +2557,112 @@ export default function AppShell() {
   const dmUnread = dmList.reduce((s, e) => s + e.unreadCount, 0);
   const roomUnread = roomList.reduce((s, r) => s + r.unreadCount, 0);
 
+  // Stabilise the context value so children using useShell() only re-render
+  // when the state slices they depend on actually change.
+  const ctx = useMemo(
+    () => ({
+      // user is guaranteed non-null when ctx is consumed (early return above).
+      user: user!,
+      tab,
+      active,
+      dmList,
+      roomList,
+      dmUnread,
+      roomUnread,
+      msgs,
+      roomMembers,
+      readReceipts,
+      typing,
+      presence,
+      channelUnreads,
+      roomNotificationPrefs,
+      setRoomNotificationPrefs,
+      roomDetails,
+      roomBans,
+      q,
+      results,
+      listLoading,
+      mStack,
+      toasts,
+      friendRequests,
+      blockedUsers,
+      setTab,
+      setQ,
+      search,
+      openConv,
+      openChannel,
+      leaveRoom,
+      changeMemberRole,
+      kickMember,
+      banMember,
+      unbanMember,
+      muteMember,
+      unmuteMember,
+      setMemberNickname,
+      refreshRoomBans,
+      refreshRoomDetail,
+      patchRoomDetail,
+      loadOlderMessages,
+      loadOlderDmMessages,
+      closeConv,
+      navigateBack,
+      refreshLists,
+      refreshUser,
+      openModal,
+      popModal,
+      clearModals,
+      toast,
+      dismissToast,
+      sendMessage,
+      sendVoiceMessage,
+      editMessage,
+      deleteMessage,
+      removeLocalMessage,
+      markRead,
+      inviteRows,
+      joinRequests,
+      joinLinks,
+      createLink,
+      deactivateLink,
+      roomInfo,
+      refreshFriendRequests,
+      sendFriendRequest,
+      acceptFriendRequest,
+      declineFriendRequest,
+      withdrawFriendRequest,
+      blockUser,
+      unblockUser,
+      refreshBlockedUsers,
+      updateRelationship,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      user,
+      tab,
+      active,
+      dmList,
+      roomList,
+      dmUnread,
+      roomUnread,
+      msgs,
+      roomMembers,
+      readReceipts,
+      typing,
+      presence,
+      channelUnreads,
+      roomNotificationPrefs,
+      roomDetails,
+      roomBans,
+      q,
+      results,
+      listLoading,
+      mStack,
+      toasts,
+      friendRequests,
+      blockedUsers,
+    ],
+  );
+
   if (loadError) {
     return (
       <div className="app h-full overflow-hidden bg-bg font-body text-fg antialiased">
@@ -2571,81 +2722,6 @@ export default function AppShell() {
       <span>{label}</span>
     </button>
   );
-
-  const ctx = {
-    user,
-    tab,
-    active,
-    dmList,
-    roomList,
-    dmUnread,
-    roomUnread,
-    msgs,
-    roomMembers,
-    readReceipts,
-    typing,
-    presence,
-    channelUnreads,
-    roomNotificationPrefs,
-    setRoomNotificationPrefs,
-    roomDetails,
-    roomBans,
-    q,
-    results,
-    listLoading,
-    mStack,
-    toasts,
-    friendRequests,
-    blockedUsers,
-    setTab,
-    setQ,
-    search,
-    openConv,
-    openChannel,
-    leaveRoom,
-    changeMemberRole,
-    kickMember,
-    banMember,
-    unbanMember,
-    muteMember,
-    unmuteMember,
-    setMemberNickname,
-    refreshRoomBans,
-    refreshRoomDetail,
-    patchRoomDetail,
-    loadOlderMessages,
-    closeConv,
-    navigateBack,
-    refreshLists,
-    refreshUser,
-    openModal,
-    popModal,
-    clearModals,
-    toast,
-    dismissToast,
-    sendMessage,
-    sendVoiceMessage,
-    editMessage,
-    deleteMessage,
-    removeLocalMessage,
-    markRead,
-    inviteRows: (list: Invitation[]) => list,
-    joinRequests: (roomId: string) => ChatAPI.getJoinRequests(roomId),
-    joinLinks: () => ChatAPI.myJoinLinks(),
-    createLink: (roomId: string) => ChatAPI.createJoinLink(roomId),
-    deactivateLink: (roomId: string, linkId: string) =>
-      ChatAPI.deactivateJoinLink(roomId, linkId),
-    roomInfo,
-    refreshFriendRequests,
-    sendFriendRequest,
-    acceptFriendRequest,
-    declineFriendRequest,
-    withdrawFriendRequest,
-    blockUser,
-    unblockUser,
-    refreshBlockedUsers,
-    updateRelationship,
-  };
 
   return (
     <ShellContext.Provider value={ctx}>

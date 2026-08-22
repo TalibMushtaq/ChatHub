@@ -148,6 +148,8 @@ export interface ShellCtx {
     roomId: string,
     channelId: string,
   ) => Promise<{ hasMore: boolean }>;
+  /** Fetch the page of messages before a DM conversation's oldest loaded one. */
+  loadOlderDmMessages: (directChatId: string) => Promise<{ hasMore: boolean }>;
   navigateBack: () => void;
   refreshLists: () => Promise<void>;
   /** Re-fetch the current user (e.g. after an avatar update). */

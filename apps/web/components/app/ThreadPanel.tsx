@@ -31,6 +31,7 @@ export default function ThreadPanel() {
     editMessage,
     deleteMessage,
     removeLocalMessage,
+    loadOlderDmMessages,
     toast,
   } = useShell();
 
@@ -39,6 +40,8 @@ export default function ThreadPanel() {
     content: string;
   } | null>(null);
   const [editText, setEditText] = useState("");
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   if (!active) {
     return (
@@ -77,6 +80,17 @@ export default function ThreadPanel() {
       : otherPresence?.presence === "idle"
         ? "idle"
         : `@${active.otherUser?.username ?? ""}`;
+
+  async function loadOlder() {
+    if (loadingOlder || !active || active.kind !== "dm") return;
+    setLoadingOlder(true);
+    try {
+      const res = await loadOlderDmMessages(active.id);
+      setHasMore(res.hasMore);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   async function submitEdit() {
     if (!editing || !editText.trim()) return;
@@ -153,6 +167,9 @@ export default function ThreadPanel() {
         }}
         onDelete={askDelete}
         onDismissFailed={(id) => removeLocalMessage(id)}
+        onLoadOlder={loadOlder}
+        hasMore={hasMore}
+        loadingOlder={loadingOlder}
       />
 
       <MessageComposer

@@ -8,10 +8,50 @@ import React, {
   useCallback,
   useState,
 } from "react";
-import { Room, RoomEvent, Track, Participant } from "livekit-client";
+import type { Participant } from "livekit-client";
 import { useCallStore } from "./callStore";
 import { CallAPI } from "./api";
 import { buildMediaConstraints } from "./useDeviceManager";
+
+/** Participant shape exposed to consumers of CallContext. */
+interface CallParticipant {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatar: null;
+  isMuted: boolean;
+  isSpeaking: boolean;
+}
+
+/** Minimal interface for the LiveKit Room — avoids importing the full SDK at
+ *  module level so livekit-client is only loaded on first call join. */
+interface LkRoom {
+  disconnect(): Promise<void>;
+  localParticipant: {
+    identity: string;
+    name?: string;
+    isSpeaking: boolean;
+    getTrackPublication(source: unknown): { isMuted: boolean } | undefined;
+    setMicrophoneEnabled(
+      enabled: boolean,
+      constraints?: unknown,
+    ): Promise<void>;
+    setCameraEnabled(enabled: boolean, constraints?: unknown): Promise<void>;
+    setScreenShareEnabled(enabled: boolean): Promise<void>;
+  };
+  remoteParticipants: Map<
+    string,
+    {
+      identity: string;
+      name?: string;
+      isSpeaking: boolean;
+      getTrackPublication(source: unknown): { isMuted: boolean } | undefined;
+    }
+  >;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on(event: string, handler: (...args: any[]) => void): void;
+  connect(url: string, token: string): Promise<void>;
+}
 
 export interface CallCtx {
   joinCall: (roomId: string, channelId: string) => Promise<void>;
@@ -38,7 +78,7 @@ export default function CallProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const lkRoomRef = useRef<Room | null>(null);
+  const lkRoomRef = useRef<LkRoom | null>(null);
   const [localParticipant, setLocalParticipant] = useState<Participant | null>(
     null,
   );
@@ -61,8 +101,8 @@ export default function CallProvider({
   } = useCallStore();
 
   const syncParticipants = useCallback(
-    (room: Room) => {
-      const locals = room.localParticipant
+    (room: LkRoom) => {
+      const locals: CallParticipant[] = room.localParticipant
         ? [
             {
               userId: room.localParticipant.identity.replace("user:", ""),
@@ -70,27 +110,36 @@ export default function CallProvider({
               displayName: room.localParticipant.name ?? "You",
               avatar: null,
               isMuted:
-                room.localParticipant.getTrackPublication(
-                  Track.Source.Microphone,
-                )?.isMuted ?? true,
+                room.localParticipant.getTrackPublication("microphone")
+                  ?.isMuted ?? true,
               isSpeaking: room.localParticipant.isSpeaking,
             },
           ]
         : [];
 
-      const remotes = Array.from(room.remoteParticipants.values()).map((p) => ({
+      const remotes: CallParticipant[] = Array.from(
+        room.remoteParticipants.values(),
+      ).map((p) => ({
         userId: p.identity.replace("user:", ""),
         username: p.name ?? p.identity,
         displayName: p.name ?? p.identity,
         avatar: null,
-        isMuted:
-          p.getTrackPublication(Track.Source.Microphone)?.isMuted ?? true,
+        isMuted: p.getTrackPublication("microphone")?.isMuted ?? true,
         isSpeaking: p.isSpeaking,
       }));
 
       setParticipants([...locals, ...remotes]);
-      setLocalParticipant(room.localParticipant ?? null);
-      setRemoteParticipants(Array.from(room.remoteParticipants.values()));
+      // Expose raw LiveKit Participant objects to CallCtx consumers.
+      // The as-cast is safe: the runtime Room's localParticipant / remoteParticipants
+      // ARE the LiveKit Participant instances; LkRoom is a structural subset.
+      setLocalParticipant(
+        (room.localParticipant as unknown as Participant) ?? null,
+      );
+      setRemoteParticipants(
+        Array.from(
+          room.remoteParticipants.values(),
+        ) as unknown as Participant[],
+      );
     },
     [setParticipants],
   );
@@ -112,10 +161,13 @@ export default function CallProvider({
           channelId,
         );
 
+        // Dynamic import: livekit-client is only loaded when a call is joined.
+        const { Room, RoomEvent, Track } = await import("livekit-client");
+
         const room = new Room({
           adaptiveStream: true,
           dynacast: true,
-        });
+        }) as unknown as LkRoom;
 
         room.on(RoomEvent.Connected, () => {
           setConnected(true);
