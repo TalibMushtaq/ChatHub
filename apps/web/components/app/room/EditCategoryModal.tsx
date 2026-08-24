@@ -73,17 +73,25 @@ export function EditCategoryModal({
   return (
     <form onSubmit={(e) => void save(e)}>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Category name</label>
+        <label htmlFor="edit-category-name" className={fieldLabel}>
+          Category name
+        </label>
         <input
+          id="edit-category-name"
           className={fieldInput}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Development, General…"
           autoFocus
           maxLength={100}
+          aria-invalid={!!nameError || undefined}
+          aria-describedby={nameError ? "edit-category-name-error" : undefined}
         />
         {nameError && (
-          <p className="mt-1 text-[12px] font-semibold text-danger">
+          <p
+            id="edit-category-name-error"
+            className="mt-1 text-[12px] font-semibold text-danger"
+          >
             {nameError}
           </p>
         )}

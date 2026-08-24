@@ -72,8 +72,11 @@ export function MemberActionModal({
       </p>
       {action === "ban" && (
         <div className="mfield mb-3.5 mt-3">
-          <label className={fieldLabel}>Reason (optional)</label>
+          <label htmlFor="member-action-reason" className={fieldLabel}>
+            Reason (optional)
+          </label>
           <input
+            id="member-action-reason"
             className={fieldInput}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -215,8 +218,11 @@ export function NicknameModal({
         This nickname shows in this room instead of your global display name.
       </p>
       <div className="mfield mb-3.5 mt-3">
-        <label className={fieldLabel}>Nickname</label>
+        <label htmlFor="nickname-input" className={fieldLabel}>
+          Nickname
+        </label>
         <input
+          id="nickname-input"
           className={fieldInput}
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}

@@ -29,9 +29,16 @@ export default function DeviceSettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded-2xl bg-bg border border-border p-5 flex flex-col gap-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="device-settings-title"
+        className="w-full max-w-sm rounded-2xl bg-bg border border-border p-5 flex flex-col gap-4"
+      >
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-extrabold">Device Settings</h3>
+          <h3 id="device-settings-title" className="text-base font-extrabold">
+            Device Settings
+          </h3>
           <button
             onClick={onClose}
             className="p-1 rounded-full hover:bg-surface-2 transition-colors"
@@ -42,8 +49,11 @@ export default function DeviceSettingsModal({
 
         <div className="flex flex-col gap-3">
           <div>
-            <label className={fieldLabel}>Microphone</label>
+            <label htmlFor="device-mic" className={fieldLabel}>
+              Microphone
+            </label>
             <select
+              id="device-mic"
               value={selectedMicrophone ?? ""}
               onChange={(e) => setSelectedMicrophone(e.target.value || null)}
               className="w-full rounded-xl border-[1.5px] border-border bg-bg px-3 py-2 text-sm"
@@ -60,8 +70,11 @@ export default function DeviceSettingsModal({
           </div>
 
           <div>
-            <label className={fieldLabel}>Camera</label>
+            <label htmlFor="device-cam" className={fieldLabel}>
+              Camera
+            </label>
             <select
+              id="device-cam"
               value={selectedCamera ?? ""}
               onChange={(e) => setSelectedCamera(e.target.value || null)}
               className="w-full rounded-xl border-[1.5px] border-border bg-bg px-3 py-2 text-sm"
@@ -79,8 +92,11 @@ export default function DeviceSettingsModal({
 
           {speakers.length > 0 && (
             <div>
-              <label className={fieldLabel}>Speaker</label>
+              <label htmlFor="device-speaker" className={fieldLabel}>
+                Speaker
+              </label>
               <select
+                id="device-speaker"
                 value={selectedSpeaker ?? ""}
                 onChange={(e) => setSelectedSpeaker(e.target.value || null)}
                 className="w-full rounded-xl border-[1.5px] border-border bg-bg px-3 py-2 text-sm"

@@ -8,7 +8,8 @@ export function Toasts() {
   const { toasts, dismissToast } = useShell();
   if (toasts.length === 0) return null;
   return (
-    <>
+    // Live region ensures screen readers announce toast notifications.
+    <div role="status" aria-live="polite" aria-atomic="false">
       {toasts.map((t, i) => (
         <div
           key={t.id}
@@ -16,7 +17,7 @@ export function Toasts() {
             t.type === "error"
               ? "bg-danger text-white"
               : t.type === "success"
-                ? "bg-success text-white"
+                ? "bg-success text-bg"
                 : "bg-fg text-bg"
           }`}
           style={{ bottom: 26 + i * 50 }}
@@ -31,6 +32,6 @@ export function Toasts() {
           </button>
         </div>
       ))}
-    </>
+    </div>
   );
 }

@@ -2726,6 +2726,13 @@ export default function AppShell() {
   return (
     <ShellContext.Provider value={ctx}>
       <CallProvider>
+        {/* Skip link: keyboard users jump past rail + list to the main content area. */}
+        <a
+          href="#main-content"
+          className="skip-link sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-accent-on focus:shadow-lg"
+        >
+          Skip to content
+        </a>
         <div
           data-thread-open={active ? "" : undefined}
           className="app group h-full overflow-hidden bg-bg font-body text-fg antialiased"
@@ -2836,7 +2843,8 @@ export default function AppShell() {
             </section>
 
             {/* Thread column: slides in as a full-screen sheet on mobile. */}
-            <aside
+            <main
+              id="main-content"
               className={`thread flex min-h-0 min-w-0 flex-col bg-bg max-md:fixed max-md:inset-0 max-md:z-30 max-md:translate-x-full max-md:transition-transform max-md:duration-[260ms] max-md:ease-app ${active ? "max-md:group-data-[thread-open]:translate-x-0" : ""}`}
             >
               {active?.kind === "room" ? (
@@ -2844,7 +2852,7 @@ export default function AppShell() {
               ) : (
                 <ThreadPanel />
               )}
-            </aside>
+            </main>
           </div>
 
           <ReconnectBanner />

@@ -203,8 +203,11 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
           {activeTab === "overview" && (
             <div className="space-y-4">
               <div>
-                <label className={fieldLabel}>Room name</label>
+                <label htmlFor="room-settings-name" className={fieldLabel}>
+                  Room name
+                </label>
                 <input
+                  id="room-settings-name"
                   className={fieldInput}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -213,8 +216,11 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
                 />
               </div>
               <div>
-                <label className={fieldLabel}>Description</label>
+                <label htmlFor="room-settings-desc" className={fieldLabel}>
+                  Description
+                </label>
                 <textarea
+                  id="room-settings-desc"
                   className={fieldInput}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -224,7 +230,9 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
                 />
               </div>
               <div>
-                <label className={fieldLabel}>Avatar</label>
+                <label htmlFor="room-settings-avatar" className={fieldLabel}>
+                  Avatar
+                </label>
                 <div className="flex items-center gap-3">
                   {avatarKey ? (
                     <AppAvatar name={name} src={avatarKey} size={40} square />

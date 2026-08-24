@@ -203,6 +203,9 @@ function ModalFrame({
     }
   }
 
+  // Accessible dialog label: each modal gets a unique ID for aria-labelledby.
+  const titleId = `modal-title-${entry.name}`;
+
   // Full-screen overlay (avatar viewer): dark backdrop + centered content and
   // no card chrome. The backdrop pops only THIS modal so a profile card open
   // beneath it stays mounted and visible after the viewer closes.
@@ -211,6 +214,9 @@ function ModalFrame({
       <div
         ref={frameRef}
         data-modal-frame
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         tabIndex={-1}
         className="modal-root fixed inset-0 z-[80] flex items-center justify-center"
         style={{ zIndex: 80 + index }}
@@ -220,6 +226,9 @@ function ModalFrame({
           className="modal-back absolute inset-0 bg-[oklch(0_0_0/0.78)] animate-[fade_.2s_cubic-bezier(.2,.8,.2,1)]"
           onClick={popModal}
         />
+        <h2 id={titleId} className="sr-only">
+          {TITLES[entry.name]}
+        </h2>
         {body}
       </div>
     );
@@ -229,6 +238,9 @@ function ModalFrame({
     <div
       ref={frameRef}
       data-modal-frame
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
       tabIndex={-1}
       className="modal-root fixed inset-0 z-[80] flex items-center justify-center"
       style={{ zIndex: 80 + index }}
@@ -253,7 +265,10 @@ function ModalFrame({
           ) : (
             <span />
           )}
-          <h2 className="min-w-0 flex-1 truncate font-display text-[18px] leading-[1.15] tracking-tight">
+          <h2
+            id={titleId}
+            className="min-w-0 flex-1 truncate font-display text-[18px] leading-[1.15] tracking-tight"
+          >
             {TITLES[entry.name]}
           </h2>
           <button
@@ -449,10 +464,13 @@ function NewDmModal() {
   return (
     <>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Find someone</label>
+        <label htmlFor="new-dm-search" className={fieldLabel}>
+          Find someone
+        </label>
         <div className={searchBox}>
           <SearchIcon className="h-[17px] w-[17px] flex-none text-muted" />
           <input
+            id="new-dm-search"
             className={searchInput}
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -533,8 +551,11 @@ function NewRoomModal() {
   return (
     <>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Room name</label>
+        <label htmlFor="new-room-name" className={fieldLabel}>
+          Room name
+        </label>
         <input
+          id="new-room-name"
           className={fieldInput}
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -543,8 +564,11 @@ function NewRoomModal() {
         />
       </div>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Description (optional)</label>
+        <label htmlFor="new-room-desc" className={fieldLabel}>
+          Description (optional)
+        </label>
         <textarea
+          id="new-room-desc"
           className={`${fieldInput} min-h-[70px] resize-y`}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -552,7 +576,9 @@ function NewRoomModal() {
         />
       </div>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Room avatar (optional)</label>
+        <label htmlFor="new-room-avatar" className={fieldLabel}>
+          Room avatar (optional)
+        </label>
         <AvatarSelector
           source="room"
           selected={avatarKey}
@@ -1500,8 +1526,11 @@ function StatusModal() {
         ))}
       </div>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Custom status (optional)</label>
+        <label htmlFor="status-custom" className={fieldLabel}>
+          Custom status (optional)
+        </label>
         <input
+          id="status-custom"
           className={fieldInput}
           value={customStatus}
           onChange={(e) => setCustomStatus(e.target.value)}
@@ -1830,8 +1859,11 @@ function RecoveryModal() {
         password to continue.
       </p>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Current password</label>
+        <label htmlFor="recovery-password" className={fieldLabel}>
+          Current password
+        </label>
         <input
+          id="recovery-password"
           className={fieldInput}
           type="password"
           value={password}

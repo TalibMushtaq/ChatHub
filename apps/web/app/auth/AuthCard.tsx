@@ -597,22 +597,38 @@ export default function AuthCard() {
               3–20 characters — letters, numbers, underscore.
             </p>
             {usernameStatus === "checking" && (
-              <p className="mt-[5px] text-[12.5px] text-muted">
+              <p
+                role="status"
+                aria-live="polite"
+                className="mt-[5px] text-[12.5px] text-muted"
+              >
                 Checking availability…
               </p>
             )}
             {usernameStatus === "available" && (
-              <p className="mt-[5px] text-[12.5px] font-semibold text-success">
+              <p
+                role="status"
+                aria-live="polite"
+                className="mt-[5px] text-[12.5px] font-semibold text-success"
+              >
                 Username available
               </p>
             )}
             {usernameStatus === "taken" && (
-              <p className="mt-[5px] text-[12.5px] font-semibold text-danger">
+              <p
+                role="status"
+                aria-live="polite"
+                className="mt-[5px] text-[12.5px] font-semibold text-danger"
+              >
                 Username already taken
               </p>
             )}
             {usernameStatus === "invalid" && (
-              <p className="mt-[5px] text-[12.5px] font-semibold text-danger">
+              <p
+                role="status"
+                aria-live="polite"
+                className="mt-[5px] text-[12.5px] font-semibold text-danger"
+              >
                 Invalid username
               </p>
             )}

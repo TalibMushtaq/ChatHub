@@ -133,7 +133,7 @@ export function ChannelItem({
             openChannel(channel.roomId, channel.id);
           }
         }}
-        aria-current={active ? "true" : undefined}
+        aria-current={active ? "page" : undefined}
         title={channel.topic ?? channel.name}
       >
         <Icon

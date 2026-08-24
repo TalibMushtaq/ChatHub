@@ -88,7 +88,7 @@ function DraggableWidgetShell({ roomId, channelId }: DraggableWidgetProps) {
       role="region"
       aria-label="Active call"
       style={{ position: "fixed", left: pos.x, top: pos.y, zIndex: 100 }}
-      className={`w-80 rounded-2xl border border-border bg-surface shadow-2xl select-none transition-shadow ${
+      className={`w-80 rounded-2xl border border-border bg-surface shadow-2xl select-none transition-shadow focus-visible:ring-2 focus-visible:ring-accent ${
         isExpanded ? "" : "hover:shadow-lg"
       }`}
       onPointerDown={onPointerDown}

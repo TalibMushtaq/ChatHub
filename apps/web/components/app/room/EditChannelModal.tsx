@@ -114,24 +114,35 @@ export function EditChannelModal({
   return (
     <form onSubmit={(e) => void save(e)}>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Channel name</label>
+        <label htmlFor="edit-channel-name" className={fieldLabel}>
+          Channel name
+        </label>
         <input
+          id="edit-channel-name"
           className={fieldInput}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="general-development"
           autoFocus
           maxLength={64}
+          aria-invalid={!!nameError || undefined}
+          aria-describedby={nameError ? "edit-channel-name-error" : undefined}
         />
         {nameError && (
-          <p className="mt-1 text-[12px] font-semibold text-danger">
+          <p
+            id="edit-channel-name-error"
+            className="mt-1 text-[12px] font-semibold text-danger"
+          >
             {nameError}
           </p>
         )}
       </div>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Topic (optional)</label>
+        <label htmlFor="edit-channel-topic" className={fieldLabel}>
+          Topic (optional)
+        </label>
         <input
+          id="edit-channel-topic"
           className={fieldInput}
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
@@ -140,8 +151,11 @@ export function EditChannelModal({
         />
       </div>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Category</label>
+        <label htmlFor="edit-channel-category" className={fieldLabel}>
+          Category
+        </label>
         <select
+          id="edit-channel-category"
           className={fieldInput}
           value={categoryId ?? ""}
           onChange={(e) => setCategoryId(e.target.value || null)}

@@ -118,8 +118,8 @@
 
 ### Phase 11 — Accessibility
 
-- [ ] Keyboard-navigable channel list, focus states, real buttons, ARIA labels, dialog focus mgmt + Escape (§15)
-- [ ] Accessible drag/drop alternatives, contrast, reduced-motion, widget shortcuts + live regions (§15)
+- [x] Keyboard-navigable channel list, focus states, real buttons, ARIA labels, dialog focus mgmt + Escape (§15)
+- [x] Accessible drag/drop alternatives, contrast, reduced-motion, widget shortcuts + live regions (§15)
 
 ### Phase 12 — Testing + Regression Audit
 

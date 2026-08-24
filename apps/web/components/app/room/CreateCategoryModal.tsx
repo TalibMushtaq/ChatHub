@@ -31,8 +31,11 @@ export function CreateCategoryModal({ roomId }: { roomId: string }) {
   return (
     <form onSubmit={(e) => void create(e)}>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Category name</label>
+        <label htmlFor="create-category-name" className={fieldLabel}>
+          Category name
+        </label>
         <input
+          id="create-category-name"
           className={fieldInput}
           value={name}
           onChange={(e) => setName(e.target.value)}

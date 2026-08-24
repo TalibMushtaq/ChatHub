@@ -77,24 +77,35 @@ export function CreateChannelModal({
   return (
     <form onSubmit={(e) => void create(e)}>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Channel name</label>
+        <label htmlFor="create-channel-name" className={fieldLabel}>
+          Channel name
+        </label>
         <input
+          id="create-channel-name"
           className={fieldInput}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. general-development"
           autoFocus
           maxLength={64}
+          aria-invalid={!!nameError || undefined}
+          aria-describedby={nameError ? "create-channel-name-error" : undefined}
         />
         {nameError && (
-          <p className="mt-1 text-[12px] font-semibold text-danger">
+          <p
+            id="create-channel-name-error"
+            className="mt-1 text-[12px] font-semibold text-danger"
+          >
             {nameError}
           </p>
         )}
       </div>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Type</label>
+        <label htmlFor="create-channel-type" className={fieldLabel}>
+          Type
+        </label>
         <select
+          id="create-channel-type"
           className={fieldInput}
           value={type}
           onChange={(e) => setType(e.target.value as ChannelType)}
@@ -110,8 +121,11 @@ export function CreateChannelModal({
         </select>
       </div>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Topic (optional)</label>
+        <label htmlFor="create-channel-topic" className={fieldLabel}>
+          Topic (optional)
+        </label>
         <input
+          id="create-channel-topic"
           className={fieldInput}
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
@@ -120,8 +134,11 @@ export function CreateChannelModal({
         />
       </div>
       <div className="mfield mb-3.5">
-        <label className={fieldLabel}>Category</label>
+        <label htmlFor="create-channel-category" className={fieldLabel}>
+          Category
+        </label>
         <select
+          id="create-channel-category"
           className={fieldInput}
           value={categoryId ?? ""}
           onChange={(e) => setCategoryId(e.target.value || null)}
