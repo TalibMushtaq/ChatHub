@@ -28,7 +28,9 @@
     "LIVEKIT_WS_URL",
     "RESET_S3_PRODUCTION",
     "RESET_S3",
-    "FIX"
+    "FIX",
+    "CI",
+    "E2E_BASE_URL"
   ],
   "tasks": {
     "build": {

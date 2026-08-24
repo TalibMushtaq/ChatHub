@@ -19,6 +19,7 @@ vi.mock("../../../../src/services/room/call", () => ({
     .fn()
     .mockResolvedValue({ sessionId: "sess1", callEnded: false }),
   getActiveCall: vi.fn(),
+  getActiveCallsForRoom: vi.fn(),
   moderatorAction: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -29,6 +30,8 @@ vi.mock("../../../../src/middleware/socketAccess", () => ({
 import {
   getJoinToken,
   getActiveCall,
+  getActiveCallsForRoom,
+  leaveCall,
 } from "../../../../src/services/room/call";
 
 const emitSpy = vi.fn();
@@ -148,5 +151,91 @@ describe("room call routes", () => {
       userId: "u2",
       by: "user-1",
     });
+  });
+
+  it("POST join-token emits call.started when isNewSession is true", async () => {
+    (getJoinToken as any).mockResolvedValue({
+      token: "tok",
+      livekitUrl: "ws://lk",
+      roomName: "channel:ch1",
+      sessionId: "sess-new",
+      isNewSession: true,
+    });
+
+    const res = await supertest(createTestApp()).post(
+      "/room/rooms/r1/channels/ch1/call/join-token",
+    );
+
+    expect(res.status).toBe(200);
+    expect(ioSpy.to).toHaveBeenCalledWith("room:r1");
+    expect(emitSpy).toHaveBeenCalledWith("call.started", {
+      channelId: "ch1",
+      sessionId: "sess-new",
+    });
+  });
+
+  it("POST join-token does not emit call.started when isNewSession is false", async () => {
+    (getJoinToken as any).mockResolvedValue({
+      token: "tok",
+      livekitUrl: "ws://lk",
+      roomName: "channel:ch1",
+      sessionId: "sess-existing",
+      isNewSession: false,
+    });
+
+    await supertest(createTestApp()).post(
+      "/room/rooms/r1/channels/ch1/call/join-token",
+    );
+
+    expect(emitSpy).not.toHaveBeenCalledWith("call.started", expect.anything());
+  });
+
+  it("POST leave emits call.ended when session ends", async () => {
+    (leaveCall as any).mockResolvedValue({
+      sessionId: "sess1",
+      callEnded: true,
+    });
+
+    const res = await supertest(createTestApp()).post(
+      "/room/rooms/r1/channels/ch1/call/leave",
+    );
+
+    expect(res.status).toBe(200);
+    expect(emitSpy).toHaveBeenCalledWith("call.ended", {
+      channelId: "ch1",
+      sessionId: "sess1",
+    });
+  });
+
+  it("POST leave does not emit call.ended when session remains active", async () => {
+    (leaveCall as any).mockResolvedValue({
+      sessionId: "sess1",
+      callEnded: false,
+    });
+
+    await supertest(createTestApp()).post(
+      "/room/rooms/r1/channels/ch1/call/leave",
+    );
+
+    expect(emitSpy).not.toHaveBeenCalledWith("call.ended", expect.anything());
+  });
+
+  it("GET active calls returns sessions", async () => {
+    (getActiveCallsForRoom as any).mockResolvedValue([
+      {
+        channelId: "ch1",
+        sessionId: "sess1",
+        participants: [{ userId: "u1", username: "user1" }],
+      },
+    ]);
+
+    const res = await supertest(createTestApp()).get(
+      "/room/rooms/r1/calls/active",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.calls).toHaveLength(1);
+    expect(res.body.calls[0].sessionId).toBe("sess1");
   });
 });

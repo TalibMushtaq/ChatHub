@@ -39,9 +39,22 @@ router.post(
     const roomId = roomIdParamSchema.parse(req.params).roomId;
     const input = createChannelSchema.parse(req.body);
     const channel = await createChannel(req.user!.id, roomId, input);
-    // Everyone in the room sees the new channel appear live in the sidebar.
     req.io.to(`room:${roomId}`).emit("channel:created", { roomId, channel });
     res.status(201).json({ ok: true, channel });
+  }),
+);
+
+// PATCH /rooms/:roomId/channels/reorder
+// Must be registered before :channelId to avoid the param route capturing "reorder".
+router.patch(
+  "/rooms/:roomId/channels/reorder",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const roomId = roomIdParamSchema.parse(req.params).roomId;
+    const { items } = channelReorderSchema.parse(req.body);
+    await reorderChannels(req.user!.id, roomId, items);
+    req.io.to(`room:${roomId}`).emit("channel:reordered", { roomId, items });
+    res.json({ ok: true });
   }),
 );
 
@@ -72,19 +85,6 @@ router.delete(
     };
     await deleteChannel(req.user!.id, roomId, channelId);
     req.io.to(`room:${roomId}`).emit("channel:deleted", { roomId, channelId });
-    res.json({ ok: true });
-  }),
-);
-
-// PATCH /rooms/:roomId/channels/reorder
-router.patch(
-  "/rooms/:roomId/channels/reorder",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const roomId = roomIdParamSchema.parse(req.params).roomId;
-    const { items } = channelReorderSchema.parse(req.body);
-    await reorderChannels(req.user!.id, roomId, items);
-    req.io.to(`room:${roomId}`).emit("channel:reordered", { roomId, items });
     res.json({ ok: true });
   }),
 );

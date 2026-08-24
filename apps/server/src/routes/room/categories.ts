@@ -30,6 +30,22 @@ router.post(
   }),
 );
 
+// PATCH /rooms/:roomId/categories/reorder
+// Must be registered before :categoryId to avoid the param route capturing "reorder".
+router.patch(
+  "/rooms/:roomId/categories/reorder",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const roomId = roomIdParamSchema.parse(req.params).roomId;
+    const { orderedIds } = reorderSchema.parse(req.body);
+    await reorderCategories(req.user!.id, roomId, orderedIds);
+    req.io
+      .to(`room:${roomId}`)
+      .emit("category:reordered", { roomId, orderedIds });
+    res.json({ ok: true });
+  }),
+);
+
 // PATCH /rooms/:roomId/categories/:categoryId
 router.patch(
   "/rooms/:roomId/categories/:categoryId",
@@ -65,21 +81,6 @@ router.delete(
     req.io
       .to(`room:${roomId}`)
       .emit("category:deleted", { roomId, categoryId });
-    res.json({ ok: true });
-  }),
-);
-
-// PATCH /rooms/:roomId/categories/reorder
-router.patch(
-  "/rooms/:roomId/categories/reorder",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const roomId = roomIdParamSchema.parse(req.params).roomId;
-    const { orderedIds } = reorderSchema.parse(req.body);
-    await reorderCategories(req.user!.id, roomId, orderedIds);
-    req.io
-      .to(`room:${roomId}`)
-      .emit("category:reordered", { roomId, orderedIds });
     res.json({ ok: true });
   }),
 );

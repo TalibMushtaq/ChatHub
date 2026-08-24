@@ -7,8 +7,12 @@
       "default": "./src/index.ts"
     }
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:^"
+    "@repo/typescript-config": "workspace:^",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "zod": "^4.4.3"

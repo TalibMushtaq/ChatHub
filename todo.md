@@ -123,10 +123,10 @@
 
 ### Phase 12 — Testing + Regression Audit
 
-- [ ] Backend: authz, category/channel CRUD, ordering, migration, permissions, voice token issuance, call session lifecycle, stale reaping (§16)
-- [ ] Frontend: loading/channel switching/message send, creation flows, permission UI, mobile nav, error/empty states, widget states/drag/persistence/toggle sync (§16)
-- [ ] E2E: room→category→channel→message flow + two-user calling scenario with widget (§16)
-- [ ] Regression audit across all phases + full build/test/lint pass
+- [x] Backend: authz, category/channel CRUD, ordering, migration, permissions, voice token issuance, call session lifecycle, stale reaping (§16)
+- [x] Frontend: loading/channel switching/message send, creation flows, permission UI, mobile nav, error/empty states, widget states/drag/persistence/toggle sync (§16)
+- [x] E2E: room→category→channel→message flow + two-user calling scenario with widget (§16)
+- [x] Regression audit across all phases + full build/test/lint pass
 
 ## Backlog
 
