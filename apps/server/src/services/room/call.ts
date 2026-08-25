@@ -194,9 +194,7 @@ export async function leaveCall(
  * Returns the channelId if the user was in a call, so the caller can emit
  * the appropriate socket event.
  */
-export async function forceLeaveCall(
-  userId: string,
-): Promise<{
+export async function forceLeaveCall(userId: string): Promise<{
   channelId: string;
   sessionId: string;
   callEnded: boolean;
