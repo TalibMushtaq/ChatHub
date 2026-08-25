@@ -80,7 +80,7 @@ export default function WidgetExpanded({
 
   const [pinnedScreenShare, setPinnedScreenShare] = useState(hasScreenShare);
   useEffect(() => {
-    if (hasScreenShare) setPinnedScreenShare(true);
+    setPinnedScreenShare(hasScreenShare);
   }, [hasScreenShare]);
 
   const supportsDocPiP =

@@ -1,3 +1,28 @@
+## [2026-08-25] - Fix Screen Share Visibility + Widget Pinned Mode Reset
+
+**What changed:** Fixed two bugs in the voice channel call UI that prevented screen shares from rendering and caused the floating widget to get stuck in pinned mode.
+
+Web (`apps/web`):
+
+- **ParticipantTile.tsx**: Changed `.find()` in `attachVideo` to prioritize `Track.Source.ScreenShare` over `Track.Source.Camera`. Previously, camera was always found first, so screen share tracks were never attached to the video element.
+- **WidgetExpanded.tsx**: Changed `pinnedScreenShare` effect to unconditionally sync with `hasScreenShare`. Previously, it only set `true` when sharing started but never reset to `false` when sharing ended, leaving the widget stuck in pinned mode (which hides non-sharing remote participants).
+
+**Why:** Two independent bugs: (1) `.find()` iterates in publication order and camera is typically published before screen share, so the camera track always won. (2) `useEffect` only guarded the `true` transition, so once pinned mode activated it persisted permanently.
+
+**Impact:** Web only. Screen shares now render in participant tiles and the widget grid returns to normal layout after sharing stops. Verification: `pnpm -F web check-types`, `pnpm -F web lint` — both clean.
+
+## [2026-08-25] - Enable Voice Channel Creation in UI
+
+**What changed:** Removed the `disabled` attribute from the Voice option in the Create Channel modal dropdown, making voice channels selectable.
+
+Web (`apps/web`):
+
+- **CreateChannelModal.tsx**: Voice channel `<option>` changed from `disabled` with "Voice (coming soon)" label to enabled `<option value="VOICE">Voice</option>`. Comment updated to reflect TEXT and VOICE are both fully wired.
+
+**Why:** Phase 7 (voice channels) is fully implemented — LiveKit SFU integration, backend token issuance, room management, and frontend call UI are all complete. The Voice option was disabled as a Phase 3 placeholder.
+
+**Impact:** Web only. Users can now create voice-type channels from the UI. Verification: `pnpm check-types`, `pnpm lint`, `pnpm build` — all clean.
+
 ## [2026-08-25] - Phase 7: Edge Cases — Single-Call Constraint, Reconnect, Permission-Kick, Debounce
 
 **What changed:** Completed the remaining Phase 7 edge-case items (§11.7) and added a Phase 10 performance optimization (room-search debounce).

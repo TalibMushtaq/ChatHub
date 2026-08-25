@@ -1,9 +1,8 @@
 "use client";
 
 // Create-channel modal (Phase 3 §7.1): name + type + optional topic + category.
-// TEXT is fully wired; VOICE is visible but disabled until the calling phase
-// (spec §7.1 — pick one affordance and stay consistent). ANNOUNCEMENT/FORUM are
-// dropped because the server only accepts TEXT/VOICE. Name rules are mirrored
+// TEXT and VOICE are fully wired. ANNOUNCEMENT/FORUM are dropped because the
+// server only accepts TEXT/VOICE. Name rules are mirrored
 // client-side; the server re-validates and enforces the unique constraint.
 import { useMemo, useState, type FormEvent } from "react";
 import { useShell } from "../state";
@@ -111,13 +110,7 @@ export function CreateChannelModal({
           onChange={(e) => setType(e.target.value as ChannelType)}
         >
           <option value="TEXT">Text</option>
-          <option
-            value="VOICE"
-            disabled
-            title="Voice channels arrive in a later update"
-          >
-            Voice (coming soon)
-          </option>
+          <option value="VOICE">Voice</option>
         </select>
       </div>
       <div className="mfield mb-3.5">

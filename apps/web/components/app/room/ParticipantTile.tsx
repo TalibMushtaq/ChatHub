@@ -36,11 +36,10 @@ export default function ParticipantTile({
 
     const attachVideo = () => {
       const pubs = participant.getTrackPublications();
-      const videoPub = pubs.find(
-        (p) =>
-          p.source === Track.Source.Camera ||
-          p.source === Track.Source.ScreenShare,
-      );
+      // Prioritize screen share over camera so shared content always renders.
+      const videoPub =
+        pubs.find((p) => p.source === Track.Source.ScreenShare && p.track) ??
+        pubs.find((p) => p.source === Track.Source.Camera && p.track);
       if (videoPub?.track && !videoPub.track.attachedElements.includes(el)) {
         videoPub.track.attach(el);
         attached.push({
