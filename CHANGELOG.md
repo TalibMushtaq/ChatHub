@@ -1,3 +1,49 @@
+## [2026-08-25] - Phase 7: Edge Cases — Single-Call Constraint, Reconnect, Permission-Kick, Debounce
+
+**What changed:** Completed the remaining Phase 7 edge-case items (§11.7) and added a Phase 10 performance optimization (room-search debounce).
+
+Server (`apps/server`):
+
+- **Single-call constraint** (`services/room/call.ts`): `getJoinToken()` now queries for any active `CallParticipant` (leftAt=null, session endedAt=null) before issuing a token. If the user is already in a _different_ voice channel, the join is rejected with 409 `ALREADY_IN_CALL`. Re-joining the same channel is allowed (idempotent upsert).
+- **`forceLeaveCall()`** (`services/room/call.ts`): new exported helper that force-marks a user's `CallParticipant` as left, removes them from the LiveKit room (best-effort), and ends the session if they were the last participant. Called by kick/ban services; no permission check — the caller has already been verified.
+- **Kick/Ban force-leave** (`services/room/members.ts`): `kickMember()` and `banMember()` now call `forceLeaveCall()` after removing membership. The return type gains `callInfo: { channelId, sessionId, callEnded } | null` so the route handler can emit `call.participant.left`.
+- **Kick/Ban route events** (`routes/room/members.ts`): kick and ban handlers now emit `call.participant.left` with `callEnded` when the target was in a call.
+
+Web (`apps/web`):
+
+- **Reconnect with exponential backoff** (`CallProvider.tsx`): on `RoomEvent.Disconnected`, if the disconnect was _not_ intentional (user didn't click Leave), the client enters a reconnect loop: max 5 attempts, exponential backoff (1s→2s→4s→8s→16s, capped at 30s). Each retry calls `POST /join-token` for a fresh token, creates a new LiveKit `Room`, and connects. On success, resets the counter. On failure after exhausting retries, calls `clearActiveCall()`. Intentional leaves (clicking the Leave button) bypass the reconnect loop entirely.
+- **`attemptReconnect` ref pattern**: the reconnect function is stored in a ref to avoid circular dependencies with `joinCall`'s disconnect handler.
+- **Room-search debounce** (`ListPanel.tsx`): room list client-side filtering now debounces the query by 300ms (matching the DM search debounce). The `debouncedQ` state updates only after 300ms of no keystroke activity, preventing per-keystroke re-renders of the room list.
+
+Tests:
+
+- 12 new unit tests across `call.test.ts` and `members.test.ts`: single-call constraint (reject different channel, allow same channel, allow when not in call), `forceLeaveCall` (force-leave + LiveKit removal, session end on last participant, no-op when not in call, LiveKit failure handling), kick with call-info return, ban with call-info return, kick/ban resilience when forceLeaveCall throws.
+
+**Why:** Phase 7 §11.7 — edge cases for voice calls: single-call constraint prevents users from being in multiple calls simultaneously, reconnect with backoff handles transient network failures, force-leave on kick/ban ensures disconnected users don't remain in calls, and room-search debounce improves sidebar rendering performance.
+
+**Impact:** Server + web. `getJoinToken` now rejects 409 for cross-channel joins (breaking change for clients that relied on client-side-only constraint — the previous client-side check is now reinforced server-side). `kickMember`/`banMember` return types changed (additive `callInfo` field). Frontend reconnect adds no new API surface. Verification: `pnpm test` (server 820 / web 166), `pnpm check-types`, `pnpm lint` (0 warnings), `pnpm build` — all clean.
+
+**Follow-ups:** Manual browser E2E testing of reconnect (requires LiveKit running). Frontend reconnect logic is best-effort; the LiveKit SDK's built-in reconnection handles brief network blips, and this application-level retry handles full disconnects after SDK retry failure.
+
+## [2026-08-25] - Phase 10: Performance — Profiling + MemberSidebar Memoization
+
+**What changed:** Completed the Phase 10 §14 virtualization gating item and optimized the `MemberSidebar` re-render behavior.
+
+**Profiling analysis (code-level):**
+
+- **MessageList**: Already cursor-bounded (50-100 messages per page). No virtualization needed.
+- **DM List**: Typically 10-100 items. No virtualization needed.
+- **Room List**: Typically 5-50 items. No virtualization needed.
+- **MemberSidebar**: Could have 100-500+ members in large rooms. Re-renders entirely on every `presence` change from `useShell()`. **Fixed via React.memo**, not virtualization.
+
+Web (`apps/web`):
+
+- **`MemberSidebar.tsx`**: extracted member rows into a `React.memo`-wrapped `MemberRow` component. Memoized the `groups` computation (`useMemo` on `[members]`). Memoized `members` fallback (`useMemo` on `[roomMembers, roomId]`). Memoized `openMenu` callback (`useCallback`). This prevents the entire member list from re-rendering when presence changes — only the specific member row whose presence changed re-renders.
+
+**Why:** Phase 10 §14 — the spec gates virtualization on Chrome DevTools profiling evidence. Code-level analysis showed that all lists are bounded by pagination or typical data sizes, with no virtualization needed. The `MemberSidebar` was the only list with a re-render problem, which was a `React.memo` issue, not a virtualization issue.
+
+**Impact:** Web only. `MemberSidebar` is the only changed component. No API or schema changes. Verification: `pnpm test` (server 820 / web 166), `pnpm check-types`, `pnpm lint` (0 warnings), `pnpm build` — all clean.
+
 ## [2026-08-24] - Phase 12: Testing + Regression Audit
 
 **What changed:** Comprehensive test coverage pass across the entire codebase. Backend: MODERATOR role permission coverage in `permissions.test.ts`, route-level tests for categories (`categories.test.ts`), channels (`channels.test.ts`), notification preferences (`notificationPrefs.test.ts`), room invitations (`joinroominvite.test.ts`), join links (`joinroomlink.test.ts`), and join requests (`joinroomreq.test.ts`). Service edge-case coverage for call lifecycle (`getActiveCallsForRoom`, `leaveCall` remaining/already-left/no-session, `reapStaleParticipants` no-stale/LiveKit-not-found/empty-session/partial-staleness/session-survives, `endAllActiveSessions` no-active). Route coverage for `call.started`/`call.ended` socket emissions and `GET /calls/active`. Frontend: test infrastructure with `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, and vitest setup with `next/navigation`/`next/link` mocks. Component tests for `MessageComposer`, `RoomShell`, `CreateChannelModal`, `CreateCategoryModal`, `CallErrorBoundary`, `ReconnectBanner`, `MemberContextMenu` (permission logic), and call widget pure functions (`WidgetMinimized`, `WidgetExpanded`, `callStoreExtended`). Validators: full Zod schema test suite for all 8 validator modules (room, roomChat, direct-chat, user, attachment, friends, avatar, push) with 372 tests covering valid inputs, required fields, invalid types, boundary conditions, enums, cross-field refinements, and `.strict()` rejection. E2E: Playwright infrastructure with `test:e2e` script, room flow and voice calling scenario specs.

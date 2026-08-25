@@ -84,6 +84,15 @@ router.post(
     const { roomId, userId } = parseParams(req.params);
     const result = await kickMember(req.user!.id, roomId, userId);
     emitMemberRemoved(req.io, roomId, userId, "kicked");
+    if (result.callInfo) {
+      req.io.to(`room:${roomId}`).emit("call.participant.left", {
+        sessionId: result.callInfo.sessionId,
+        channelId: result.callInfo.channelId,
+        userId,
+        username: "",
+        callEnded: result.callInfo.callEnded,
+      });
+    }
     res.json({ ok: true, ...result });
   }),
 );
@@ -98,6 +107,15 @@ router.post(
     if (!body) return;
     const result = await banMember(req.user!.id, roomId, userId, body.reason);
     emitMemberRemoved(req.io, roomId, userId, "banned");
+    if (result.callInfo) {
+      req.io.to(`room:${roomId}`).emit("call.participant.left", {
+        sessionId: result.callInfo.sessionId,
+        channelId: result.callInfo.channelId,
+        userId,
+        username: "",
+        callEnded: result.callInfo.callEnded,
+      });
+    }
     res.json({ ok: true, ...result });
   }),
 );

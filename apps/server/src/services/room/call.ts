@@ -37,6 +37,29 @@ export async function getJoinToken(
   // 1. Verify CONNECT_VOICE permission (also confirms room membership).
   await assertRoomPermission(userId, roomId, "CONNECT_VOICE");
 
+  // 1a. Single-call constraint: reject if user is already in another active call.
+  const existingParticipant = await prisma.callParticipant.findFirst({
+    where: {
+      userId,
+      leftAt: null,
+      session: { endedAt: null },
+    },
+    select: {
+      id: true,
+      session: { select: { channelId: true } },
+    },
+  });
+  if (
+    existingParticipant &&
+    existingParticipant.session.channelId !== channelId
+  ) {
+    throw new ApiError(
+      "You are already in another voice channel",
+      409,
+      "ALREADY_IN_CALL",
+    );
+  }
+
   // 2. Verify channel exists, belongs to room, and is a voice channel.
   const channel = await prisma.channel.findFirst({
     where: { id: channelId, roomId },
@@ -161,6 +184,86 @@ export async function leaveCall(
   }
 
   return { sessionId: session.id, callEnded: false };
+}
+
+/**
+ * Force-leave a user from any active call they are in. Called by kick/ban
+ * services when membership is removed. No permission check — the caller
+ * (admin action) has already been verified.
+ *
+ * Returns the channelId if the user was in a call, so the caller can emit
+ * the appropriate socket event.
+ */
+export async function forceLeaveCall(
+  userId: string,
+): Promise<{
+  channelId: string;
+  sessionId: string;
+  callEnded: boolean;
+} | null> {
+  const participant = await prisma.callParticipant.findFirst({
+    where: {
+      userId,
+      leftAt: null,
+      session: { endedAt: null },
+    },
+    include: {
+      session: {
+        select: { id: true, channelId: true },
+      },
+    },
+  });
+
+  if (!participant) return null;
+
+  await prisma.callParticipant.update({
+    where: { id: participant.id },
+    data: { leftAt: new Date() },
+  });
+
+  // Remove from LiveKit room if possible.
+  try {
+    const roomClient = getLiveKitRoomClient();
+    const roomName = liveKitRoomName(participant.session.channelId);
+    await roomClient.removeParticipant(roomName, `user:${userId}`);
+  } catch {
+    // LiveKit room may already be gone — non-fatal.
+  }
+
+  // Check if session should end.
+  const remaining = await prisma.callParticipant.count({
+    where: { sessionId: participant.session.id, leftAt: null },
+  });
+
+  let callEnded = false;
+  if (remaining === 0) {
+    await prisma.callSession.update({
+      where: { id: participant.session.id },
+      data: { endedAt: new Date() },
+    });
+    callEnded = true;
+
+    try {
+      const roomClient = getLiveKitRoomClient();
+      await roomClient.deleteRoom(
+        liveKitRoomName(participant.session.channelId),
+      );
+    } catch {
+      // Room may already be gone — non-fatal.
+    }
+  }
+
+  log.info("Force-left user from call", {
+    userId,
+    channelId: participant.session.channelId,
+    callEnded,
+  });
+
+  return {
+    channelId: participant.session.channelId,
+    sessionId: participant.session.id,
+    callEnded,
+  };
 }
 
 /**

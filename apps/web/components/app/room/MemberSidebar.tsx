@@ -4,7 +4,7 @@
 // MODERATOR → MEMBER) with live presence dots, clickable avatar/name links, a
 // mute indicator, and a context menu for member management (Phase 4 §8). Renders
 // as a right-hand column on desktop and a bottom sheet on mobile.
-import { useState } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { useShell } from "../state";
 import { AvatarLink, NameLink } from "../UserLinks";
 import { CloseIcon, MoreIcon } from "../icons";
@@ -16,7 +16,7 @@ import {
   btnPrimary,
 } from "../styles";
 import { MemberContextMenu, type MenuPosition } from "./MemberContextMenu";
-import type { RoomMember, RoomRole } from "../types";
+import type { RoomMember, RoomRole, PresenceInfo } from "../types";
 
 const ROLE_ORDER: {
   role: RoomRole;
@@ -29,6 +29,72 @@ const ROLE_ORDER: {
   { role: "MEMBER", label: "Members", chip: chipMember },
 ];
 
+/** Individual member row — memoized to avoid re-rendering on unrelated
+ *  presence changes (only re-renders when the specific member's data changes). */
+const MemberRow = memo(function MemberRow({
+  member,
+  myUserId,
+  presence,
+  onContextMenu,
+}: {
+  member: RoomMember;
+  myUserId: string;
+  presence: PresenceInfo | undefined;
+  onContextMenu: (e: React.MouseEvent, m: RoomMember) => void;
+}) {
+  const display =
+    member.nickname || member.user.displayName || member.user.username;
+  return (
+    <div
+      key={member.memberId}
+      className="group/member flex items-center gap-2.5 rounded-xl px-1.5 py-1.5 hover:bg-surface-2"
+      onContextMenu={(e) => onContextMenu(e, member)}
+    >
+      <AvatarLink
+        userId={member.user.id}
+        name={display}
+        avatar={member.user.avatar}
+        size={34}
+        square
+        presence={presence}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-bold">
+          <NameLink
+            userId={member.user.id}
+            name={display}
+            className="text-[13px] font-bold"
+          />
+          {member.mutedUntil && (
+            <span
+              className="ml-1.5 text-[10px] font-extrabold text-danger"
+              title="Muted"
+            >
+              🔇
+            </span>
+          )}
+          {member.user.id === myUserId && (
+            <span className="text-[11px] font-extrabold text-muted">
+              {" "}
+              (you)
+            </span>
+          )}
+        </div>
+        <div className="truncate text-[11px] font-semibold text-muted">
+          @{member.user.username}
+        </div>
+      </div>
+      <button
+        className="flex h-6 w-6 flex-none items-center justify-center rounded-lg text-muted opacity-0 transition-opacity duration-150 ease-app hover:bg-surface-3 hover:text-fg group-hover/member:opacity-100"
+        onClick={(e) => onContextMenu(e, member)}
+        aria-label={`Member options for ${display}`}
+      >
+        <MoreIcon className="h-4 w-4" />
+      </button>
+    </div>
+  );
+});
+
 export function MemberSidebar({
   roomId,
   open,
@@ -39,9 +105,10 @@ export function MemberSidebar({
   onClose: () => void;
 }) {
   const { roomMembers, presence, user, active, openModal } = useShell();
-  const members = roomMembers[roomId] ?? [];
-  // Role chip is shown under the group header; the current user's role drives
-  // which management actions appear in the per-member context menu.
+  const members = useMemo(
+    () => roomMembers[roomId] ?? [],
+    [roomMembers, roomId],
+  );
   const myRole =
     active?.kind === "room" && active.id === roomId ? active.myRole : undefined;
   const [menu, setMenu] = useState<{
@@ -49,22 +116,26 @@ export function MemberSidebar({
     position: MenuPosition;
   } | null>(null);
 
-  const groups = ROLE_ORDER.map((g) => ({
-    ...g,
-    list: members
-      .filter((m) => m.role === g.role)
-      .sort((a, b) =>
-        (a.user.displayName ?? a.user.username).localeCompare(
-          b.user.displayName ?? b.user.username,
-        ),
-      ),
-  })).filter((g) => g.list.length > 0);
+  const groups = useMemo(
+    () =>
+      ROLE_ORDER.map((g) => ({
+        ...g,
+        list: members
+          .filter((m) => m.role === g.role)
+          .sort((a, b) =>
+            (a.user.displayName ?? a.user.username).localeCompare(
+              b.user.displayName ?? b.user.username,
+            ),
+          ),
+      })).filter((g) => g.list.length > 0),
+    [members],
+  );
 
-  function openMenu(e: React.MouseEvent, member: RoomMember) {
+  const openMenu = useCallback((e: React.MouseEvent, member: RoomMember) => {
     e.preventDefault();
     e.stopPropagation();
     setMenu({ member, position: { x: e.clientX, y: e.clientY } });
-  }
+  }, []);
 
   return (
     <>
@@ -123,59 +194,15 @@ export function MemberSidebar({
                 </span>
                 {g.label}
               </div>
-              {g.list.map((m) => {
-                const display =
-                  m.nickname || m.user.displayName || m.user.username;
-                return (
-                  <div
-                    key={m.memberId}
-                    className="group/member flex items-center gap-2.5 rounded-xl px-1.5 py-1.5 hover:bg-surface-2"
-                    onContextMenu={(e) => openMenu(e, m)}
-                  >
-                    <AvatarLink
-                      userId={m.user.id}
-                      name={display}
-                      avatar={m.user.avatar}
-                      size={34}
-                      square
-                      presence={presence[m.user.id]}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-bold">
-                        <NameLink
-                          userId={m.user.id}
-                          name={display}
-                          className="text-[13px] font-bold"
-                        />
-                        {m.mutedUntil && (
-                          <span
-                            className="ml-1.5 text-[10px] font-extrabold text-danger"
-                            title="Muted"
-                          >
-                            🔇
-                          </span>
-                        )}
-                        {m.user.id === user.id && (
-                          <span className="text-[11px] font-extrabold text-muted">
-                            {" "}
-                            (you)
-                          </span>
-                        )}
-                      </div>
-                      <div className="truncate text-[11px] font-semibold text-muted">
-                        @{m.user.username}
-                      </div>
-                    </div>
-                    <button
-                      className="flex h-6 w-6 flex-none items-center justify-center rounded-lg text-muted opacity-0 transition-opacity duration-150 ease-app hover:bg-surface-3 hover:text-fg group-hover/member:opacity-100"
-                      onClick={(e) => openMenu(e, m)}
-                      aria-label={`Member options for ${display}`}
-                    >
-                      <MoreIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                );
-              })}
+              {g.list.map((m) => (
+                <MemberRow
+                  key={m.memberId}
+                  member={m}
+                  myUserId={user.id}
+                  presence={presence[m.user.id]}
+                  onContextMenu={openMenu}
+                />
+              ))}
             </div>
           ))}
         </div>

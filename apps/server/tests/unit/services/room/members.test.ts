@@ -13,6 +13,13 @@ import {
 } from "../../../../src/services/room/members";
 import { prismaMock, resetPrismaMock } from "../../../mocks/prisma";
 
+// Mock forceLeaveCall so tests don't touch LiveKit.
+vi.mock("../../../../src/services/room/call", () => ({
+  forceLeaveCall: vi.fn().mockResolvedValue(null),
+}));
+
+import { forceLeaveCall } from "../../../../src/services/room/call";
+
 // A minimal member row shaped like assertAndLoadMember's `memberSelect` return.
 function memberRow(overrides: Partial<any> = {}) {
   return {
@@ -293,6 +300,119 @@ describe("room members service", () => {
 
       const result = await setNickname("u1", "r1", "u1", null);
       expect(result.nickname).toBeNull();
+    });
+  });
+
+  describe("kickMember force-leave", () => {
+    it("force-leaves the user from any active call after kick", async () => {
+      prismaMock.chatRoomMember.findUnique
+        .mockResolvedValueOnce({ role: "OWNER" } as any)
+        .mockResolvedValueOnce(memberRow() as any);
+      prismaMock.$transaction.mockImplementation((ops: any[]) =>
+        Promise.all(ops),
+      );
+      vi.mocked(forceLeaveCall).mockResolvedValueOnce({
+        channelId: "ch1",
+        sessionId: "sess1",
+        callEnded: true,
+      });
+
+      const result = await kickMember("u1", "r1", "u2");
+
+      expect(result.callInfo).toEqual({
+        channelId: "ch1",
+        sessionId: "sess1",
+        callEnded: true,
+      });
+      expect(forceLeaveCall).toHaveBeenCalledWith("u2");
+    });
+
+    it("returns callInfo null when user was not in a call", async () => {
+      prismaMock.chatRoomMember.findUnique
+        .mockResolvedValueOnce({ role: "OWNER" } as any)
+        .mockResolvedValueOnce(memberRow() as any);
+      prismaMock.$transaction.mockImplementation((ops: any[]) =>
+        Promise.all(ops),
+      );
+      vi.mocked(forceLeaveCall).mockResolvedValueOnce(null);
+
+      const result = await kickMember("u1", "r1", "u2");
+
+      expect(result.callInfo).toBeNull();
+    });
+
+    it("still completes kick even if forceLeaveCall throws", async () => {
+      prismaMock.chatRoomMember.findUnique
+        .mockResolvedValueOnce({ role: "OWNER" } as any)
+        .mockResolvedValueOnce(memberRow() as any);
+      prismaMock.$transaction.mockImplementation((ops: any[]) =>
+        Promise.all(ops),
+      );
+      vi.mocked(forceLeaveCall).mockRejectedValueOnce(
+        new Error("LiveKit unreachable"),
+      );
+
+      const result = await kickMember("u1", "r1", "u2");
+
+      expect(result.userId).toBe("u2");
+      // callInfo is null because force-leave failed (best-effort).
+      expect(result.callInfo).toBeNull();
+    });
+  });
+
+  describe("banMember force-leave", () => {
+    it("force-leaves the user from any active call after ban", async () => {
+      prismaMock.chatRoomMember.findUnique
+        .mockResolvedValueOnce({ role: "OWNER" } as any)
+        .mockResolvedValueOnce(memberRow() as any);
+      prismaMock.roomBan.upsert.mockResolvedValue({ id: "b1" } as any);
+      prismaMock.chatRoomMember.deleteMany.mockResolvedValue({
+        count: 1,
+      } as any);
+      prismaMock.chatRoomReadReceipt.deleteMany.mockResolvedValue({
+        count: 0,
+      } as any);
+      prismaMock.$transaction.mockImplementation(async (fn: any) =>
+        fn(prismaMock),
+      );
+      vi.mocked(forceLeaveCall).mockResolvedValueOnce({
+        channelId: "ch1",
+        sessionId: "sess1",
+        callEnded: false,
+      });
+
+      const result = await banMember("u1", "r1", "u2");
+
+      expect(result.callInfo).toEqual({
+        channelId: "ch1",
+        sessionId: "sess1",
+        callEnded: false,
+      });
+      expect(forceLeaveCall).toHaveBeenCalledWith("u2");
+    });
+
+    it("still completes ban even if forceLeaveCall throws", async () => {
+      prismaMock.chatRoomMember.findUnique
+        .mockResolvedValueOnce({ role: "OWNER" } as any)
+        .mockResolvedValueOnce(memberRow() as any);
+      prismaMock.roomBan.upsert.mockResolvedValue({ id: "b1" } as any);
+      prismaMock.chatRoomMember.deleteMany.mockResolvedValue({
+        count: 1,
+      } as any);
+      prismaMock.chatRoomReadReceipt.deleteMany.mockResolvedValue({
+        count: 0,
+      } as any);
+      prismaMock.$transaction.mockImplementation(async (fn: any) =>
+        fn(prismaMock),
+      );
+      vi.mocked(forceLeaveCall).mockRejectedValueOnce(
+        new Error("LiveKit unreachable"),
+      );
+
+      const result = await banMember("u1", "r1", "u2");
+
+      expect(result.userId).toBe("u2");
+      expect(result.callInfo).toBeNull();
     });
   });
 });

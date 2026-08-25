@@ -78,7 +78,7 @@
 - [x] Screen share: "you are sharing" indicator, focus tile, native-stop reconciliation (§11.4)
 - [x] Call signaling events: call.* + call.participant.* (§11.5)
 - [x] Full in-channel call view: adaptive grid, tiles, controls bar (§11.6)
-- [ ] Edge cases: single call constraint, reconnect w/ backoff, stale participant reaping, mid-call permission/device changes (§11.7)
+- [x] Edge cases: single call constraint, reconnect w/ backoff, stale participant reaping, mid-call permission/device changes (§11.7)
 - [ ] Phase 7 completion: audio/video/screen-share end-to-end, sidebar presence realtime, call survives navigation (§11.8)
 
 > Phase 7 backend verified with `pnpm test` (741), `check-types`, `lint`, `build`. Frontend store/device/call UI written; edge cases (single-call constraint, reconnect UI, screen-share native-stop reconcile) partially wired. Manual browser E2E (two users, audio/video/screen-share) still pending — requires PostgreSQL migration applied + a running LiveKit server.
@@ -113,8 +113,8 @@
 - [x] DM cursor pagination implemented — older messages load on scroll-to-top (§14)
 - [x] WebSocket audit — 5 missing socket.off() cleanup handlers added for call events (§14)
 - [x] Shell context value memoized — children using useShell() only re-render when state changes (§14)
-- [ ] Virtualize large lists (gated on Chrome DevTools profiling evidence) (§14)
-- [ ] Cache stable Room/channel metadata, optimistic reorder, debounce search (§14)
+- [x] Virtualize large lists (gated on Chrome DevTools profiling evidence) (§14)
+- [x] Cache stable Room/channel metadata, optimistic reorder, debounce search (§14)
 
 ### Phase 11 — Accessibility
 

@@ -7,6 +7,7 @@ import {
   moderatorAction,
   reapStaleParticipants,
   endAllActiveSessions,
+  forceLeaveCall,
 } from "../../../../src/services/room/call";
 import { prismaMock, resetPrismaMock } from "../../../mocks/prisma";
 
@@ -111,6 +112,83 @@ describe("room call service", () => {
       expect(prismaMock.callSession.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: { channelId: "ch1" } }),
       );
+    });
+
+    it("rejects when the user is already in another active call (single-call constraint)", async () => {
+      prismaMock.chatRoomMember.findUnique.mockResolvedValue({
+        role: "MEMBER",
+      } as any);
+      prismaMock.channel.findFirst.mockResolvedValue({
+        id: "ch1",
+        roomId: "r1",
+        type: "VOICE",
+        participantLimit: 25,
+      } as any);
+      prismaMock.callParticipant.findFirst.mockResolvedValue({
+        id: "existing-p",
+        userId: "u1",
+        leftAt: null,
+        session: { channelId: "ch-other" },
+      } as any);
+
+      await expect(getJoinToken("u1", "r1", "ch1")).rejects.toMatchObject({
+        statusCode: 409,
+        code: "ALREADY_IN_CALL",
+      });
+    });
+
+    it("allows re-joining the same voice channel", async () => {
+      prismaMock.chatRoomMember.findUnique.mockResolvedValue({
+        role: "MEMBER",
+      } as any);
+      prismaMock.channel.findFirst.mockResolvedValue({
+        id: "ch1",
+        roomId: "r1",
+        type: "VOICE",
+        participantLimit: 25,
+      } as any);
+      // User is already in the same channel — should not be rejected.
+      prismaMock.callParticipant.findFirst.mockResolvedValue({
+        id: "existing-p",
+        userId: "u1",
+        leftAt: null,
+        session: { channelId: "ch1" },
+      } as any);
+      prismaMock.callParticipant.count.mockResolvedValue(1);
+      prismaMock.callSession.findFirst.mockResolvedValue({
+        id: "sess-existing",
+        channelId: "ch1",
+        startedAt: new Date(),
+        endedAt: null,
+      } as any);
+
+      const result = await getJoinToken("u1", "r1", "ch1");
+      expect(result).toMatchObject({ token: "fake-token" });
+    });
+
+    it("allows joining when not in any call", async () => {
+      prismaMock.chatRoomMember.findUnique.mockResolvedValue({
+        role: "MEMBER",
+      } as any);
+      prismaMock.channel.findFirst.mockResolvedValue({
+        id: "ch1",
+        roomId: "r1",
+        type: "VOICE",
+        participantLimit: 25,
+      } as any);
+      prismaMock.callParticipant.findFirst.mockResolvedValue(null);
+      prismaMock.callParticipant.count.mockResolvedValue(0);
+      prismaMock.callSession.findFirst.mockResolvedValue(null);
+      prismaMock.callSession.create.mockResolvedValue({
+        id: "sess1",
+        channelId: "ch1",
+        startedAt: new Date(),
+        endedAt: null,
+      } as any);
+      prismaMock.callParticipant.upsert.mockResolvedValue({} as any);
+
+      const result = await getJoinToken("u1", "r1", "ch1");
+      expect(result).toMatchObject({ token: "fake-token" });
     });
 
     it("reuses an active session instead of creating a new one", async () => {
@@ -615,6 +693,92 @@ describe("room call service", () => {
           data: { endedAt: expect.any(Date) },
         }),
       );
+    });
+  });
+
+  describe("forceLeaveCall", () => {
+    it("force-leaves a user from an active call and removes from LiveKit", async () => {
+      prismaMock.callParticipant.findFirst.mockResolvedValue({
+        id: "p1",
+        userId: "u2",
+        leftAt: null,
+        session: { id: "sess1", channelId: "ch1" },
+      } as any);
+      prismaMock.callParticipant.update.mockResolvedValue({} as any);
+      prismaMock.callParticipant.count.mockResolvedValue(1); // other participants remain
+
+      const result = await forceLeaveCall("u2");
+
+      expect(result).toEqual({
+        channelId: "ch1",
+        sessionId: "sess1",
+        callEnded: false,
+      });
+      expect(prismaMock.callParticipant.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "p1" },
+          data: { leftAt: expect.any(Date) },
+        }),
+      );
+    });
+
+    it("ends the session when the force-left user was the last participant", async () => {
+      prismaMock.callParticipant.findFirst.mockResolvedValue({
+        id: "p1",
+        userId: "u2",
+        leftAt: null,
+        session: { id: "sess1", channelId: "ch1" },
+      } as any);
+      prismaMock.callParticipant.update.mockResolvedValue({} as any);
+      prismaMock.callParticipant.count.mockResolvedValue(0);
+
+      const result = await forceLeaveCall("u2");
+
+      expect(result).toEqual({
+        channelId: "ch1",
+        sessionId: "sess1",
+        callEnded: true,
+      });
+      expect(prismaMock.callSession.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "sess1" },
+          data: { endedAt: expect.any(Date) },
+        }),
+      );
+    });
+
+    it("returns null when user is not in any call", async () => {
+      prismaMock.callParticipant.findFirst.mockResolvedValue(null);
+
+      const result = await forceLeaveCall("u2");
+      expect(result).toBeNull();
+    });
+
+    it("handles LiveKit removal failure gracefully", async () => {
+      prismaMock.callParticipant.findFirst.mockResolvedValue({
+        id: "p1",
+        userId: "u2",
+        leftAt: null,
+        session: { id: "sess1", channelId: "ch1" },
+      } as any);
+      prismaMock.callParticipant.update.mockResolvedValue({} as any);
+      prismaMock.callParticipant.count.mockResolvedValue(1);
+
+      const { getLiveKitRoomClient } =
+        await import("../../../../src/lib/livekit");
+      (getLiveKitRoomClient as any).mockReturnValue({
+        removeParticipant: vi
+          .fn()
+          .mockRejectedValue(new Error("room not found")),
+        deleteRoom: vi.fn().mockResolvedValue(undefined),
+      });
+
+      const result = await forceLeaveCall("u2");
+      expect(result).toEqual({
+        channelId: "ch1",
+        sessionId: "sess1",
+        callEnded: false,
+      });
     });
   });
 });

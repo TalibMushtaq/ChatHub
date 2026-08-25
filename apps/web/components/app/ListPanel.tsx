@@ -52,6 +52,16 @@ export default function ListPanel() {
     toast,
   } = useShell();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedQ, setDebouncedQ] = useState("");
+
+  // Debounce q for room list filtering (client-side).
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedQ(q), 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [q]);
 
   // Debounced user search while typing in the list search box.
   useEffect(() => {
@@ -206,7 +216,8 @@ export default function ListPanel() {
               roomList
                 .filter(
                   (r) =>
-                    !q.trim() || r.name.toLowerCase().includes(q.toLowerCase()),
+                    !debouncedQ.trim() ||
+                    r.name.toLowerCase().includes(debouncedQ.toLowerCase()),
                 )
                 .map((r) => (
                   <button

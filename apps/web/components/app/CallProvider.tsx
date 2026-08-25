@@ -87,6 +87,17 @@ export default function CallProvider({
   );
   const [speakerIdentity, setSpeakerIdentity] = useState<string | null>(null);
 
+  // Reconnect state: tracks intentional leave vs unexpected disconnect.
+  const intentionalLeaveRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectAbortRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Store the last join params so we can re-join after a disconnect.
+  const lastJoinParamsRef = useRef<{
+    roomId: string;
+    channelId: string;
+  } | null>(null);
+
   const {
     setJoining,
     setConnected,
@@ -99,6 +110,13 @@ export default function CallProvider({
     setMuted,
     setCameraEnabled,
   } = useCallStore();
+
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const RECONNECT_BASE_MS = 1000;
+
+  /** Store the latest attemptReconnect in a ref so joinCall can reference it
+   *  without a circular dependency. */
+  const attemptReconnectRef = useRef<() => void>(() => {});
 
   const syncParticipants = useCallback(
     (room: LkRoom) => {
@@ -146,6 +164,15 @@ export default function CallProvider({
 
   const joinCall = useCallback(
     async (roomId: string, channelId: string) => {
+      // Cancel any in-progress reconnect attempt.
+      reconnectAbortRef.current = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      reconnectAttemptRef.current = 0;
+      intentionalLeaveRef.current = false;
+
       // Single call constraint
       if (lkRoomRef.current) {
         await lkRoomRef.current.disconnect();
@@ -154,6 +181,7 @@ export default function CallProvider({
       }
 
       setJoining(true);
+      lastJoinParamsRef.current = { roomId, channelId };
 
       try {
         const { token, livekitUrl, sessionId } = await CallAPI.joinToken(
@@ -173,19 +201,32 @@ export default function CallProvider({
           setConnected(true);
           setJoining(false);
           setCallStartedAt(Date.now());
+          reconnectAttemptRef.current = 0;
+          reconnectAbortRef.current = false;
           syncParticipants(room);
         });
 
         room.on(RoomEvent.Disconnected, () => {
           setConnected(false);
-          clearActiveCall();
+          // If the user intentionally left (clicked Leave button), clean up immediately.
+          if (intentionalLeaveRef.current) {
+            clearActiveCall();
+            lkRoomRef.current = null;
+            lastJoinParamsRef.current = null;
+            return;
+          }
+          // Otherwise: attempt reconnect with exponential backoff.
           lkRoomRef.current = null;
+          attemptReconnectRef.current();
         });
 
         room.on(RoomEvent.Reconnecting, () =>
           setConnectionState("reconnecting"),
         );
-        room.on(RoomEvent.Reconnected, () => setConnectionState("connected"));
+        room.on(RoomEvent.Reconnected, () => {
+          setConnectionState("connected");
+          reconnectAttemptRef.current = 0;
+        });
 
         room.on(RoomEvent.ParticipantConnected, () => syncParticipants(room));
         room.on(RoomEvent.ParticipantDisconnected, () =>
@@ -240,7 +281,146 @@ export default function CallProvider({
     ],
   );
 
+  /**
+   * Attempt to rejoin the call after an unexpected disconnect, using
+   * exponential backoff. Gives up after MAX_RECONNECT_ATTEMPTS.
+   */
+  const attemptReconnectFn = useCallback(() => {
+    const params = lastJoinParamsRef.current;
+    if (!params) return;
+
+    if (reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      // Exhausted all retries — give up.
+      clearActiveCall();
+      lastJoinParamsRef.current = null;
+      return;
+    }
+
+    reconnectAbortRef.current = false;
+    const attempt = reconnectAttemptRef.current;
+    const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, attempt), 30_000);
+
+    setConnectionState("reconnecting");
+
+    reconnectTimerRef.current = setTimeout(async () => {
+      if (reconnectAbortRef.current) return;
+      reconnectAttemptRef.current = attempt + 1;
+
+      try {
+        // Get a new token (the old one may still be valid, but a fresh token
+        // is safer after a disconnect).
+        const { token, livekitUrl, sessionId } = await CallAPI.joinToken(
+          params.roomId,
+          params.channelId,
+        );
+
+        if (reconnectAbortRef.current) return;
+
+        const { Room, RoomEvent, Track } = await import("livekit-client");
+        const room = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+        }) as unknown as LkRoom;
+
+        room.on(RoomEvent.Connected, () => {
+          setConnected(true);
+          setConnectionState("connected");
+          setCallStartedAt(Date.now());
+          reconnectAttemptRef.current = 0;
+          syncParticipants(room);
+        });
+
+        room.on(RoomEvent.Disconnected, () => {
+          setConnected(false);
+          lkRoomRef.current = null;
+          // Only retry if not intentionally leaving and not aborted.
+          if (!intentionalLeaveRef.current && !reconnectAbortRef.current) {
+            attemptReconnectRef.current();
+          }
+        });
+
+        room.on(RoomEvent.Reconnecting, () =>
+          setConnectionState("reconnecting"),
+        );
+        room.on(RoomEvent.Reconnected, () => {
+          setConnectionState("connected");
+          reconnectAttemptRef.current = 0;
+        });
+
+        room.on(RoomEvent.ParticipantConnected, () => syncParticipants(room));
+        room.on(RoomEvent.ParticipantDisconnected, () =>
+          syncParticipants(room),
+        );
+        room.on(RoomEvent.TrackSubscribed, () => syncParticipants(room));
+        room.on(RoomEvent.TrackUnsubscribed, () => syncParticipants(room));
+
+        room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+          if (pub.source === Track.Source.ScreenShare) setScreenSharing(false);
+          syncParticipants(room);
+        });
+
+        const lastSpeakRef = { t: 0 };
+        room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const now = Date.now();
+          if (now - lastSpeakRef.t < 150) return;
+          lastSpeakRef.t = now;
+          syncParticipants(room);
+          setSpeakerIdentity(speakers[0]?.identity ?? null);
+        });
+
+        await room.connect(livekitUrl, token);
+
+        const sMic = useCallStore.getState().selectedMicrophone;
+        const constraints = buildMediaConstraints({
+          audio: true,
+          microphoneId: sMic,
+        });
+        await room.localParticipant.setMicrophoneEnabled(
+          true,
+          typeof constraints.audio === "object" ? constraints.audio : undefined,
+        );
+
+        lkRoomRef.current = room;
+        setActiveCall(sessionId, params.channelId, params.roomId);
+        syncParticipants(room);
+      } catch (err) {
+        console.error(`Reconnect attempt ${attempt + 1} failed`, err);
+        // Try again with further backoff.
+        if (!reconnectAbortRef.current && !intentionalLeaveRef.current) {
+          attemptReconnectRef.current();
+        } else {
+          clearActiveCall();
+          lastJoinParamsRef.current = null;
+        }
+      }
+    }, delay);
+  }, [
+    clearActiveCall,
+    setConnected,
+    setConnectionState,
+    setCallStartedAt,
+    setScreenSharing,
+    setActiveCall,
+    syncParticipants,
+  ]);
+
+  // Keep the ref pointing to the latest attemptReconnect so callbacks
+  // defined earlier (joinCall's disconnect handler) can call it without
+  // creating a circular dependency.
+  useEffect(() => {
+    attemptReconnectRef.current = attemptReconnectFn;
+  });
+
   const leaveCall = useCallback(async () => {
+    // Mark as intentional so the disconnect handler doesn't attempt reconnect.
+    intentionalLeaveRef.current = true;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    reconnectAbortRef.current = true;
+    reconnectAttemptRef.current = 0;
+
     const room = lkRoomRef.current;
     if (room) {
       await room.disconnect();
@@ -255,6 +435,7 @@ export default function CallProvider({
       }
     }
     clearActiveCall();
+    lastJoinParamsRef.current = null;
   }, [clearActiveCall]);
 
   const toggleMute = useCallback(async () => {
@@ -315,6 +496,9 @@ export default function CallProvider({
     return () => {
       lkRoomRef.current?.disconnect();
       lkRoomRef.current = null;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
     };
   }, []);
 

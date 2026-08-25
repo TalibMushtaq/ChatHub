@@ -6,6 +6,7 @@ import {
   roleHasPermission,
   type RoomPermission,
 } from "./permissions";
+import { forceLeaveCall } from "./call";
 import type { ChatRoomRole } from "@prisma/client";
 
 /**
@@ -168,7 +169,11 @@ export async function kickMember(
       where: { userId: targetUserId, chatRoomId: roomId },
     }),
   ]);
-  return { userId: targetUserId, role: target.role };
+
+  // Disconnect from any active voice call (best-effort, non-blocking).
+  const callInfo = await forceLeaveCall(targetUserId).catch(() => null);
+
+  return { userId: targetUserId, role: target.role, callInfo };
 }
 
 /**
@@ -211,7 +216,11 @@ export async function banMember(
       where: { userId: targetUserId, chatRoomId: roomId },
     });
   });
-  return { userId: targetUserId, role: target.role };
+
+  // Disconnect from any active voice call (best-effort, non-blocking).
+  const callInfo = await forceLeaveCall(targetUserId).catch(() => null);
+
+  return { userId: targetUserId, role: target.role, callInfo };
 }
 
 /** Lift a ban. Does not re-add the member — they rejoin via invite/link. */
