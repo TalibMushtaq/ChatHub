@@ -14,8 +14,10 @@ import type { Channel, ChannelUnreadState } from "../types";
 import { channelUnreadStatus } from "../helpers";
 import { GripIcon, HashIcon, MoreIcon, SpeakerIcon } from "../icons";
 import { ChannelContextMenu, type MenuPosition } from "./ChannelContextMenu";
-import { useCallStore } from "../callStore";
+import { useCallStore, type CallParticipant } from "../callStore";
 import { AvatarStack } from "../AvatarStack";
+
+const EMPTY_PARTICIPANTS: CallParticipant[] = [];
 
 export function ChannelItem({
   channel,
@@ -40,7 +42,7 @@ export function ChannelItem({
   const Icon = channel.type === "VOICE" ? SpeakerIcon : HashIcon;
 
   const callParticipants = useCallStore(
-    (s) => s.participantsByChannel[channel.id] ?? [],
+    (s) => s.participantsByChannel[channel.id] ?? EMPTY_PARTICIPANTS,
   );
 
   // Phase 6 §10.1: derive the visual unread state from the server-synced
