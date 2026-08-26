@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+.next
+dist
+
+# Environment — never bake secrets into images
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage
+playwright-report
+test-results
+
+# OS
+.DS_Store
+
+# Docs (optional)
+*.md
+!README.md
