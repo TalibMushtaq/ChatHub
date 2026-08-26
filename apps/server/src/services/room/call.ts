@@ -1,23 +1,24 @@
 import { prisma } from "../../../db/prisma";
 import { ApiError } from "../../lib/ApiError";
-import {
-  generateJoinToken,
-  getLiveKitRoomClient,
-  LIVEKIT_WS_URL,
-} from "../../lib/livekit";
+import { getLiveKitRoomClient } from "../../lib/livekit";
 import { assertRoomAccess } from "../../middleware/socketAccess";
 import { assertRoomPermission } from "./permissions";
 import { createLogger } from "../../lib/logger";
 import { TrackSource } from "livekit-server-sdk";
+import {
+  createOrReuseSession,
+  upsertParticipant,
+  markParticipantLeft,
+  endSessionIfEmpty,
+  generateCallToken,
+} from "../call/core";
+import type { CallTarget } from "../../types/call";
+import {
+  DEFAULT_PARTICIPANT_LIMIT,
+  getLiveKitRoomName,
+} from "../../types/call";
 
 const log = createLogger("call");
-
-// LiveKit room name convention: one call per voice channel.
-function liveKitRoomName(channelId: string): string {
-  return `channel:${channelId}`;
-}
-
-const DEFAULT_PARTICIPANT_LIMIT = 25;
 
 /**
  * Issue a LiveKit join token after verifying auth, membership, permissions,
@@ -93,39 +94,24 @@ export async function getJoinToken(
   }
 
   // 4. Create or reuse active CallSession for this channel.
-  let session = await prisma.callSession.findFirst({
-    where: { channelId, endedAt: null },
-  });
-  // Track whether this is the first participant (used by the route to emit call.started).
-  const isNewSession = !session;
-  if (!session) {
-    session = await prisma.callSession.create({
-      data: { channelId },
-    });
-    log.info("Created new call session", {
-      sessionId: session.id,
-      channelId,
-    });
-  }
+  const target: CallTarget = { type: "channel", roomId, channelId };
+  const { session, isNewSession } = await createOrReuseSession(
+    target,
+    "VOICE",
+    "ACTIVE",
+  );
 
   // 5. Upsert CallParticipant (handles re-join without leaving first).
-  await prisma.callParticipant.upsert({
-    where: { sessionId_userId: { sessionId: session.id, userId } },
-    create: { sessionId: session.id, userId },
-    update: { leftAt: null, joinedAt: new Date() },
-  });
+  await upsertParticipant(session.id, userId);
 
   // 6. Generate short-lived LiveKit token.
-  const roomName = liveKitRoomName(channelId);
-  const token = await generateJoinToken(userId, roomName);
+  const { token, livekitUrl, roomName } = await generateCallToken(
+    userId,
+    target,
+    session.id,
+  );
 
-  return {
-    token,
-    livekitUrl: LIVEKIT_WS_URL,
-    roomName,
-    sessionId: session.id,
-    isNewSession,
-  };
+  return { token, livekitUrl, roomName, sessionId: session.id, isNewSession };
 }
 
 /**
@@ -147,43 +133,26 @@ export async function leaveCall(
   const session = await prisma.callSession.findFirst({
     where: { channelId, endedAt: null },
   });
-  if (!session) return null; // No active call — nothing to leave.
+  if (!session) return null;
 
-  const participant = await prisma.callParticipant.findUnique({
-    where: { sessionId_userId: { sessionId: session.id, userId } },
-  });
-  if (!participant || participant.leftAt) return null; // Already left.
+  const left = await markParticipantLeft(session.id, userId);
+  if (!left) return null;
 
-  await prisma.callParticipant.update({
-    where: { id: participant.id },
-    data: { leftAt: new Date() },
-  });
+  const { callEnded } = await endSessionIfEmpty(session.id);
 
-  // Check if anyone is still in the call.
-  const remaining = await prisma.callParticipant.count({
-    where: { sessionId: session.id, leftAt: null },
-  });
-
-  if (remaining === 0) {
-    await prisma.callSession.update({
-      where: { id: session.id },
-      data: { endedAt: new Date() },
-    });
-    log.info("Call session ended (no participants)", { sessionId: session.id });
-
+  if (callEnded) {
     // Clean up the LiveKit room.
     try {
       const roomClient = getLiveKitRoomClient();
-      await roomClient.deleteRoom(liveKitRoomName(channelId));
+      await roomClient.deleteRoom(
+        getLiveKitRoomName({ type: "channel", roomId, channelId }, session.id),
+      );
     } catch (err) {
-      // Room may already be gone — non-fatal.
       log.warn("Failed to delete LiveKit room", { error: String(err) });
     }
-
-    return { sessionId: session.id, callEnded: true };
   }
 
-  return { sessionId: session.id, callEnded: false };
+  return { sessionId: session.id, callEnded };
 }
 
 /**
@@ -222,29 +191,33 @@ export async function forceLeaveCall(userId: string): Promise<{
   // Remove from LiveKit room if possible.
   try {
     const roomClient = getLiveKitRoomClient();
-    const roomName = liveKitRoomName(participant.session.channelId);
+    const roomName = getLiveKitRoomName(
+      {
+        type: "channel",
+        roomId: "",
+        channelId: participant.session.channelId!,
+      },
+      participant.session.id,
+    );
     await roomClient.removeParticipant(roomName, `user:${userId}`);
   } catch {
     // LiveKit room may already be gone — non-fatal.
   }
 
-  // Check if session should end.
-  const remaining = await prisma.callParticipant.count({
-    where: { sessionId: participant.session.id, leftAt: null },
-  });
+  const { callEnded } = await endSessionIfEmpty(participant.session.id);
 
-  let callEnded = false;
-  if (remaining === 0) {
-    await prisma.callSession.update({
-      where: { id: participant.session.id },
-      data: { endedAt: new Date() },
-    });
-    callEnded = true;
-
+  if (callEnded) {
     try {
       const roomClient = getLiveKitRoomClient();
       await roomClient.deleteRoom(
-        liveKitRoomName(participant.session.channelId),
+        getLiveKitRoomName(
+          {
+            type: "channel",
+            roomId: "",
+            channelId: participant.session.channelId!,
+          },
+          participant.session.id,
+        ),
       );
     } catch {
       // Room may already be gone — non-fatal.
@@ -258,7 +231,7 @@ export async function forceLeaveCall(userId: string): Promise<{
   });
 
   return {
-    channelId: participant.session.channelId,
+    channelId: participant.session.channelId!,
     sessionId: participant.session.id,
     callEnded,
   };
@@ -359,7 +332,10 @@ export async function moderatorAction(
   }
 
   const roomClient = getLiveKitRoomClient();
-  const roomName = liveKitRoomName(channelId);
+  const roomName = getLiveKitRoomName(
+    { type: "channel", roomId, channelId },
+    session.id,
+  );
   const identity = `user:${targetUserId}`;
 
   if (action === "disconnect") {
@@ -397,116 +373,9 @@ export async function moderatorAction(
   }
 }
 
-/**
- * Remove participants whose sessions ended or who haven't left within the
- * grace period. Run on server startup and periodically.
- */
-export async function reapStaleParticipants(): Promise<number> {
-  // 1. Mark participants in ended sessions as left (defensive cleanup).
-  const endedSessionResult = await prisma.callParticipant.updateMany({
-    where: {
-      leftAt: null,
-      session: { endedAt: { not: null } },
-    },
-    data: { leftAt: new Date() },
-  });
-
-  // 2. For each active session, reconcile DB participants against the LiveKit
-  //    room's live participant list. Only mark absent participants as stale —
-  //    this correctly handles browser crashes without evicting active long calls.
-  const activeSessions = await prisma.callSession.findMany({
-    where: { endedAt: null },
-    include: {
-      participants: {
-        where: { leftAt: null },
-        select: { id: true, userId: true },
-      },
-    },
-  });
-
-  const roomClient = getLiveKitRoomClient();
-  let orphanedCount = 0;
-
-  for (const session of activeSessions) {
-    if (session.participants.length === 0) continue;
-
-    const roomName = liveKitRoomName(session.channelId);
-    let liveIdentities: Set<string>;
-
-    try {
-      const lkParticipants = await roomClient.listParticipants(roomName);
-      liveIdentities = new Set(lkParticipants.map((p) => p.identity));
-    } catch {
-      // LiveKit room doesn't exist or is unreachable — treat all DB participants
-      // for this session as stale (room was likely deleted externally).
-      liveIdentities = new Set();
-    }
-
-    // Participants present in DB but absent from LiveKit are stale.
-    const staleIds = session.participants
-      .filter((p) => !liveIdentities.has(`user:${p.userId}`))
-      .map((p) => p.id);
-
-    if (staleIds.length > 0) {
-      await prisma.callParticipant.updateMany({
-        where: { id: { in: staleIds } },
-        data: { leftAt: new Date() },
-      });
-      orphanedCount += staleIds.length;
-      log.info("Reaped stale participants via LiveKit reconciliation", {
-        sessionId: session.id,
-        channelId: session.channelId,
-        count: staleIds.length,
-      });
-    }
-
-    // End the session if no participants remain after reaping.
-    const remaining = await prisma.callParticipant.count({
-      where: { sessionId: session.id, leftAt: null },
-    });
-    if (remaining === 0) {
-      await prisma.callSession.update({
-        where: { id: session.id },
-        data: { endedAt: new Date() },
-      });
-      log.info("Call session ended during stale reap", {
-        sessionId: session.id,
-        channelId: session.channelId,
-      });
-    }
-  }
-
-  const total = endedSessionResult.count + orphanedCount;
-  if (total > 0) {
-    log.info("Reaped stale participants total", { count: total });
-  }
-
-  return total;
-}
-
-/**
- * End all active call sessions on server startup. Clients will reconnect
- * and re-join if they're still in a call.
- */
-export async function endAllActiveSessions(): Promise<void> {
-  const activeSessions = await prisma.callSession.findMany({
-    where: { endedAt: null },
-    select: { id: true },
-  });
-
-  if (activeSessions.length === 0) return;
-
-  const ids = activeSessions.map((s) => s.id);
-  await prisma.$transaction([
-    prisma.callParticipant.updateMany({
-      where: { sessionId: { in: ids }, leftAt: null },
-      data: { leftAt: new Date() },
-    }),
-    prisma.callSession.updateMany({
-      where: { id: { in: ids } },
-      data: { endedAt: new Date() },
-    }),
-  ]);
-
-  log.info("Ended all active call sessions on startup", { count: ids.length });
-}
+// Re-export from shared core so callers can import from one place.
+export {
+  reapStaleParticipants,
+  endAllActiveSessions,
+  timeoutRingingCalls,
+} from "../call/core";

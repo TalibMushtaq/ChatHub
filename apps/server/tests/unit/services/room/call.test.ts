@@ -11,7 +11,6 @@ import {
 } from "../../../../src/services/room/call";
 import { prismaMock, resetPrismaMock } from "../../../mocks/prisma";
 
-// Mock the LiveKit SDK + our wrapper so no network calls happen in tests.
 vi.mock("../../../../src/lib/livekit", () => ({
   generateJoinToken: vi.fn().mockResolvedValue("fake-token"),
   getLiveKitRoomClient: vi.fn(() => ({
@@ -30,6 +29,28 @@ vi.mock("../../../../src/lib/logger", () => ({
     error: vi.fn(),
   })),
 }));
+
+vi.mock("../../../../src/services/call/core", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../../../src/services/call/core")>();
+  return {
+    ...actual,
+    createOrReuseSession: vi.fn(),
+    upsertParticipant: vi.fn().mockResolvedValue(undefined),
+    markParticipantLeft: vi.fn(),
+    endSessionIfEmpty: vi.fn(),
+    generateCallToken: vi.fn().mockResolvedValue({
+      token: "fake-token",
+      livekitUrl: "ws://localhost:7880",
+      roomName: "channel:ch1",
+    }),
+    reapStaleParticipants: vi.fn().mockResolvedValue(0),
+    endAllActiveSessions: vi.fn().mockResolvedValue(undefined),
+    timeoutRingingCalls: vi.fn().mockResolvedValue(0),
+  };
+});
+
+const core = vi.mocked(await import("../../../../src/services/call/core"));
 
 describe("room call service", () => {
   beforeEach(() => {
@@ -93,14 +114,16 @@ describe("room call service", () => {
         participantLimit: 25,
       } as any);
       prismaMock.callParticipant.count.mockResolvedValue(0);
-      prismaMock.callSession.findFirst.mockResolvedValue(null);
-      prismaMock.callSession.create.mockResolvedValue({
-        id: "sess1",
-        channelId: "ch1",
-        startedAt: new Date(),
-        endedAt: null,
-      } as any);
-      prismaMock.callParticipant.upsert.mockResolvedValue({} as any);
+      prismaMock.callParticipant.findFirst.mockResolvedValue(null);
+      core.createOrReuseSession.mockResolvedValue({
+        session: { id: "sess1", channelId: "ch1", directChatId: null },
+        isNewSession: true,
+      });
+      core.generateCallToken.mockResolvedValue({
+        token: "fake-token",
+        livekitUrl: "ws://localhost:7880",
+        roomName: "channel:ch1",
+      });
 
       const result = await getJoinToken("u1", "r1", "ch1");
 
@@ -108,10 +131,15 @@ describe("room call service", () => {
         token: "fake-token",
         livekitUrl: "ws://localhost:7880",
         roomName: "channel:ch1",
+        sessionId: "sess1",
+        isNewSession: true,
       });
-      expect(prismaMock.callSession.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { channelId: "ch1" } }),
+      expect(core.createOrReuseSession).toHaveBeenCalledWith(
+        { type: "channel", roomId: "r1", channelId: "ch1" },
+        "VOICE",
+        "ACTIVE",
       );
+      expect(core.upsertParticipant).toHaveBeenCalledWith("sess1", "u1");
     });
 
     it("rejects when the user is already in another active call (single-call constraint)", async () => {
@@ -155,15 +183,21 @@ describe("room call service", () => {
         session: { channelId: "ch1" },
       } as any);
       prismaMock.callParticipant.count.mockResolvedValue(1);
-      prismaMock.callSession.findFirst.mockResolvedValue({
-        id: "sess-existing",
-        channelId: "ch1",
-        startedAt: new Date(),
-        endedAt: null,
-      } as any);
+      core.createOrReuseSession.mockResolvedValue({
+        session: { id: "sess-existing", channelId: "ch1", directChatId: null },
+        isNewSession: false,
+      });
+      core.generateCallToken.mockResolvedValue({
+        token: "fake-token",
+        livekitUrl: "ws://localhost:7880",
+        roomName: "channel:ch1",
+      });
 
       const result = await getJoinToken("u1", "r1", "ch1");
-      expect(result).toMatchObject({ token: "fake-token" });
+      expect(result).toMatchObject({
+        token: "fake-token",
+        isNewSession: false,
+      });
     });
 
     it("allows joining when not in any call", async () => {
@@ -178,14 +212,15 @@ describe("room call service", () => {
       } as any);
       prismaMock.callParticipant.findFirst.mockResolvedValue(null);
       prismaMock.callParticipant.count.mockResolvedValue(0);
-      prismaMock.callSession.findFirst.mockResolvedValue(null);
-      prismaMock.callSession.create.mockResolvedValue({
-        id: "sess1",
-        channelId: "ch1",
-        startedAt: new Date(),
-        endedAt: null,
-      } as any);
-      prismaMock.callParticipant.upsert.mockResolvedValue({} as any);
+      core.createOrReuseSession.mockResolvedValue({
+        session: { id: "sess1", channelId: "ch1", directChatId: null },
+        isNewSession: true,
+      });
+      core.generateCallToken.mockResolvedValue({
+        token: "fake-token",
+        livekitUrl: "ws://localhost:7880",
+        roomName: "channel:ch1",
+      });
 
       const result = await getJoinToken("u1", "r1", "ch1");
       expect(result).toMatchObject({ token: "fake-token" });
@@ -202,22 +237,27 @@ describe("room call service", () => {
         participantLimit: 25,
       } as any);
       prismaMock.callParticipant.count.mockResolvedValue(1);
-      prismaMock.callSession.findFirst.mockResolvedValue({
-        id: "sess-existing",
-        channelId: "ch1",
-        startedAt: new Date(),
-        endedAt: null,
-      } as any);
+      prismaMock.callParticipant.findFirst.mockResolvedValue(null);
+      core.createOrReuseSession.mockResolvedValue({
+        session: { id: "sess-existing", channelId: "ch1", directChatId: null },
+        isNewSession: false,
+      });
+      core.generateCallToken.mockResolvedValue({
+        token: "fake-token",
+        livekitUrl: "ws://localhost:7880",
+        roomName: "channel:ch1",
+      });
 
       await getJoinToken("u1", "r1", "ch1");
 
-      expect(prismaMock.callSession.create).not.toHaveBeenCalled();
-      expect(prismaMock.callParticipant.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            sessionId_userId: { sessionId: "sess-existing", userId: "u1" },
-          },
-        }),
+      expect(core.createOrReuseSession).toHaveBeenCalledWith(
+        { type: "channel", roomId: "r1", channelId: "ch1" },
+        "VOICE",
+        "ACTIVE",
+      );
+      expect(core.upsertParticipant).toHaveBeenCalledWith(
+        "sess-existing",
+        "u1",
       );
     });
   });
@@ -233,30 +273,14 @@ describe("room call service", () => {
         startedAt: new Date(),
         endedAt: null,
       } as any);
-      prismaMock.callParticipant.findUnique.mockResolvedValue({
-        id: "p1",
-        sessionId: "sess1",
-        userId: "u1",
-        leftAt: null,
-      } as any);
-      prismaMock.callParticipant.update.mockResolvedValue({} as any);
-      prismaMock.callParticipant.count.mockResolvedValue(0);
-      prismaMock.callSession.update.mockResolvedValue({} as any);
+      core.markParticipantLeft.mockResolvedValue({ participantId: "p1" });
+      core.endSessionIfEmpty.mockResolvedValue({ callEnded: true });
 
-      await leaveCall("u1", "r1", "ch1");
+      const result = await leaveCall("u1", "r1", "ch1");
 
-      expect(prismaMock.callParticipant.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "p1" },
-          data: { leftAt: expect.any(Date) },
-        }),
-      );
-      expect(prismaMock.callSession.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "sess1" },
-          data: { endedAt: expect.any(Date) },
-        }),
-      );
+      expect(result).toEqual({ sessionId: "sess1", callEnded: true });
+      expect(core.markParticipantLeft).toHaveBeenCalledWith("sess1", "u1");
+      expect(core.endSessionIfEmpty).toHaveBeenCalledWith("sess1");
     });
 
     it("does nothing if the user is not a participant", async () => {
@@ -269,11 +293,12 @@ describe("room call service", () => {
         startedAt: new Date(),
         endedAt: null,
       } as any);
-      prismaMock.callParticipant.findUnique.mockResolvedValue(null);
+      core.markParticipantLeft.mockResolvedValue(null);
 
-      await leaveCall("u1", "r1", "ch1");
+      const result = await leaveCall("u1", "r1", "ch1");
 
-      expect(prismaMock.callParticipant.update).not.toHaveBeenCalled();
+      expect(result).toBeNull();
+      expect(core.endSessionIfEmpty).not.toHaveBeenCalled();
     });
 
     it("returns callEnded false when other participants remain", async () => {
@@ -286,19 +311,12 @@ describe("room call service", () => {
         startedAt: new Date(),
         endedAt: null,
       } as any);
-      prismaMock.callParticipant.findUnique.mockResolvedValue({
-        id: "p1",
-        sessionId: "sess1",
-        userId: "u1",
-        leftAt: null,
-      } as any);
-      prismaMock.callParticipant.update.mockResolvedValue({} as any);
-      prismaMock.callParticipant.count.mockResolvedValue(1);
+      core.markParticipantLeft.mockResolvedValue({ participantId: "p1" });
+      core.endSessionIfEmpty.mockResolvedValue({ callEnded: false });
 
       const result = await leaveCall("u1", "r1", "ch1");
 
       expect(result).toEqual({ sessionId: "sess1", callEnded: false });
-      expect(prismaMock.callSession.update).not.toHaveBeenCalled();
     });
 
     it("returns null when participant already left", async () => {
@@ -311,17 +329,11 @@ describe("room call service", () => {
         startedAt: new Date(),
         endedAt: null,
       } as any);
-      prismaMock.callParticipant.findUnique.mockResolvedValue({
-        id: "p1",
-        sessionId: "sess1",
-        userId: "u1",
-        leftAt: new Date(),
-      } as any);
+      core.markParticipantLeft.mockResolvedValue(null);
 
       const result = await leaveCall("u1", "r1", "ch1");
 
       expect(result).toBeNull();
-      expect(prismaMock.callParticipant.update).not.toHaveBeenCalled();
     });
 
     it("returns null when no active session exists", async () => {
@@ -333,7 +345,6 @@ describe("room call service", () => {
       const result = await leaveCall("u1", "r1", "ch1");
 
       expect(result).toBeNull();
-      expect(prismaMock.callParticipant.update).not.toHaveBeenCalled();
     });
 
     it("deletes LiveKit room when session ends", async () => {
@@ -346,15 +357,8 @@ describe("room call service", () => {
         startedAt: new Date(),
         endedAt: null,
       } as any);
-      prismaMock.callParticipant.findUnique.mockResolvedValue({
-        id: "p1",
-        sessionId: "sess1",
-        userId: "u1",
-        leftAt: null,
-      } as any);
-      prismaMock.callParticipant.update.mockResolvedValue({} as any);
-      prismaMock.callParticipant.count.mockResolvedValue(0);
-      prismaMock.callSession.update.mockResolvedValue({} as any);
+      core.markParticipantLeft.mockResolvedValue({ participantId: "p1" });
+      core.endSessionIfEmpty.mockResolvedValue({ callEnded: true });
 
       const { getLiveKitRoomClient } =
         await import("../../../../src/lib/livekit");
@@ -506,193 +510,19 @@ describe("room call service", () => {
   });
 
   describe("reapStaleParticipants", () => {
-    it("marks orphaned participants as left via LiveKit reconciliation", async () => {
-      // Step 1: mark participants in ended sessions (defensive cleanup).
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 1 });
-
-      // Step 2: active sessions with participants missing from LiveKit.
-      prismaMock.callSession.findMany.mockResolvedValueOnce([
-        {
-          id: "s1",
-          channelId: "ch1",
-          participants: [
-            { id: "cp1", userId: "u1" },
-            { id: "cp2", userId: "u2" },
-          ],
-        },
-      ] as any);
-
-      // LiveKit returns empty list → both participants are absent → marked stale.
-      const { getLiveKitRoomClient } =
-        await import("../../../../src/lib/livekit");
-      (getLiveKitRoomClient as any).mockReturnValue({
-        listParticipants: vi.fn().mockResolvedValue([]),
-        deleteRoom: vi.fn().mockResolvedValue(undefined),
-      });
-
-      // updateMany for stale ids, then count remaining, then session end.
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 2 });
-      prismaMock.callParticipant.count.mockResolvedValueOnce(0);
-      prismaMock.callSession.update.mockResolvedValueOnce({} as any);
-
+    it("delegates to core reapStaleParticipants", async () => {
+      core.reapStaleParticipants.mockResolvedValue(3);
       const total = await reapStaleParticipants();
-      // 1 from ended-session cleanup + 2 from LiveKit reconciliation.
       expect(total).toBe(3);
-    });
-
-    it("returns 0 when no stale participants", async () => {
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 0 });
-      prismaMock.callSession.findMany.mockResolvedValueOnce([]);
-
-      const total = await reapStaleParticipants();
-      expect(total).toBe(0);
-    });
-
-    it("handles LiveKit room not found gracefully", async () => {
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 0 });
-      prismaMock.callSession.findMany.mockResolvedValueOnce([
-        {
-          id: "s1",
-          channelId: "ch1",
-          participants: [{ id: "cp1", userId: "u1" }],
-        },
-      ] as any);
-
-      const { getLiveKitRoomClient } =
-        await import("../../../../src/lib/livekit");
-      (getLiveKitRoomClient as any).mockReturnValue({
-        listParticipants: vi
-          .fn()
-          .mockRejectedValue(new Error("room not found")),
-        deleteRoom: vi.fn().mockResolvedValue(undefined),
-      });
-
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 1 });
-      prismaMock.callParticipant.count.mockResolvedValueOnce(0);
-      prismaMock.callSession.update.mockResolvedValueOnce({} as any);
-
-      const total = await reapStaleParticipants();
-      expect(total).toBe(1);
-    });
-
-    it("skips sessions with 0 participants", async () => {
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 0 });
-      prismaMock.callSession.findMany.mockResolvedValueOnce([
-        {
-          id: "s1",
-          channelId: "ch1",
-          participants: [],
-        },
-      ] as any);
-
-      const { getLiveKitRoomClient } =
-        await import("../../../../src/lib/livekit");
-      const mockClient = {
-        listParticipants: vi.fn().mockResolvedValue([]),
-        deleteRoom: vi.fn().mockResolvedValue(undefined),
-      };
-      (getLiveKitRoomClient as any).mockReturnValue(mockClient);
-
-      const total = await reapStaleParticipants();
-      expect(total).toBe(0);
-      expect(mockClient.listParticipants).not.toHaveBeenCalled();
-    });
-
-    it("handles partial staleness", async () => {
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 0 });
-      prismaMock.callSession.findMany.mockResolvedValueOnce([
-        {
-          id: "s1",
-          channelId: "ch1",
-          participants: [
-            { id: "cp1", userId: "u1" },
-            { id: "cp2", userId: "u2" },
-          ],
-        },
-      ] as any);
-
-      const { getLiveKitRoomClient } =
-        await import("../../../../src/lib/livekit");
-      (getLiveKitRoomClient as any).mockReturnValue({
-        listParticipants: vi.fn().mockResolvedValue([{ identity: "user:u1" }]),
-        deleteRoom: vi.fn().mockResolvedValue(undefined),
-      });
-
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 1 });
-      prismaMock.callParticipant.count.mockResolvedValueOnce(1);
-
-      const total = await reapStaleParticipants();
-      expect(total).toBe(1);
-      expect(prismaMock.callSession.update).not.toHaveBeenCalled();
-    });
-
-    it("session survives when remaining > 0 after reaping", async () => {
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 0 });
-      prismaMock.callSession.findMany.mockResolvedValueOnce([
-        {
-          id: "s1",
-          channelId: "ch1",
-          participants: [{ id: "cp1", userId: "u1" }],
-        },
-      ] as any);
-
-      const { getLiveKitRoomClient } =
-        await import("../../../../src/lib/livekit");
-      (getLiveKitRoomClient as any).mockReturnValue({
-        listParticipants: vi.fn().mockResolvedValue([{ identity: "user:u1" }]),
-        deleteRoom: vi.fn().mockResolvedValue(undefined),
-      });
-
-      prismaMock.callParticipant.updateMany.mockResolvedValueOnce({ count: 0 });
-      prismaMock.callParticipant.count.mockResolvedValueOnce(1);
-
-      const total = await reapStaleParticipants();
-      expect(total).toBe(0);
-      expect(prismaMock.callSession.update).not.toHaveBeenCalled();
+      expect(core.reapStaleParticipants).toHaveBeenCalled();
     });
   });
 
   describe("endAllActiveSessions", () => {
-    it("ends all active sessions on startup", async () => {
-      prismaMock.callSession.findMany.mockResolvedValue([
-        { id: "s1" },
-        { id: "s2" },
-      ] as any);
-      prismaMock.$transaction.mockImplementation(async (fns: any[]) =>
-        Promise.all(fns),
-      );
-
+    it("delegates to core endAllActiveSessions", async () => {
+      core.endAllActiveSessions.mockResolvedValue(undefined);
       await endAllActiveSessions();
-      expect(prismaMock.callSession.updateMany).toHaveBeenCalled();
-    });
-
-    it("returns early when no active sessions", async () => {
-      prismaMock.callSession.findMany.mockResolvedValue([]);
-
-      await endAllActiveSessions();
-      expect(prismaMock.$transaction).not.toHaveBeenCalled();
-    });
-
-    it("verifies participant leftAt is set in the transaction", async () => {
-      prismaMock.callSession.findMany.mockResolvedValue([{ id: "s1" }] as any);
-      prismaMock.$transaction.mockImplementation(async (fns: any[]) =>
-        Promise.all(fns),
-      );
-
-      await endAllActiveSessions();
-
-      expect(prismaMock.callParticipant.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { sessionId: { in: ["s1"] }, leftAt: null },
-          data: { leftAt: expect.any(Date) },
-        }),
-      );
-      expect(prismaMock.callSession.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: { in: ["s1"] } },
-          data: { endedAt: expect.any(Date) },
-        }),
-      );
+      expect(core.endAllActiveSessions).toHaveBeenCalled();
     });
   });
 
@@ -705,7 +535,7 @@ describe("room call service", () => {
         session: { id: "sess1", channelId: "ch1" },
       } as any);
       prismaMock.callParticipant.update.mockResolvedValue({} as any);
-      prismaMock.callParticipant.count.mockResolvedValue(1); // other participants remain
+      core.endSessionIfEmpty.mockResolvedValue({ callEnded: false });
 
       const result = await forceLeaveCall("u2");
 
@@ -730,7 +560,14 @@ describe("room call service", () => {
         session: { id: "sess1", channelId: "ch1" },
       } as any);
       prismaMock.callParticipant.update.mockResolvedValue({} as any);
-      prismaMock.callParticipant.count.mockResolvedValue(0);
+      core.endSessionIfEmpty.mockResolvedValue({ callEnded: true });
+
+      const { getLiveKitRoomClient } =
+        await import("../../../../src/lib/livekit");
+      (getLiveKitRoomClient as any).mockReturnValue({
+        removeParticipant: vi.fn().mockResolvedValue(undefined),
+        deleteRoom: vi.fn().mockResolvedValue(undefined),
+      });
 
       const result = await forceLeaveCall("u2");
 
@@ -739,12 +576,6 @@ describe("room call service", () => {
         sessionId: "sess1",
         callEnded: true,
       });
-      expect(prismaMock.callSession.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "sess1" },
-          data: { endedAt: expect.any(Date) },
-        }),
-      );
     });
 
     it("returns null when user is not in any call", async () => {
@@ -762,7 +593,7 @@ describe("room call service", () => {
         session: { id: "sess1", channelId: "ch1" },
       } as any);
       prismaMock.callParticipant.update.mockResolvedValue({} as any);
-      prismaMock.callParticipant.count.mockResolvedValue(1);
+      core.endSessionIfEmpty.mockResolvedValue({ callEnded: false });
 
       const { getLiveKitRoomClient } =
         await import("../../../../src/lib/livekit");

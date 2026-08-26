@@ -32,7 +32,8 @@ import { testS3Connection } from "./lib/s3HealthCheck";
 import {
   endAllActiveSessions,
   reapStaleParticipants,
-} from "./services/room/call";
+  timeoutRingingCalls,
+} from "./services/call/core";
 
 const log = createLogger("server");
 
@@ -132,6 +133,12 @@ async function main() {
       },
       5 * 60 * 1000,
     );
+    // End RINGING DM calls that exceed the 60s timeout, every 10s.
+    setInterval(() => {
+      timeoutRingingCalls().catch((err) =>
+        log.error("Ringing call timeout failed", err),
+      );
+    }, 10_000);
   });
 }
 

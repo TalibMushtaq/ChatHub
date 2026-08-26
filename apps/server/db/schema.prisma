@@ -60,6 +60,25 @@ enum Gender {
   PREFER_NOT_TO_SAY
 }
 
+enum CallType {
+  VOICE
+  VIDEO
+}
+
+enum CallStatus {
+  RINGING
+  ACTIVE
+  ENDED
+}
+
+enum CallOutcome {
+  COMPLETED
+  MISSED
+  DECLINED
+  CANCELLED
+  FAILED
+}
+
 enum FriendRequestStatus {
   PENDING
   ACCEPTED
@@ -195,7 +214,9 @@ model Message {
   // messages that predate the channels migration (backfilled to #general).
   channelId    String?
 
-  messageType MessageType @default(TEXT)
+  messageType  MessageType @default(TEXT)
+
+  metadata Json?
 
   createdAt DateTime @default(now())
 
@@ -254,6 +275,7 @@ model DirectChat {
   User_DirectChat_user2IdToUser User                    @relation("DirectChat_user2IdToUser", fields: [user2Id], references: [id], onDelete: Cascade)
   Message                       Message[]
   readReceipts                  DirectChatReadReceipt[]
+  callSessions                  CallSession[]
 
   @@unique([user1Id, user2Id])
   @@index([user1Id])
@@ -560,19 +582,28 @@ model MessageMention {
   @@index([roomId])
 }
 
-// Persistent record of a voice-call instance in a channel.
+// Persistent record of a voice/video call instance. Shared between channel
+// calls and DM calls — exactly one of channelId or directChatId is non-null
+// (enforced by a CHECK constraint in the migration).
 // LiveKit owns real-time state (speaking, track publish, etc.); this table
-// tracks history, participant count, and stale-session cleanup.
+// tracks history, participant count, outcomes, and stale-session cleanup.
 model CallSession {
-  id        String    @id @default(cuid())
-  channelId String
-  startedAt DateTime  @default(now())
-  endedAt   DateTime?
+  id           String       @id @default(cuid())
+  channelId    String?
+  directChatId String?
+  callType     CallType     @default(VOICE)
+  status       CallStatus   @default(RINGING)
+  outcome      CallOutcome?
+  startedAt    DateTime     @default(now())
+  connectedAt  DateTime?
+  endedAt      DateTime?
 
-  Channel      Channel           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  Channel      Channel?           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  DirectChat   DirectChat?        @relation(fields: [directChatId], references: [id], onDelete: Cascade)
   participants CallParticipant[]
 
   @@index([channelId])
+  @@index([directChatId])
   @@index([endedAt])
 }
 
