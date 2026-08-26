@@ -48,9 +48,7 @@ vi.mock("../../../../src/services/idempotency", () => ({
   storeIdempotency: vi.fn().mockResolvedValue(undefined),
 }));
 
-const core = vi.mocked(
-  await import("../../../../src/services/call/core"),
-);
+const core = vi.mocked(await import("../../../../src/services/call/core"));
 const idempotency = vi.mocked(
   await import("../../../../src/services/idempotency"),
 );
@@ -206,9 +204,7 @@ describe("DM call service", () => {
 
   describe("cancelDmCall", () => {
     it("ends the session with CANCELLED and creates history message", async () => {
-      prismaMock.callSession.findFirst.mockResolvedValue(
-        activeSession as any,
-      );
+      prismaMock.callSession.findFirst.mockResolvedValue(activeSession as any);
       idempotency.checkIdempotency.mockResolvedValue(null);
       prismaMock.callSession.findUnique.mockResolvedValue({
         id: "sess1",
@@ -237,9 +233,7 @@ describe("DM call service", () => {
 
   describe("joinDmCall", () => {
     it("upserts participant and returns a token", async () => {
-      prismaMock.callSession.findFirst.mockResolvedValue(
-        activeSession as any,
-      );
+      prismaMock.callSession.findFirst.mockResolvedValue(activeSession as any);
       core.generateCallToken.mockResolvedValue({
         token: "tok",
         livekitUrl: "ws://lk",
@@ -543,9 +537,7 @@ describe("DM call service", () => {
     });
 
     it("builds content for a missed call", async () => {
-      prismaMock.callSession.findFirst.mockResolvedValue(
-        activeSession as any,
-      );
+      prismaMock.callSession.findFirst.mockResolvedValue(activeSession as any);
       idempotency.checkIdempotency.mockResolvedValue(null);
       prismaMock.callSession.findUnique.mockResolvedValue({
         id: "sess1",
