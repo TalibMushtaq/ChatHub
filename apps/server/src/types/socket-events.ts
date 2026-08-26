@@ -18,6 +18,16 @@ export interface ClientToServerEvents {
     status?: string;
     customStatus?: string | null;
   }) => void;
+
+  // -----------------------------------------------------------------------
+  // DM Voice / Video Call — client → server
+  // -----------------------------------------------------------------------
+
+  /** Client confirms it connected to the LiveKit room (after RoomEvent.Connected). */
+  "dmCall:livekitConnected": (payload: { sessionId: string }) => void;
+
+  /** Client lost its LiveKit connection (network drop, tab close, etc.). */
+  "dmCall:livekitDisconnected": (payload: { sessionId: string }) => void;
 }
 
 export interface ServerToClientEvents {
@@ -204,6 +214,82 @@ export interface ServerToClientEvents {
     channelId: string;
     userId: string;
     by: string;
+  }) => void;
+
+  // -----------------------------------------------------------------------
+  // DM Voice / Video Call events
+  // -----------------------------------------------------------------------
+
+  /** Callee received an incoming call invite. */
+  "dmCall:invited": (payload: {
+    directChatId: string;
+    sessionId: string;
+    callType: "VOICE" | "VIDEO";
+    caller: {
+      id: string;
+      username: string;
+      displayName: string | null;
+      avatar: string | null;
+    };
+  }) => void;
+
+  /** Callee accepted the call (application-level; both still need to join LiveKit). */
+  "dmCall:accepted": (payload: {
+    directChatId: string;
+    sessionId: string;
+  }) => void;
+
+  /** Callee declined the call. */
+  "dmCall:declined": (payload: {
+    directChatId: string;
+    sessionId: string;
+  }) => void;
+
+  /** Caller cancelled the call. */
+  "dmCall:cancelled": (payload: {
+    directChatId: string;
+    sessionId: string;
+  }) => void;
+
+  /** Both participants connected to LiveKit — call is now ACTIVE. */
+  "dmCall:connected": (payload: {
+    directChatId: string;
+    sessionId: string;
+    connectedAt: Date;
+  }) => void;
+
+  /** The call ended (any outcome). */
+  "dmCall:ended": (payload: {
+    directChatId: string;
+    sessionId: string;
+    outcome: string;
+  }) => void;
+
+  /** A participant joined the LiveKit room. */
+  "dmCall:participant.joined": (payload: {
+    directChatId: string;
+    sessionId: string;
+    userId: string;
+    user: {
+      id: string;
+      username: string;
+      displayName: string | null;
+      avatar: string | null;
+    };
+  }) => void;
+
+  /** A participant left the LiveKit room. */
+  "dmCall:participant.left": (payload: {
+    directChatId: string;
+    sessionId: string;
+    userId: string;
+  }) => void;
+
+  /** Per-user multi-device sync: dismiss incoming call UI. */
+  "dmCall:dismiss": (payload: {
+    directChatId: string;
+    sessionId: string;
+    reason: "accepted" | "declined" | "cancelled" | "timeout";
   }) => void;
 }
 
