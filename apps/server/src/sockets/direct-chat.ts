@@ -9,6 +9,11 @@ import { assertDirectChatAccess } from "../middleware/socketAccess";
 import { ApiError } from "../lib/ApiError";
 import { createLogger } from "../lib/logger";
 import { directChatTypingSchema } from "@repo/validators";
+import {
+  handleLiveKitConnected,
+  handleLiveKitDisconnected,
+} from "../services/direct-chat/call";
+import { prisma } from "../../db/prisma";
 
 const log = createLogger("directChatSocket");
 
@@ -78,11 +83,39 @@ export function emitChatRoomRead(
 }
 
 // ---------------------------------------------------------------------------
+// DM Call emit helpers
+// ---------------------------------------------------------------------------
+
+export function emitDmCallConnected(
+  io: Server,
+  room: string,
+  payload: Parameters<ServerToClientEvents["dmCall:connected"]>[0],
+) {
+  io.to(room).emit("dmCall:connected", payload);
+}
+
+export function emitDmCallParticipantJoined(
+  io: Server,
+  room: string,
+  payload: Parameters<ServerToClientEvents["dmCall:participant.joined"]>[0],
+) {
+  io.to(room).emit("dmCall:participant.joined", payload);
+}
+
+export function emitDmCallParticipantLeft(
+  io: Server,
+  room: string,
+  payload: Parameters<ServerToClientEvents["dmCall:participant.left"]>[0],
+) {
+  io.to(room).emit("dmCall:participant.left", payload);
+}
+
+// ---------------------------------------------------------------------------
 // Socket registration
 // ---------------------------------------------------------------------------
 
 export function registerDirectChat(
-  _io: Server<
+  io: Server<
     ClientToServerEvents,
     ServerToClientEvents,
     InterServerEvents,
@@ -190,6 +223,167 @@ export function registerDirectChat(
       log.error("directChat:typing failed", err, {
         userId: user.id,
         directChatId,
+      });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // DM Call — LiveKit connection tracking
+  // -----------------------------------------------------------------------
+
+  socket.on("dmCall:livekitConnected", async (payload: unknown) => {
+    const { sessionId } = (payload as { sessionId?: string }) ?? {};
+    if (!sessionId) return;
+
+    try {
+      const { connected } = await handleLiveKitConnected(user.id, sessionId);
+
+      const session = await prisma.callSession.findUnique({
+        where: { id: sessionId },
+        select: { directChatId: true },
+      });
+      if (!session?.directChatId) return;
+
+      // Validate the user has access to this DM.
+      await assertDirectChatAccess(user.id, session.directChatId);
+
+      const room = getDirectChatRoom(session.directChatId);
+
+      emitDmCallParticipantJoined(io, room, {
+        directChatId: session.directChatId,
+        sessionId,
+        userId: user.id,
+        user: {
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          avatar: null,
+        },
+      });
+
+      // When both participants are connected, the call transitions to ACTIVE.
+      if (connected) {
+        const updated = await prisma.callSession.findUnique({
+          where: { id: sessionId },
+          select: { connectedAt: true },
+        });
+        emitDmCallConnected(io, room, {
+          directChatId: session.directChatId,
+          sessionId,
+          connectedAt: updated?.connectedAt ?? new Date(),
+        });
+      }
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        socket.emit("dmCall:error", {
+          code: err.code ?? "LIVEKIT_CONNECTED_FAILED",
+          message: err.message,
+        });
+        return;
+      }
+      log.error("dmCall:livekitConnected failed", err, {
+        userId: user.id,
+        sessionId,
+      });
+      socket.emit("dmCall:error", {
+        code: "LIVEKIT_CONNECTED_FAILED",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Failed to track LiveKit connection",
+      });
+    }
+  });
+
+  socket.on("dmCall:livekitDisconnected", async (payload: unknown) => {
+    const { sessionId } = (payload as { sessionId?: string }) ?? {};
+    if (!sessionId) return;
+
+    try {
+      await handleLiveKitDisconnected(user.id, sessionId);
+
+      const session = await prisma.callSession.findUnique({
+        where: { id: sessionId },
+        select: { directChatId: true },
+      });
+      if (!session?.directChatId) return;
+
+      // Validate the user has access to this DM.
+      await assertDirectChatAccess(user.id, session.directChatId);
+
+      const room = getDirectChatRoom(session.directChatId);
+
+      emitDmCallParticipantLeft(io, room, {
+        directChatId: session.directChatId,
+        sessionId,
+        userId: user.id,
+      });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        socket.emit("dmCall:error", {
+          code: err.code ?? "LIVEKIT_DISCONNECTED_FAILED",
+          message: err.message,
+        });
+        return;
+      }
+      log.error("dmCall:livekitDisconnected failed", err, {
+        userId: user.id,
+        sessionId,
+      });
+      socket.emit("dmCall:error", {
+        code: "LIVEKIT_DISCONNECTED_FAILED",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Failed to track LiveKit disconnection",
+      });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // DM Call — Multi-device dismiss relay
+  // -----------------------------------------------------------------------
+
+  socket.on("dmCall:dismiss", async (payload: unknown) => {
+    const { sessionId, reason } =
+      (payload as {
+        sessionId?: string;
+        reason?: string;
+      }) ?? {};
+    if (
+      !sessionId ||
+      !reason ||
+      !["accepted", "declined", "cancelled", "timeout"].includes(reason)
+    )
+      return;
+
+    try {
+      const session = await prisma.callSession.findUnique({
+        where: { id: sessionId },
+        select: { directChatId: true },
+      });
+      if (!session?.directChatId) return;
+
+      await assertDirectChatAccess(user.id, session.directChatId);
+
+      // Relay dismiss to the sender's own user room so all their devices
+      // receive the signal and clear the call UI.
+      io.to(`user:${user.id}`).emit("dmCall:dismiss", {
+        directChatId: session.directChatId,
+        sessionId,
+        reason: reason as "accepted" | "declined" | "cancelled" | "timeout",
+      });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        socket.emit("dmCall:error", {
+          code: err.code ?? "DISMISS_FAILED",
+          message: err.message,
+        });
+        return;
+      }
+      log.error("dmCall:dismiss failed", err, {
+        userId: user.id,
+        sessionId,
       });
     }
   });

@@ -24,6 +24,8 @@ export {
   directChatIdParamSchema,
   directChatTypingSchema,
   getInboxQuerySchema,
+  dmCallTypeSchema,
+  dmCallInitiateSchema,
 } from "./direct-chat";
 export {
   roomIdSchema,

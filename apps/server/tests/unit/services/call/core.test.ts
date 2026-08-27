@@ -34,6 +34,15 @@ vi.mock("../../../../src/lib/logger", () => ({
   })),
 }));
 
+vi.mock("../../../../src/sockets/direct-chat", () => ({
+  getDirectChatRoom: (id: string) => `directChat:${id}`,
+}));
+
+function createMockIo() {
+  const emit = vi.fn();
+  return { to: vi.fn(() => ({ emit })) } as any;
+}
+
 describe("shared call core", () => {
   beforeEach(() => {
     resetPrismaMock();
@@ -510,8 +519,13 @@ describe("shared call core", () => {
         count: 1,
       } as any);
       prismaMock.callSession.updateMany.mockResolvedValue({ count: 1 } as any);
+      prismaMock.directChat.findUnique.mockResolvedValue({
+        user1Id: "u1",
+        user2Id: "u2",
+      } as any);
 
-      const count = await timeoutRingingCalls();
+      const io = createMockIo();
+      const count = await timeoutRingingCalls(io);
 
       expect(count).toBe(1);
       expect(prismaMock.callSession.updateMany).toHaveBeenCalledWith(
@@ -523,6 +537,11 @@ describe("shared call core", () => {
           },
         }),
       );
+      // Should emit dmCall:ended to the DM room.
+      expect(io.to).toHaveBeenCalledWith("directChat:dc1");
+      // Should emit dmCall:dismiss to both users.
+      expect(io.to).toHaveBeenCalledWith("user:u1");
+      expect(io.to).toHaveBeenCalledWith("user:u2");
     });
 
     it("returns 0 when no stale ringing calls exist", async () => {
@@ -531,7 +550,8 @@ describe("shared call core", () => {
       );
       prismaMock.callSession.findMany.mockResolvedValue([]);
 
-      const count = await timeoutRingingCalls();
+      const io = createMockIo();
+      const count = await timeoutRingingCalls(io);
       expect(count).toBe(0);
     });
 
@@ -548,9 +568,18 @@ describe("shared call core", () => {
         count: 3,
       } as any);
       prismaMock.callSession.updateMany.mockResolvedValue({ count: 3 } as any);
+      prismaMock.directChat.findUnique.mockResolvedValue({
+        user1Id: "u1",
+        user2Id: "u2",
+      } as any);
 
-      const count = await timeoutRingingCalls();
+      const io = createMockIo();
+      const count = await timeoutRingingCalls(io);
       expect(count).toBe(3);
+      // Each session should emit ended + dismiss to both users.
+      expect(io.to).toHaveBeenCalledWith("directChat:dc1");
+      expect(io.to).toHaveBeenCalledWith("directChat:dc2");
+      expect(io.to).toHaveBeenCalledWith("directChat:dc3");
     });
 
     it("only queries RINGING sessions, not ACTIVE or ENDED", async () => {
@@ -559,7 +588,7 @@ describe("shared call core", () => {
       );
       prismaMock.callSession.findMany.mockResolvedValue([]);
 
-      await timeoutRingingCalls();
+      await timeoutRingingCalls(createMockIo());
 
       expect(prismaMock.callSession.findMany).toHaveBeenCalledWith(
         expect.objectContaining({

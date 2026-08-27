@@ -28,6 +28,12 @@ export interface ClientToServerEvents {
 
   /** Client lost its LiveKit connection (network drop, tab close, etc.). */
   "dmCall:livekitDisconnected": (payload: { sessionId: string }) => void;
+
+  /** Client dismissed an incoming call UI on one device — relay to other devices. */
+  "dmCall:dismiss": (payload: {
+    sessionId: string;
+    reason: "accepted" | "declined" | "cancelled" | "timeout";
+  }) => void;
 }
 
 export interface ServerToClientEvents {
@@ -291,6 +297,9 @@ export interface ServerToClientEvents {
     sessionId: string;
     reason: "accepted" | "declined" | "cancelled" | "timeout";
   }) => void;
+
+  /** DM call handler error — sent back to the socket that triggered it. */
+  "dmCall:error": (payload: { code: string; message: string }) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

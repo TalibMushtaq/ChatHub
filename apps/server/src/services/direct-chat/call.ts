@@ -219,7 +219,11 @@ export async function joinDmCall(
 export async function leaveDmCall(
   userId: string,
   directChatId: string,
-): Promise<{ sessionId: string; callEnded: boolean } | null> {
+): Promise<{
+  sessionId: string;
+  callEnded: boolean;
+  outcome?: CallOutcome;
+} | null> {
   const session = await prisma.callSession.findFirst({
     where: { directChatId, endedAt: null },
     select: {
@@ -273,7 +277,13 @@ export async function leaveDmCall(
     directChatId,
     callEnded,
   });
-  return { sessionId: session.id, callEnded };
+
+  const outcome: CallOutcome | undefined = callEnded
+    ? session.connectedAt
+      ? "COMPLETED"
+      : "MISSED"
+    : undefined;
+  return { sessionId: session.id, callEnded, outcome };
 }
 
 /**

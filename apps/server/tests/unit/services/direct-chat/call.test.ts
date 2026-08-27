@@ -302,7 +302,11 @@ describe("DM call service", () => {
 
       const result = await leaveDmCall("u1", "dc1");
 
-      expect(result).toEqual({ sessionId: "sess1", callEnded: true });
+      expect(result).toEqual({
+        sessionId: "sess1",
+        callEnded: true,
+        outcome: "MISSED",
+      });
       expect(prismaMock.callSession.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: "sess1" },
@@ -335,7 +339,11 @@ describe("DM call service", () => {
 
       const result = await leaveDmCall("u1", "dc1");
 
-      expect(result).toEqual({ sessionId: "sess1", callEnded: true });
+      expect(result).toEqual({
+        sessionId: "sess1",
+        callEnded: true,
+        outcome: "COMPLETED",
+      });
       expect(prismaMock.callSession.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: { status: "ENDED", outcome: "COMPLETED" },
@@ -385,7 +393,11 @@ describe("DM call service", () => {
       });
 
       const result = await leaveDmCall("u1", "dc1");
-      expect(result).toEqual({ sessionId: "sess1", callEnded: true });
+      expect(result).toEqual({
+        sessionId: "sess1",
+        callEnded: true,
+        outcome: "MISSED",
+      });
     });
   });
 

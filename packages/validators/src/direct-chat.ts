@@ -85,3 +85,10 @@ export const getInboxQuerySchema = z.object({
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
+
+// DM call schemas
+export const dmCallTypeSchema = z.enum(["VOICE", "VIDEO"]);
+
+export const dmCallInitiateSchema = z.object({
+  callType: dmCallTypeSchema,
+});

@@ -8,6 +8,14 @@ import { createLogger } from "../../lib/logger";
 import type { CallTarget } from "../../types/call";
 import { getLiveKitRoomName } from "../../types/call";
 import type { CallType, Prisma } from "@prisma/client";
+import type { Server } from "socket.io";
+import type {
+  ClientToServerEvents,
+  ServerToClientEvents,
+  InterServerEvents,
+  SocketData,
+} from "../../types/socket-events";
+import { getDirectChatRoom } from "../../sockets/direct-chat";
 
 const log = createLogger("call-core");
 
@@ -300,8 +308,18 @@ export async function endAllActiveSessions(): Promise<void> {
 /**
  * End all RINGING DM sessions older than the ringing timeout.
  * Called every 10 seconds from index.ts.
+ *
+ * Emits `dmCall:ended` + `dmCall:dismiss` to affected rooms/users so
+ * clients clear stale ringing UI.
  */
-export async function timeoutRingingCalls(): Promise<number> {
+export async function timeoutRingingCalls(
+  io: Server<
+    ClientToServerEvents,
+    ServerToClientEvents,
+    InterServerEvents,
+    SocketData
+  >,
+): Promise<number> {
   const threshold = new Date(Date.now() - 60_000);
 
   const result = await prisma.$transaction(async (tx) => {
@@ -331,6 +349,38 @@ export async function timeoutRingingCalls(): Promise<number> {
 
   if (result.count > 0) {
     log.info("Timed out ringing DM calls", { count: result.count });
+
+    // Emit socket events for each timed-out DM session so clients clear
+    // the ringing UI and receive the dismiss signal.
+    for (const session of result.ended) {
+      if (!session.directChatId) continue;
+
+      const room = getDirectChatRoom(session.directChatId);
+
+      io.to(room).emit("dmCall:ended", {
+        directChatId: session.directChatId,
+        sessionId: session.id,
+        outcome: "MISSED",
+      });
+
+      // Fetch both participant userIds so we can emit dismiss to each.
+      const dc = await prisma.directChat.findUnique({
+        where: { id: session.directChatId },
+        select: { user1Id: true, user2Id: true },
+      });
+      if (dc) {
+        io.to(`user:${dc.user1Id}`).emit("dmCall:dismiss", {
+          directChatId: session.directChatId,
+          sessionId: session.id,
+          reason: "timeout",
+        });
+        io.to(`user:${dc.user2Id}`).emit("dmCall:dismiss", {
+          directChatId: session.directChatId,
+          sessionId: session.id,
+          reason: "timeout",
+        });
+      }
+    }
   }
 
   return result.count;

@@ -1,136 +1,34 @@
 # TODO
 
-## Rooms → Community & Channel Architecture
-
-> Full spec: `Rooms to Community — Improved Implementation Prompt.md`. Implement phases strictly in order; run tests, typecheck, lint, build, and manually verify before moving to the next phase (see §23).
-
-### Phase 1 — Architecture + Data Model
-
-- [x] Architecture assessment of existing Room/message/membership/auth/realtime/UI/db (§2)
-- [x] Expand `Room` model (description, icon, ownerId, timestamps) without removing existing data (§5.1)
-- [x] Create `Category` model (roomId, name, position) (§5.2)
-- [x] Create `Channel` model (roomId, categoryId, name, topic, type TEXT|VOICE, position) with name validation (§5.3)
-- [x] Message migration: existing Rooms get `GENERAL` category + `#general` channel, move messages, idempotent + resumable (§5.4, §17)
-- [x] API: Rooms CRUD — `GET/PATCH/DELETE /rooms/:roomId` (§5.5)
-- [x] API: Categories — `POST/PATCH/DELETE /rooms/:roomId/categories[/:categoryId]`, `PATCH .../reorder` (§5.5)
-- [x] API: Channels — `POST/GET/PATCH/DELETE /rooms/:roomId/channels[/:channelId]`, `PATCH .../reorder` (§5.5)
-- [x] Update message APIs to scope by `roomId + channelId` (§5.5)
-- [x] Authorization abstraction: Owner/Admin/Member permissions, backend-enforced (§5.6, §20)
-- [x] Backend tests for migration + category/channel CRUD (§5.7)
-
-### Phase 2 — New Room Frontend Shell
-
-- [x] Room layout: header + sidebar (categories/channels) + channel content + members sidebar (§6)
-- [x] Room sidebar with header dropdown menu (authorized vs member menus) (§6.1)
-- [x] Categories render (collapse/expand, channels) + functional Create Channel/Category modals (§6.2)
-- [x] Channel appearance: # / 🔊 icons, active/unread states (§6.3)
-- [x] Channel appearance: mentioned-state indicator (needs per-channel mention/unread system — Phase 6) (§6.3)
-- [x] Channel appearance: voice participant count + avatar stack (needs call presence — Phase 7) (§6.3)
-- [x] Channel header: name + topic, notification + member toggle, stays visible while scrolling (§6.4; search deferred — message search is a Backlog item)
-- [x] Message area: cursor pagination, grouping, timestamps/avatar/content, edited/deleted states, context menu (§6.5; reactions/reply N/A — app has neither)
-- [x] Message composer: anchored, multiline, Enter/Shift+Enter, failure handling, preserves text, attachments (§6.6)
-- [x] Mobile layout: drawers/sheets, room→sidebar→channel flow, member-list drawer; full-screen thread sheet handles the keyboard (§6.7)
-- [x] Phase 2 completion: loading/error/empty states + existing auth + realtime; client-side per-channel unread heuristic (server cursors land in Phase 6) (§6.8)
-
-> Phase 2 verified with `pnpm test` (664), `check-types`, `lint`, `build` (commit `b9a99a1`). Deferred pieces tracked as separate items above; manual browser pass still pending.
-
-### Phase 3 — Channel & Category Management
-
-- [x] Channel CRUD (create/rename/edit/delete/move) with create modal + client/server validation + duplicate prevention (§7.1)
-- [x] Category CRUD (create/rename/delete/collapse/reorder); delete moves channels to "Uncategorized" (§7.2)
-- [x] Drag-and-drop reorder with keyboard + touch + optimistic rollback (§7.2)
-- [x] Channel context menu (edit/notification/copy link/delete) + confirmation for destructive actions (§7.3)
-
-> Phase 3 verified with `pnpm test` (server 665 / web 78), `check-types`, `lint`, `build` (format check clean). Manual browser pass still pending.
-
-### Phase 4 — Roles + Members
-
-- [x] Role system: Owner/Admin/Moderator/Member with permissions list, backend-enforced (§8.1)
-- [x] Member list grouped by role with avatar, presence, role indicator (§8.2)
-- [x] Member management: assign/remove role, mute/kick/ban with confirmation (§8.3)
-
-> Phase 4 verified with `pnpm test` (server 697 / web 78), `check-types`, `lint` (0 warnings), `build` (server + web) — all clean. Manual browser pass still pending.
-
-### Phase 5 — Room Settings
-
-- [x] Settings layout: Overview/Profile/Channels/Roles/Members/Notifications/Moderation/Danger Zone (§9)
-- [x] Overview: edit name/description/icon with preview (§9.1)
-- [x] Notifications preferences: all/mentions/muted, per user per Room/channel (§9.2)
-- [x] Danger Zone: leave + delete Room with explicit confirmation (§9.3)
-
-### Phase 6 — Notifications + Unread + Realtime
-
-- [x] Per-channel unread states (Unread/Mentioned/Read/Muted) with `lastReadMessageId` cursor (§10.1)
-- [x] Mark read on channel switch, server sync, no background-marking (§10.1)
-- [x] Real-time events: message/channel/category/member/room events (§10.2)
-
-> Phase 6 verified with `pnpm test` (server 697 / web 78), `check-types`, `lint` (0 warnings), `build` — all clean. New `ChannelReadReceipt` + `MessageMention` models + migration. Per-channel cursor replaces room-wide receipt; `@mention` extraction, `mention:new` socket event + push gating by notification pref (All/Mentions/Muted); full `channel:*/category:*/room:updated` realtime set; `ChannelItem` mentioned/unread/muted badges; `ListPanel` room-level `@N` badge. Run `prisma migrate dev` to apply `20260820000001_add_channel_read_receipts_mentions` (commit `6069a9d`, with follow-ups `a4d3120` + `c55f5e1`).
-
-### Phase 7 — Voice Channels + Calls
-
-- [x] Media architecture decision: LiveKit SFU (managed) chosen over mesh; documented (§11.2)
-- [x] Voice channel join/leave with permission enforcement + participant limit + preview option (§11.1)
-- [x] `CallSession` + `CallParticipant` models (metadata only, no media persistence) (§11.3)
-- [x] Short-lived join tokens issued by backend; TURN/STUN via LiveKit (§11.2, §20)
-- [x] Device management: enumeration/selection, echo cancellation/noise suppression/AGC defaults (§11.2)
-- [x] Call features: mute/deafen/camera/screen share (getDisplayMedia), video tiles, speaking indicators (§11.4)
-- [x] Moderator actions: server-mute, disconnect (§11.4)
-- [x] Screen share: "you are sharing" indicator, focus tile, native-stop reconciliation (§11.4)
-- [x] Call signaling events: call.* + call.participant.* (§11.5)
-- [x] Full in-channel call view: adaptive grid, tiles, controls bar (§11.6)
-- [x] Edge cases: single call constraint, reconnect w/ backoff, stale participant reaping, mid-call permission/device changes (§11.7)
-- [ ] Phase 7 completion: audio/video/screen-share end-to-end, sidebar presence realtime, call survives navigation (§11.8)
-
-> Phase 7 backend verified with `pnpm test` (741), `check-types`, `lint`, `build`. Frontend store/device/call UI written; edge cases (single-call constraint, reconnect UI, screen-share native-stop reconcile) partially wired. Manual browser E2E (two users, audio/video/screen-share) still pending — requires PostgreSQL migration applied + a running LiveKit server.
-
-### Phase 8 — Floating Call Widget
-
-- [x] Widget rendered at app shell level, persists across all navigation (§12.1)
-- [x] Draggable on desktop, clamped to viewport, session/localStorage position (§12.1)
-- [x] Minimized state: connection indicator, channel/room name, timer, controls, avatar stack (§12.2)
-- [x] Expanded state: adaptive tile grid + footer controls; ✕ collapses, only 📞 leaves (§12.2)
-- [x] Screen-share focus / PiP mode + optional native Document PiP (§12.2)
-- [x] Controls: mute/deafen/camera/screen share/settings/expand/disconnect, optimistic + real-state-synced, shortcuts (§12.3)
-- [x] Status/feedback: speaking indicators, reconnecting state, screen-share self-indicator, "you're muted" nudge (§12.4)
-- [x] App interaction: navigates to voice channel on click, coexists with DMs, no click swallowing (§12.5)
-- [x] Mobile: docked bar above composer + bottom sheet, keyboard/safe-area aware (§12.6)
-- [x] Accessibility: keyboard operable, live-region announcements, shortcuts, reduced-motion (§12.7)
-- [x] Performance: isolated state subscription, pause remote video when minimized, throttle speaking updates (§12.8)
-- [x] Phase 8 completion criteria + E2E widget scenario (§12.9)
-
-> Phase 8 verified with `pnpm test` (85), `check-types`, `lint` (0 warnings), `build` (server + web) — all clean. LiveKit `Room` lifetime lifted to `CallProvider` above routing; `CallView` refactored to pure display consumer. Widget survives all navigation, draggable desktop shell with localStorage position persistence, minimized pill + expanded grid + mobile bottom-sheet. Global keyboard shortcuts (Ctrl+Shift+M/D). Manual browser E2E (call-survives-navigation, drag, PiP, mobile sheet) still pending — requires PostgreSQL migration applied + a running LiveKit server.
-
-### Phase 9 — UX Polish
-
-- [x] Interaction polish: hover/active/focus/keyboard/context menus/tooltips/confirmation/toasts/skeletons/empty states (§13.1)
-- [x] Empty states: no channels, empty channel, empty voice channel, member CTA (§13.2)
-- [x] Error states incl. mic/camera/screen-share/call failures; no raw backend errors (§13.3)
-- [x] Offline/reconnect: subtle indicator, resync channels/unread/messages/call state, no duplicates (§13.4)
-
-### Phase 10 — Performance
-
-- [x] LiveKit lazy-loaded via dynamic import() — only loaded on first call join (§14)
-- [x] DM cursor pagination implemented — older messages load on scroll-to-top (§14)
-- [x] WebSocket audit — 5 missing socket.off() cleanup handlers added for call events (§14)
-- [x] Shell context value memoized — children using useShell() only re-render when state changes (§14)
-- [x] Virtualize large lists (gated on Chrome DevTools profiling evidence) (§14)
-- [x] Cache stable Room/channel metadata, optimistic reorder, debounce search (§14)
-
-### Phase 11 — Accessibility
-
-- [x] Keyboard-navigable channel list, focus states, real buttons, ARIA labels, dialog focus mgmt + Escape (§15)
-- [x] Accessible drag/drop alternatives, contrast, reduced-motion, widget shortcuts + live regions (§15)
-
-### Phase 12 — Testing + Regression Audit
-
-- [x] Backend: authz, category/channel CRUD, ordering, migration, permissions, voice token issuance, call session lifecycle, stale reaping (§16)
-- [x] Frontend: loading/channel switching/message send, creation flows, permission UI, mobile nav, error/empty states, widget states/drag/persistence/toggle sync (§16)
-- [x] E2E: room→category→channel→message flow + two-user calling scenario with widget (§16)
-- [x] Regression audit across all phases + full build/test/lint pass
-
 ## Backlog
 
 ### High Priority
+
+- [ ] **DM Voice & Video Calling** (see `plan.md` for full architecture)
+  - [x] **Phase 1: Database migration** — CallSession fields (callType, status, outcome, connectedAt, directChatId), CHECK constraint, partial unique indexes, Message.metadata, backfill existing rows
+  - [x] **Phase 2: Shared call core** — `services/call/core.ts` (createOrReuseSession, upsertParticipant, markParticipantLeft, endSessionIfEmpty with FOR UPDATE, generateCallToken, reapStaleParticipants, endAllActiveSessions)
+  - [x] **Phase 3: Update room call service** — Refactor `services/room/call.ts` to use shared core, populate new fields (callType, status, outcome, connectedAt)
+  - [x] **Phase 4: DM call service** — `services/direct-chat/call.ts` (initiateDmCall, acceptDmCall, declineDmCall, cancelDmCall, joinDmCall, leaveDmCall, getActiveDmCall, handleLiveKitConnected, handleLiveKitDisconnected)
+  - [x] **Phase 5: Socket event types** — Add `dmCall:*` events to `types/socket-events.ts` (invited, accepted, declined, cancelled, connected, ended, participant.joined/left, livekitConnected/disconnected, dismiss)
+  - [x] **Phase 6: DM call routes** — `routes/direct-chat/call.ts` (7 endpoints: initiate, accept, decline, cancel, join, leave, getActive — all with auth + DM access checks)
+  - [x] **Phase 7: Mount routes** — Mount call router in `routes/direct-chat/index.ts`
+  - [x] **Phase 8: DM call socket handlers** — `sockets/direct-chat.ts` (livekitConnected/disconnected handlers with Redis tracking)
+  - [x] **Phase 9: Server timeout task** — `index.ts` setInterval every 10s for `timeoutRingingCalls` (RINGING > 60s → MISSED)
+  - [ ] **Phase 10: System message creation** — Idempotent call-history via `checkIdempotency("system", "call-history:{sessionId}")`
+  - [ ] **Phase 11: Frontend API client** — Add DM call methods to `CallAPI` (initiateDm, acceptDm, declineDm, cancelDm, joinDmToken, leaveDm, getActiveDmCall)
+  - [ ] **Phase 12: Frontend call store** — Replace scattered IDs with `activeCall: ActiveCall | null` discriminated union, add transition guards
+  - [ ] **Phase 13: Frontend CallProvider** — Add initiateDmCall, joinDmCall, acceptDmCall, livekitConnected emission after RoomEvent.Connected, DuplicateIdentity disconnect handling
+  - [ ] **Phase 14: Frontend AppShell** — Add `dmCall:*` socket event handlers, incoming call state management, widget CallTarget support
+  - [ ] **Phase 15: DM call UI** — ThreadPanel voice/video call buttons, IncomingCallModal component, widget CallTarget prop support
+  - [ ] **Phase 16: System message rendering** — MessageRow.tsx SYSTEM type + CallHistoryMessage component
+
+### Testing & QA (DM Voice/Video Calling)
+
+- [ ] **Backend tests** — DM call service + routes (`tests/unit/services/direct-chat/call.test.ts`, `tests/unit/routes/direct-chat/call.test.ts`)
+- [ ] **Socket tests** — DM call events (`tests/unit/sockets/dmCall.test.ts`)
+- [ ] **Frontend tests** — Call store, IncomingCallModal
+- [ ] **Regression tests** — Existing room calls still work
+- [ ] **E2E tests** — Two-browser DM call (`e2e/dm-call.spec.ts`)
 
 ### Medium Priority
 

@@ -135,7 +135,7 @@ async function main() {
     );
     // End RINGING DM calls that exceed the 60s timeout, every 10s.
     setInterval(() => {
-      timeoutRingingCalls().catch((err) =>
+      timeoutRingingCalls(io).catch((err) =>
         log.error("Ringing call timeout failed", err),
       );
     }, 10_000);
