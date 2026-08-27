@@ -750,6 +750,47 @@ export interface ActiveCallSession {
   participants: CallParticipantInfo[];
 }
 
+// ---------------------------------------------------------------------------
+// DM Voice / Video Call types
+// ---------------------------------------------------------------------------
+
+export type DmCallType = "VOICE" | "VIDEO";
+export type DmCallStatus = "RINGING" | "ACTIVE" | "ENDED";
+export type DmCallOutcome =
+  | "COMPLETED"
+  | "MISSED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "FAILED";
+
+export interface DmCallInitiateResult {
+  ok: boolean;
+  sessionId: string;
+  token: string;
+  livekitUrl: string;
+  roomName: string;
+}
+
+export interface DmCallJoinResult {
+  ok: boolean;
+  sessionId: string;
+  token: string;
+  livekitUrl: string;
+  roomName: string;
+}
+
+export interface DmCallSession {
+  id: string;
+  directChatId: string;
+  callType: DmCallType;
+  status: DmCallStatus;
+  outcome: DmCallOutcome | null;
+  startedAt: string;
+  connectedAt: string | null;
+  endedAt: string | null;
+  participants: CallParticipantInfo[];
+}
+
 export const CallAPI = {
   async joinToken(roomId: string, channelId: string): Promise<CallJoinResult> {
     const { data } = await api.post(
@@ -798,6 +839,57 @@ export const CallAPI = {
   > {
     const { data } = await api.get(`/room/rooms/${roomId}/calls/active`);
     return data.calls;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// DM Voice / Video calls (Phase 10)
+// ---------------------------------------------------------------------------
+
+export const DmCallAPI = {
+  async initiate(
+    directChatId: string,
+    callType: DmCallType,
+  ): Promise<DmCallInitiateResult> {
+    const { data } = await api.post(`/dm/${directChatId}/call/initiate`, {
+      callType,
+    });
+    return data;
+  },
+
+  async accept(
+    directChatId: string,
+  ): Promise<{ ok: boolean; sessionId: string }> {
+    const { data } = await api.post(`/dm/${directChatId}/call/accept`);
+    return data;
+  },
+
+  async decline(
+    directChatId: string,
+  ): Promise<{ ok: boolean; sessionId: string }> {
+    const { data } = await api.post(`/dm/${directChatId}/call/decline`);
+    return data;
+  },
+
+  async cancel(
+    directChatId: string,
+  ): Promise<{ ok: boolean; sessionId: string }> {
+    const { data } = await api.post(`/dm/${directChatId}/call/cancel`);
+    return data;
+  },
+
+  async join(directChatId: string): Promise<DmCallJoinResult> {
+    const { data } = await api.post(`/dm/${directChatId}/call/join`);
+    return data;
+  },
+
+  async leave(directChatId: string): Promise<void> {
+    await api.post(`/dm/${directChatId}/call/leave`);
+  },
+
+  async getActive(directChatId: string): Promise<DmCallSession | null> {
+    const { data } = await api.get(`/dm/${directChatId}/call`);
+    return data.session;
   },
 };
 

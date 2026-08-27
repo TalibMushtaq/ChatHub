@@ -1,7 +1,26 @@
 import { create } from "zustand";
+import type { DmCallType } from "./api";
 
 // Call-specific UI state — isolated from ShellCtx (Phase 7 §11).
 // LiveKit owns RTC state; this store owns UI/application state only.
+
+// ---------------------------------------------------------------------------
+// DM call types (Phase 11)
+// ---------------------------------------------------------------------------
+
+export type DmCallUiStatus = "IDLE" | "OUTGOING" | "INCOMING" | "ACTIVE" | "ENDED";
+
+export interface IncomingCallInfo {
+  sessionId: string;
+  directChatId: string;
+  callType: DmCallType;
+  caller: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatar: string | null;
+  };
+}
 
 export interface CallParticipant {
   userId: string;
@@ -49,6 +68,15 @@ export interface CallState {
   // Per-channel participant lists for sidebar presence (all channels, not just active).
   participantsByChannel: Record<string, CallParticipant[]>;
 
+  // DM call state (Phase 11)
+  activeDirectChatId: string | null;
+  dmCallSessionId: string | null;
+  dmCallStatus: DmCallUiStatus;
+  dmCallType: DmCallType | null;
+  dmCallStartedAt: number | null;
+  dmCallConnectedAt: number | null;
+  incomingCallInfo: IncomingCallInfo | null;
+
   // Actions
   setActiveCall: (
     sessionId: string | null,
@@ -78,6 +106,18 @@ export interface CallState {
   setWidgetExpanded: (v: boolean) => void;
   setWidgetPosition: (pos: { x: number; y: number } | null) => void;
   setCallStartedAt: (t: number | null) => void;
+
+  // DM call actions (Phase 11)
+  setActiveDmCall: (
+    sessionId: string,
+    directChatId: string,
+    callType: DmCallType,
+    status: DmCallUiStatus,
+  ) => void;
+  setDmCallStatus: (status: DmCallUiStatus) => void;
+  setDmCallConnectedAt: (t: number | null) => void;
+  setIncomingCallInfo: (info: IncomingCallInfo | null) => void;
+  clearDmCall: () => void;
 }
 
 const DEVICE_STORAGE_KEY = "chathubby:call-devices";
@@ -167,6 +207,15 @@ export const useCallStore = create<CallState>((set, get) => ({
   participants: [],
   participantsByChannel: {},
 
+  // DM call state (Phase 11)
+  activeDirectChatId: null,
+  dmCallSessionId: null,
+  dmCallStatus: "IDLE",
+  dmCallType: null,
+  dmCallStartedAt: null,
+  dmCallConnectedAt: null,
+  incomingCallInfo: null,
+
   setActiveCall: (sessionId, channelId, roomId) =>
     set({
       activeSessionId: sessionId,
@@ -193,6 +242,14 @@ export const useCallStore = create<CallState>((set, get) => ({
         participants: [],
         participantsByChannel: Object.fromEntries(entries),
         callStartedAt: null,
+        // DM fields also cleared (Phase 11)
+        activeDirectChatId: null,
+        dmCallSessionId: null,
+        dmCallStatus: "IDLE",
+        dmCallType: null,
+        dmCallStartedAt: null,
+        dmCallConnectedAt: null,
+        incomingCallInfo: null,
       };
     }),
   setJoining: (v) => set({ isJoining: v }),
@@ -236,4 +293,28 @@ export const useCallStore = create<CallState>((set, get) => ({
     saveWidgetPos(pos);
   },
   setCallStartedAt: (t) => set({ callStartedAt: t }),
+
+  // DM call actions (Phase 11)
+  setActiveDmCall: (sessionId, directChatId, callType, status) =>
+    set({
+      activeDirectChatId: directChatId,
+      dmCallSessionId: sessionId,
+      dmCallType: callType,
+      dmCallStatus: status,
+      dmCallStartedAt: Date.now(),
+      dmCallConnectedAt: null,
+    }),
+  setDmCallStatus: (status) => set({ dmCallStatus: status }),
+  setDmCallConnectedAt: (t) => set({ dmCallConnectedAt: t }),
+  setIncomingCallInfo: (info) => set({ incomingCallInfo: info }),
+  clearDmCall: () =>
+    set({
+      activeDirectChatId: null,
+      dmCallSessionId: null,
+      dmCallStatus: "IDLE",
+      dmCallType: null,
+      dmCallStartedAt: null,
+      dmCallConnectedAt: null,
+      incomingCallInfo: null,
+    }),
 }));
