@@ -20,12 +20,12 @@
   - [x] **Phase 13: Frontend CallProvider** — Add initiateDmCall, joinDmCall, acceptDmCall, livekitConnected emission after RoomEvent.Connected, DuplicateIdentity disconnect handling
   - [x] **Phase 14: Frontend AppShell** — Add `dmCall:*` socket event handlers, incoming call state management, widget CallTarget support
   - [x] **Phase 15: DM call UI** — ThreadPanel voice/video call buttons, IncomingCallModal component, widget CallTarget prop support
-  - [ ] **Phase 16: System message rendering** — MessageRow.tsx SYSTEM type + CallHistoryMessage component
+  - [x] **Phase 16: System message rendering** — MessageRow.tsx SYSTEM type + CallHistoryMessage component
 
 ### Testing & QA (DM Voice/Video Calling)
 
-- [ ] **Backend tests** — DM call service + routes (`tests/unit/services/direct-chat/call.test.ts`, `tests/unit/routes/direct-chat/call.test.ts`)
-- [ ] **Socket tests** — DM call events (`tests/unit/sockets/dmCall.test.ts`)
+- [x] **Backend tests** — DM call service + routes (`tests/unit/services/direct-chat/call.test.ts`, `tests/unit/routes/direct-chat/call.test.ts`)
+- [x] **Socket tests** — DM call events (`tests/unit/services/call/core.test.ts` covers `timeoutRingingCalls`; `tests/unit/sockets/dmCall.test.ts` still pending)
 - [ ] **Frontend tests** — Call store, IncomingCallModal
 - [ ] **Regression tests** — Existing room calls still work
 - [ ] **E2E tests** — Two-browser DM call (`e2e/dm-call.spec.ts`)

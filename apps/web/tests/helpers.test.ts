@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  lastText,
   mergePresence,
   readStatusOf,
   type ReadStatus,
@@ -71,6 +72,25 @@ describe("readStatusOf", () => {
       "readAll",
     ];
     expect(statuses).toContain(readStatusOf(msg, "me", [], false));
+  });
+});
+
+describe("lastText", () => {
+  it("shows the human-readable call-history text for SYSTEM messages", () => {
+    expect(
+      lastText({
+        content: "Missed voice call",
+        messageType: "SYSTEM",
+      }),
+    ).toBe("Missed voice call");
+  });
+
+  it("falls through to content for other message types", () => {
+    expect(lastText({ content: "hello", messageType: "TEXT" })).toBe("hello");
+  });
+
+  it("returns an empty string for a missing last message", () => {
+    expect(lastText(null)).toBe("");
   });
 });
 

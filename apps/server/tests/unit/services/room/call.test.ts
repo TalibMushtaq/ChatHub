@@ -50,6 +50,15 @@ vi.mock("../../../../src/services/call/core", async (importOriginal) => {
   };
 });
 
+vi.mock("../../../../src/services/idempotency", () => ({
+  checkIdempotency: vi.fn(),
+  storeIdempotency: vi.fn().mockResolvedValue(undefined),
+}));
+
+const idempotency = vi.mocked(
+  await import("../../../../src/services/idempotency"),
+);
+
 const core = vi.mocked(await import("../../../../src/services/call/core"));
 
 describe("room call service", () => {
@@ -263,24 +272,41 @@ describe("room call service", () => {
   });
 
   describe("leaveCall", () => {
-    it("marks the participant as left and ends the session when empty", async () => {
+    function mockSessionEnded(callEnded: boolean) {
       prismaMock.chatRoomMember.findUnique.mockResolvedValue({
         role: "MEMBER",
       } as any);
       prismaMock.callSession.findFirst.mockResolvedValue({
         id: "sess1",
         channelId: "ch1",
+        callType: "VOICE",
         startedAt: new Date(),
         endedAt: null,
       } as any);
       core.markParticipantLeft.mockResolvedValue({ participantId: "p1" });
-      core.endSessionIfEmpty.mockResolvedValue({ callEnded: true });
+      core.endSessionIfEmpty.mockResolvedValue({ callEnded });
+      idempotency.checkIdempotency.mockResolvedValue(null);
+      prismaMock.message.create.mockResolvedValue({ id: "msg1" } as any);
+    }
+
+    it("marks the participant as left and ends the session when empty", async () => {
+      mockSessionEnded(true);
 
       const result = await leaveCall("u1", "r1", "ch1");
 
       expect(result).toEqual({ sessionId: "sess1", callEnded: true });
       expect(core.markParticipantLeft).toHaveBeenCalledWith("sess1", "u1");
       expect(core.endSessionIfEmpty).toHaveBeenCalledWith("sess1");
+      // When the last participant leaves, a COMPLETED history message is created.
+      expect(prismaMock.message.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            senderId: "system",
+            messageType: "SYSTEM",
+            metadata: expect.objectContaining({ outcome: "COMPLETED" }),
+          }),
+        }),
+      );
     });
 
     it("does nothing if the user is not a participant", async () => {
@@ -290,6 +316,7 @@ describe("room call service", () => {
       prismaMock.callSession.findFirst.mockResolvedValue({
         id: "sess1",
         channelId: "ch1",
+        callType: "VOICE",
         startedAt: new Date(),
         endedAt: null,
       } as any);
@@ -302,21 +329,13 @@ describe("room call service", () => {
     });
 
     it("returns callEnded false when other participants remain", async () => {
-      prismaMock.chatRoomMember.findUnique.mockResolvedValue({
-        role: "MEMBER",
-      } as any);
-      prismaMock.callSession.findFirst.mockResolvedValue({
-        id: "sess1",
-        channelId: "ch1",
-        startedAt: new Date(),
-        endedAt: null,
-      } as any);
-      core.markParticipantLeft.mockResolvedValue({ participantId: "p1" });
-      core.endSessionIfEmpty.mockResolvedValue({ callEnded: false });
+      mockSessionEnded(false);
 
       const result = await leaveCall("u1", "r1", "ch1");
 
       expect(result).toEqual({ sessionId: "sess1", callEnded: false });
+      // No history message when the call is still active.
+      expect(prismaMock.message.create).not.toHaveBeenCalled();
     });
 
     it("returns null when participant already left", async () => {
@@ -326,6 +345,7 @@ describe("room call service", () => {
       prismaMock.callSession.findFirst.mockResolvedValue({
         id: "sess1",
         channelId: "ch1",
+        callType: "VOICE",
         startedAt: new Date(),
         endedAt: null,
       } as any);
@@ -348,17 +368,7 @@ describe("room call service", () => {
     });
 
     it("deletes LiveKit room when session ends", async () => {
-      prismaMock.chatRoomMember.findUnique.mockResolvedValue({
-        role: "MEMBER",
-      } as any);
-      prismaMock.callSession.findFirst.mockResolvedValue({
-        id: "sess1",
-        channelId: "ch1",
-        startedAt: new Date(),
-        endedAt: null,
-      } as any);
-      core.markParticipantLeft.mockResolvedValue({ participantId: "p1" });
-      core.endSessionIfEmpty.mockResolvedValue({ callEnded: true });
+      mockSessionEnded(true);
 
       const { getLiveKitRoomClient } =
         await import("../../../../src/lib/livekit");
@@ -527,12 +537,14 @@ describe("room call service", () => {
   });
 
   describe("forceLeaveCall", () => {
+    const sessionShape = { id: "sess1", channelId: "ch1", callType: "VOICE" };
+
     it("force-leaves a user from an active call and removes from LiveKit", async () => {
       prismaMock.callParticipant.findFirst.mockResolvedValue({
         id: "p1",
         userId: "u2",
         leftAt: null,
-        session: { id: "sess1", channelId: "ch1" },
+        session: sessionShape,
       } as any);
       prismaMock.callParticipant.update.mockResolvedValue({} as any);
       core.endSessionIfEmpty.mockResolvedValue({ callEnded: false });
@@ -557,10 +569,16 @@ describe("room call service", () => {
         id: "p1",
         userId: "u2",
         leftAt: null,
-        session: { id: "sess1", channelId: "ch1" },
+        session: sessionShape,
       } as any);
       prismaMock.callParticipant.update.mockResolvedValue({} as any);
       core.endSessionIfEmpty.mockResolvedValue({ callEnded: true });
+      idempotency.checkIdempotency.mockResolvedValue(null);
+      prismaMock.message.create.mockResolvedValue({ id: "msg1" } as any);
+      prismaMock.channel.findUnique.mockResolvedValue({
+        id: "ch1",
+        roomId: "r1",
+      } as any);
 
       const { getLiveKitRoomClient } =
         await import("../../../../src/lib/livekit");
@@ -576,6 +594,17 @@ describe("room call service", () => {
         sessionId: "sess1",
         callEnded: true,
       });
+      // A COMPLETED history message is recorded for the channel.
+      expect(prismaMock.message.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            senderId: "system",
+            messageType: "SYSTEM",
+            chatRoomId: "r1",
+            channelId: "ch1",
+          }),
+        }),
+      );
     });
 
     it("returns null when user is not in any call", async () => {
@@ -590,7 +619,7 @@ describe("room call service", () => {
         id: "p1",
         userId: "u2",
         leftAt: null,
-        session: { id: "sess1", channelId: "ch1" },
+        session: sessionShape,
       } as any);
       prismaMock.callParticipant.update.mockResolvedValue({} as any);
       core.endSessionIfEmpty.mockResolvedValue({ callEnded: false });

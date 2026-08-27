@@ -38,6 +38,15 @@ vi.mock("../../../../src/sockets/direct-chat", () => ({
   getDirectChatRoom: (id: string) => `directChat:${id}`,
 }));
 
+vi.mock("../../../../src/services/idempotency", () => ({
+  checkIdempotency: vi.fn(),
+  storeIdempotency: vi.fn().mockResolvedValue(undefined),
+}));
+
+const idempotency = vi.mocked(
+  await import("../../../../src/services/idempotency"),
+);
+
 function createMockIo() {
   const emit = vi.fn();
   return { to: vi.fn(() => ({ emit })) } as any;
@@ -513,7 +522,7 @@ describe("shared call core", () => {
         createMockTransaction(prismaMock),
       );
       prismaMock.callSession.findMany.mockResolvedValue([
-        { id: "s1", directChatId: "dc1" },
+        { id: "s1", directChatId: "dc1", callType: "VOICE" },
       ] as any);
       prismaMock.callParticipant.updateMany.mockResolvedValue({
         count: 1,
@@ -523,6 +532,8 @@ describe("shared call core", () => {
         user1Id: "u1",
         user2Id: "u2",
       } as any);
+      idempotency.checkIdempotency.mockResolvedValue(null);
+      prismaMock.message.create.mockResolvedValue({ id: "msg1" } as any);
 
       const io = createMockIo();
       const count = await timeoutRingingCalls(io);
@@ -542,6 +553,17 @@ describe("shared call core", () => {
       // Should emit dmCall:dismiss to both users.
       expect(io.to).toHaveBeenCalledWith("user:u1");
       expect(io.to).toHaveBeenCalledWith("user:u2");
+      // Should create + broadcast a MISSED history message.
+      expect(prismaMock.message.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            senderId: "system",
+            messageType: "SYSTEM",
+            metadata: expect.objectContaining({ outcome: "MISSED" }),
+          }),
+        }),
+      );
+      expect(io.to).toHaveBeenCalledWith("directChat:dc1");
     });
 
     it("returns 0 when no stale ringing calls exist", async () => {
@@ -560,9 +582,9 @@ describe("shared call core", () => {
         createMockTransaction(prismaMock),
       );
       prismaMock.callSession.findMany.mockResolvedValue([
-        { id: "s1", directChatId: "dc1" },
-        { id: "s2", directChatId: "dc2" },
-        { id: "s3", directChatId: "dc3" },
+        { id: "s1", directChatId: "dc1", callType: "VOICE" },
+        { id: "s2", directChatId: "dc2", callType: "VOICE" },
+        { id: "s3", directChatId: "dc3", callType: "VOICE" },
       ] as any);
       prismaMock.callParticipant.updateMany.mockResolvedValue({
         count: 3,
@@ -572,6 +594,8 @@ describe("shared call core", () => {
         user1Id: "u1",
         user2Id: "u2",
       } as any);
+      idempotency.checkIdempotency.mockResolvedValue(null);
+      prismaMock.message.create.mockResolvedValue({ id: "msg" } as any);
 
       const io = createMockIo();
       const count = await timeoutRingingCalls(io);

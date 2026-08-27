@@ -99,6 +99,7 @@ type AnyMsg = {
   roomId?: string;
   channelId?: string;
   attachments?: Message["attachments"];
+  metadata?: Message["metadata"];
 };
 
 /**
@@ -654,6 +655,7 @@ export default function AppShell() {
           senderId: msg.senderId,
           directChatId: msg.directChatId ?? c.id,
           attachments: msg.attachments ?? [],
+          metadata: msg.metadata,
           User: u,
         };
       }
@@ -679,6 +681,7 @@ export default function AppShell() {
         roomId: msg.roomId ?? c.id,
         channelId: msg.channelId,
         attachments: msg.attachments ?? [],
+        metadata: msg.metadata,
         User: u,
       };
     }
@@ -1519,7 +1522,10 @@ export default function AppShell() {
     socket.on("dmCall:accepted", (payload) => {
       const call = useCallStore.getState();
       // Only relevant to the caller — callee is joining LiveKit via REST.
-      if (call.dmCallStatus === "OUTGOING" && call.dmCallSessionId === payload.sessionId) {
+      if (
+        call.dmCallStatus === "OUTGOING" &&
+        call.dmCallSessionId === payload.sessionId
+      ) {
         call.setDmCallStatus("ACTIVE");
       }
     });
@@ -1551,7 +1557,10 @@ export default function AppShell() {
 
     socket.on("dmCall:ended", (payload) => {
       const call = useCallStore.getState();
-      if (call.dmCallSessionId === payload.sessionId || call.activeSessionId === payload.sessionId) {
+      if (
+        call.dmCallSessionId === payload.sessionId ||
+        call.activeSessionId === payload.sessionId
+      ) {
         call.clearActiveCall();
       }
     });
@@ -1565,14 +1574,17 @@ export default function AppShell() {
       }
     });
 
-    socket.on("dmCall:error", (payload: { reason: string; sessionId?: string }) => {
-      const call = useCallStore.getState();
-      // Clear call UI if the error relates to our active session.
-      if (payload.sessionId && payload.sessionId === call.dmCallSessionId) {
-        call.clearActiveCall();
-      }
-      toast(payload.reason || "Call failed", "error");
-    });
+    socket.on(
+      "dmCall:error",
+      (payload: { reason: string; sessionId?: string }) => {
+        const call = useCallStore.getState();
+        // Clear call UI if the error relates to our active session.
+        if (payload.sessionId && payload.sessionId === call.dmCallSessionId) {
+          call.clearActiveCall();
+        }
+        toast(payload.reason || "Call failed", "error");
+      },
+    );
 
     // Member lifecycle events (Phase 4 §8): keep the sidebar's member list and
     // role chips live. Uses refs + stable setters so the once-registered

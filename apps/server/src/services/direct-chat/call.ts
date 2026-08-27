@@ -3,7 +3,6 @@ import { ApiError } from "../../lib/ApiError";
 import { redis } from "../../lib/redis";
 import { getLiveKitRoomClient } from "../../lib/livekit";
 import { createLogger } from "../../lib/logger";
-import { checkIdempotency, storeIdempotency } from "../idempotency";
 import {
   createOrReuseSession,
   upsertParticipant,
@@ -12,6 +11,11 @@ import {
   endSession,
   generateCallToken,
 } from "../call/core";
+import {
+  createCallHistoryMessage,
+  emitCallHistoryMessage,
+  type CallIO,
+} from "../call/history";
 import type { CallTarget } from "../../types/call";
 import type { CallType, CallOutcome } from "@prisma/client";
 
@@ -117,11 +121,12 @@ export async function acceptDmCall(
 
 /**
  * Decline a DM call. Ends the session with DECLINED outcome and creates a
- * call-history system message.
+ * call-history system message (broadcast live when io is provided).
  */
 export async function declineDmCall(
   calleeId: string,
   directChatId: string,
+  io?: CallIO,
 ): Promise<{ sessionId: string }> {
   const session = await prisma.callSession.findFirst({
     where: { directChatId, status: "RINGING", endedAt: null },
@@ -130,12 +135,15 @@ export async function declineDmCall(
   assertDmCallSession(session);
 
   await endSession(session.id, "DECLINED");
-  await createCallHistoryMessage(
-    session.id,
-    directChatId,
-    session.callType,
-    "DECLINED",
-  );
+  const message = await createCallHistoryMessage({
+    sessionId: session.id,
+    callType: session.callType,
+    outcome: "DECLINED",
+    target: { type: "direct", directChatId },
+  });
+  if (message) {
+    emitCallHistoryMessage(io, { type: "direct", directChatId }, message);
+  }
 
   log.info("DM call declined", {
     sessionId: session.id,
@@ -152,6 +160,7 @@ export async function declineDmCall(
 export async function cancelDmCall(
   callerId: string,
   directChatId: string,
+  io?: CallIO,
 ): Promise<{ sessionId: string }> {
   const session = await prisma.callSession.findFirst({
     where: { directChatId, status: "RINGING", endedAt: null },
@@ -160,12 +169,15 @@ export async function cancelDmCall(
   assertDmCallSession(session);
 
   await endSession(session.id, "CANCELLED");
-  await createCallHistoryMessage(
-    session.id,
-    directChatId,
-    session.callType,
-    "CANCELLED",
-  );
+  const message = await createCallHistoryMessage({
+    sessionId: session.id,
+    callType: session.callType,
+    outcome: "CANCELLED",
+    target: { type: "direct", directChatId },
+  });
+  if (message) {
+    emitCallHistoryMessage(io, { type: "direct", directChatId }, message);
+  }
 
   log.info("DM call cancelled", {
     sessionId: session.id,
@@ -219,6 +231,7 @@ export async function joinDmCall(
 export async function leaveDmCall(
   userId: string,
   directChatId: string,
+  io?: CallIO,
 ): Promise<{
   sessionId: string;
   callEnded: boolean;
@@ -249,12 +262,15 @@ export async function leaveDmCall(
       where: { id: session.id },
       data: { status: "ENDED", outcome },
     });
-    await createCallHistoryMessage(
-      session.id,
-      directChatId,
-      session.callType,
+    const message = await createCallHistoryMessage({
+      sessionId: session.id,
+      callType: session.callType,
       outcome,
-    );
+      target: { type: "direct", directChatId },
+    });
+    if (message) {
+      emitCallHistoryMessage(io, { type: "direct", directChatId }, message);
+    }
 
     // Clean up LiveKit room.
     try {
@@ -378,78 +394,4 @@ export async function handleLiveKitDisconnected(
 ): Promise<void> {
   await redis.del(connectedKey(sessionId, userId)).catch(() => {});
   log.info("DM call LiveKit disconnected", { sessionId, userId });
-}
-
-// ---------------------------------------------------------------------------
-// System message creation (idempotent)
-// ---------------------------------------------------------------------------
-
-/**
- * Create a call-history system message. Idempotent via checkIdempotency —
- * safe to call multiple times for the same session.
- */
-async function createCallHistoryMessage(
-  sessionId: string,
-  directChatId: string,
-  callType: CallType,
-  outcome: CallOutcome,
-): Promise<void> {
-  const idempotencyKey = `call-history:${sessionId}`;
-  const existing = await checkIdempotency("system", idempotencyKey);
-  if (existing) return;
-
-  // Fetch session for duration calculation.
-  const session = await prisma.callSession.findUnique({
-    where: { id: sessionId },
-    select: { connectedAt: true, endedAt: true, startedAt: true },
-  });
-
-  let durationSeconds: number | null = null;
-  if (session?.connectedAt && session?.endedAt) {
-    durationSeconds = Math.round(
-      (session.endedAt.getTime() - session.connectedAt.getTime()) / 1000,
-    );
-  }
-
-  const typeLabel = callType === "VIDEO" ? "Video call" : "Voice call";
-  let content: string;
-  if (outcome === "MISSED") {
-    content = `Missed ${typeLabel.toLowerCase()}`;
-  } else if (outcome === "DECLINED") {
-    content = `Declined ${typeLabel.toLowerCase()}`;
-  } else if (outcome === "CANCELLED") {
-    content = `${typeLabel} cancelled`;
-  } else if (durationSeconds != null) {
-    const mins = Math.floor(durationSeconds / 60);
-    const secs = durationSeconds % 60;
-    content = `${typeLabel} \u00b7 ${mins}:${secs.toString().padStart(2, "0")}`;
-  } else {
-    content = typeLabel;
-  }
-
-  const message = await prisma.message.create({
-    data: {
-      content,
-      senderId: "system",
-      directChatId,
-      messageType: "SYSTEM",
-      metadata: {
-        kind: "call",
-        callSessionId: sessionId,
-        callType,
-        outcome,
-        durationSeconds,
-      },
-    },
-    select: { id: true },
-  });
-
-  await storeIdempotency("system", idempotencyKey, message.id);
-
-  log.info("Created call-history message", {
-    messageId: message.id,
-    sessionId,
-    outcome,
-    durationSeconds,
-  });
 }

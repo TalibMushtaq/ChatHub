@@ -16,6 +16,7 @@ import type {
   SocketData,
 } from "../../types/socket-events";
 import { getDirectChatRoom } from "../../sockets/direct-chat";
+import { createCallHistoryMessage, emitCallHistoryMessage } from "./history";
 
 const log = createLogger("call-core");
 
@@ -325,13 +326,17 @@ export async function timeoutRingingCalls(
   const result = await prisma.$transaction(async (tx) => {
     const stale = await tx.callSession.findMany({
       where: { status: "RINGING", startedAt: { lt: threshold } },
-      select: { id: true, directChatId: true },
+      select: { id: true, directChatId: true, callType: true },
     });
 
     if (stale.length === 0)
       return {
         count: 0,
-        ended: [] as { id: string; directChatId: string | null }[],
+        ended: [] as {
+          id: string;
+          directChatId: string | null;
+          callType: CallType;
+        }[],
       };
 
     const ids = stale.map((s) => s.id);
@@ -362,6 +367,21 @@ export async function timeoutRingingCalls(
         sessionId: session.id,
         outcome: "MISSED",
       });
+
+      // Record the missed-call history message in the DM timeline.
+      const message = await createCallHistoryMessage({
+        sessionId: session.id,
+        callType: session.callType,
+        outcome: "MISSED",
+        target: { type: "direct", directChatId: session.directChatId },
+      });
+      if (message) {
+        emitCallHistoryMessage(
+          io,
+          { type: "direct", directChatId: session.directChatId },
+          message,
+        );
+      }
 
       // Fetch both participant userIds so we can emit dismiss to each.
       const dc = await prisma.directChat.findUnique({

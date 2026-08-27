@@ -12,6 +12,11 @@ import {
   endSessionIfEmpty,
   generateCallToken,
 } from "../call/core";
+import {
+  createCallHistoryMessage,
+  emitCallHistoryMessage,
+  type CallIO,
+} from "../call/history";
 import type { CallTarget } from "../../types/call";
 import {
   DEFAULT_PARTICIPANT_LIMIT,
@@ -126,12 +131,14 @@ export async function leaveCall(
   userId: string,
   roomId: string,
   channelId: string,
+  io?: CallIO,
 ): Promise<{ sessionId: string; callEnded: boolean } | null> {
   // Membership check only — not CONNECT_VOICE — so demoted users can still leave.
   await assertRoomAccess(userId, roomId);
 
   const session = await prisma.callSession.findFirst({
     where: { channelId, endedAt: null },
+    select: { id: true, callType: true, startedAt: true, endedAt: true },
   });
   if (!session) return null;
 
@@ -141,6 +148,22 @@ export async function leaveCall(
   const { callEnded } = await endSessionIfEmpty(session.id);
 
   if (callEnded) {
+    // Record a call-history system message in the channel so members see the
+    // call happened (endSessionIfEmpty sets outcome to COMPLETED).
+    const message = await createCallHistoryMessage({
+      sessionId: session.id,
+      callType: session.callType,
+      outcome: "COMPLETED",
+      target: { type: "channel", roomId, channelId },
+    });
+    if (message) {
+      emitCallHistoryMessage(
+        io,
+        { type: "channel", roomId, channelId },
+        message,
+      );
+    }
+
     // Clean up the LiveKit room.
     try {
       const roomClient = getLiveKitRoomClient();
@@ -176,7 +199,7 @@ export async function forceLeaveCall(userId: string): Promise<{
     },
     include: {
       session: {
-        select: { id: true, channelId: true },
+        select: { id: true, channelId: true, callType: true },
       },
     },
   });
@@ -207,6 +230,25 @@ export async function forceLeaveCall(userId: string): Promise<{
   const { callEnded } = await endSessionIfEmpty(participant.session.id);
 
   if (callEnded) {
+    // Record the call in the channel history. The kicked member may not have
+    // io here, so the message persists and appears on the next timeline fetch.
+    const channel = await prisma.channel.findUnique({
+      where: { id: participant.session.channelId! },
+      select: { roomId: true },
+    });
+    if (channel) {
+      await createCallHistoryMessage({
+        sessionId: participant.session.id,
+        callType: participant.session.callType,
+        outcome: "COMPLETED",
+        target: {
+          type: "channel",
+          roomId: channel.roomId,
+          channelId: participant.session.channelId!,
+        },
+      });
+    }
+
     try {
       const roomClient = getLiveKitRoomClient();
       await roomClient.deleteRoom(

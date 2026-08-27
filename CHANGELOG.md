@@ -1,3 +1,30 @@
+## [2026-08-27] - Phase 16: System Message Rendering (Call History)
+
+**What changed:** Rendered call-history SYSTEM messages in DM and room timelines, fixed live broadcasting, and added room-call history that was previously missing.
+
+Server (`apps/server`):
+
+- **`services/call/history.ts` (new)**: Shared, idempotent call-history message creator. Works for both DM (`directChatId`) and room-channel (`chatRoomId` + `channelId`) targets, computes duration from `connectedAt`/`endedAt`, and emits the right socket events (`message:new` + `inbox:update` for DMs, `chatroom:message` for rooms). Replaces the DM-only local copy in `services/direct-chat/call.ts`.
+- **`services/direct-chat/call.ts`**: `declineDmCall`/`cancelDmCall`/`leaveDmCall` now take optional `io` and broadcast the created history message live via the shared module.
+- **`routes/direct-chat/call.ts`**: Passes `req.io` into the DM call service functions.
+- **`services/room/call.ts`**: `leaveCall` and `forceLeaveCall` now create a COMPLETED history message when the last participant leaves (previously room calls had no history at all). `leaveCall` emits live when given `io`.
+- **`routes/room/call.ts`**: Passes `req.io` into `leaveCall`.
+- **`services/call/core.ts`**: `timeoutRingingCalls` now creates a MISSED history message for timed-out DM calls (previously missing) and broadcasts it.
+- **`constants/direct-chat.ts` + `constants/room.ts`**: `messageWithUserSelect` and `roomMessageWithUserSelect` now include `metadata` and `senderId` so clients can identify and render SYSTEM messages.
+
+Web (`apps/web`):
+
+- **`types.ts`**: Added `metadata?: Record<string, unknown> | null` to `Message`.
+- **`messages/CallHistoryMessage.tsx` (new)**: Centered pill renderer for call-history SYSTEM messages. Outcome drives the tint + icon: MISSED (red), DECLINED (amber), CANCELLED (muted), COMPLETED (green). Renders a plain centered status line for unrecognized SYSTEM messages.
+- **`messages/MessageList.tsx`**: Routes `messageType === "SYSTEM"` rows to `CallHistoryMessage` instead of `MessageRow`, and excludes them from sender-grouping.
+- **`AppShell.tsx`**: `normalize` + `AnyMsg` now carry `metadata` through socket delivery.
+
+Tests: added room-call history assertions, timeout MISSED history assertions, and `lastText` + `callHistoryTint` unit coverage. Server 902 tests, web 174 tests — all passing.
+
+**Why:** Call-history messages existed in the DB (Phase 10) but were invisible: not broadcast live, missing `metadata`/`senderId` in API responses, and rendered as ordinary bubbles from a nonexistent "system" sender. Room calls and timed-out calls never created history at all.
+
+**Impact:** Users now see a styled call-history line in both DM and room timelines ("Missed voice call", "Voice call · 5:32") when a call ends — delivered live via sockets and consistent on refresh. Verification: `npm run check-types`, `npm run lint`, server + web test suites — all clean.
+
 ## [2026-08-25] - DM Voice/Video Calling Frontend (Phases 13-15)
 
 **What changed:** Implemented the frontend UI for 1:1 DM voice and video calling, completing Phases 13, 14, and 15 of the DM calling feature, plus bug fixes for error handling and UX.

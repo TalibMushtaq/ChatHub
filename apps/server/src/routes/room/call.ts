@@ -49,7 +49,12 @@ router.post(
       ...channelIdParamSchema.parse(req.params),
     };
     await assertRoomAccess(req.user!.id, roomId);
-    const leaveResult = await leaveCall(req.user!.id, roomId, channelId);
+    const leaveResult = await leaveCall(
+      req.user!.id,
+      roomId,
+      channelId,
+      req.io,
+    );
 
     if (leaveResult) {
       // Broadcast leave to everyone in the room.

@@ -142,6 +142,8 @@ export interface Message {
   channelId?: string;
   attachments?: Attachment[];
   User?: MessageUser | null;
+  /** Server-generated call-history metadata (SYSTEM messages). */
+  metadata?: Record<string, unknown> | null;
   /** Client-only: optimistic send state. */
   pending?: boolean;
   failed?: boolean;

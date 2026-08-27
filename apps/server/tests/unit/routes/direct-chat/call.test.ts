@@ -185,7 +185,11 @@ describe("DM call routes", () => {
       const res = await req.post("/dm/dc1/call/decline");
 
       expect(res.status).toBe(200);
-      expect(declineDmCall).toHaveBeenCalledWith("user-1", "dc1");
+      expect(declineDmCall).toHaveBeenCalledWith(
+        "user-1",
+        "dc1",
+        expect.anything(),
+      );
 
       // Dismiss to both user rooms.
       const dismissCalls = emitSpy.mock.calls.filter(
@@ -206,7 +210,11 @@ describe("DM call routes", () => {
       const res = await req.post("/dm/dc1/call/cancel");
 
       expect(res.status).toBe(200);
-      expect(cancelDmCall).toHaveBeenCalledWith("user-1", "dc1");
+      expect(cancelDmCall).toHaveBeenCalledWith(
+        "user-1",
+        "dc1",
+        expect.anything(),
+      );
 
       const dismissCalls = emitSpy.mock.calls.filter(
         (c: any[]) => c[0] === "dmCall:dismiss",

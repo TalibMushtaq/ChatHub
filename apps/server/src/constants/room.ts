@@ -49,6 +49,7 @@ export const roomMessageWithUserSelect = {
   createdAt: true,
   isDeleted: true,
   editedAt: true,
+  metadata: true,
   User: {
     select: {
       id: true,

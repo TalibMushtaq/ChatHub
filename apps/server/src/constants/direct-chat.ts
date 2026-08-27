@@ -32,10 +32,12 @@ export const messageCreateSelect = {
 export const messageWithUserSelect = {
   id: true,
   content: true,
+  senderId: true,
   createdAt: true,
   messageType: true,
   isDeleted: true,
   editedAt: true,
+  metadata: true,
   User: {
     select: {
       id: true,

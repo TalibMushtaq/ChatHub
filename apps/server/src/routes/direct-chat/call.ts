@@ -143,7 +143,7 @@ router.post(
 
     await assertDirectChatAccess(userId, directChatId);
 
-    const result = await declineDmCall(userId, directChatId);
+    const result = await declineDmCall(userId, directChatId, req.io);
 
     // Notify all participants that the call was declined.
     const room = getDirectChatRoom(directChatId);
@@ -188,7 +188,7 @@ router.post(
 
     await assertDirectChatAccess(userId, directChatId);
 
-    const result = await cancelDmCall(userId, directChatId);
+    const result = await cancelDmCall(userId, directChatId, req.io);
 
     // Notify all participants that the call was cancelled.
     const room = getDirectChatRoom(directChatId);
@@ -268,7 +268,7 @@ router.post(
 
     await assertDirectChatAccess(userId, directChatId);
 
-    const leaveResult = await leaveDmCall(userId, directChatId);
+    const leaveResult = await leaveDmCall(userId, directChatId, req.io);
 
     if (leaveResult) {
       const room = getDirectChatRoom(directChatId);

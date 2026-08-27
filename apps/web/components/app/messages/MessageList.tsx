@@ -7,6 +7,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { fmtDay } from "../helpers";
 import type { Message, ReadReceipt } from "../types";
 import { MessageRow } from "./MessageRow";
+import CallHistoryMessage from "./CallHistoryMessage";
 
 export function MessageList({
   messages,
@@ -103,9 +104,12 @@ export function MessageList({
     }
   }, [loadingOlder]);
 
-  // Build a flat list with day dividers and per-sender first flags.
+  // Build a flat list with day dividers and per-sender first flags. SYSTEM
+  // messages (call history) render as their own row kind — they must not
+  // participate in sender grouping or bubble layout.
   const rows: Array<
     | { kind: "day"; day: string }
+    | { kind: "system"; m: Message }
     | { kind: "msg"; m: Message; firstOfSender: boolean }
   > = [];
   let lastDay = "";
@@ -115,6 +119,10 @@ export function MessageList({
     if (day !== lastDay) {
       rows.push({ kind: "day", day });
       lastDay = day;
+    }
+    if (m.messageType === "SYSTEM") {
+      rows.push({ kind: "system", m });
+      continue;
     }
     rows.push({ kind: "msg", m, firstOfSender: m.senderId !== lastSender });
     lastSender = m.senderId ?? "";
@@ -151,6 +159,10 @@ export function MessageList({
               <span className="h-px flex-1 bg-border" />
               {row.day}
               <span className="h-px flex-1 bg-border" />
+            </div>
+          ) : row.kind === "system" ? (
+            <div key={row.m.id} data-msg-id={row.m.id}>
+              <CallHistoryMessage m={row.m} />
             </div>
           ) : (
             <div key={row.m.id} data-msg-id={row.m.id}>
