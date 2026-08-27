@@ -8,7 +8,8 @@ import type { DmCallType } from "./api";
 // DM call types (Phase 11)
 // ---------------------------------------------------------------------------
 
-export type DmCallUiStatus = "IDLE" | "OUTGOING" | "INCOMING" | "ACTIVE" | "ENDED";
+export type DmCallUiStatus =
+  "IDLE" | "OUTGOING" | "INCOMING" | "ACTIVE" | "ENDED";
 
 export interface IncomingCallInfo {
   sessionId: string;

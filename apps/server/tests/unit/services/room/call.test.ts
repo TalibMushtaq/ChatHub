@@ -640,5 +640,26 @@ describe("room call service", () => {
         callEnded: false,
       });
     });
+
+    it("skips history creation when the channel no longer exists", async () => {
+      prismaMock.callParticipant.findFirst.mockResolvedValue({
+        id: "p1",
+        userId: "u2",
+        leftAt: null,
+        session: sessionShape,
+      } as any);
+      prismaMock.callParticipant.update.mockResolvedValue({} as any);
+      core.endSessionIfEmpty.mockResolvedValue({ callEnded: true });
+      prismaMock.channel.findUnique.mockResolvedValue(null);
+
+      const result = await forceLeaveCall("u2");
+
+      expect(result).toEqual({
+        channelId: "ch1",
+        sessionId: "sess1",
+        callEnded: true,
+      });
+      expect(prismaMock.message.create).not.toHaveBeenCalled();
+    });
   });
 });

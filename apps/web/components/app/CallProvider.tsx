@@ -450,9 +450,8 @@ export default function CallProvider({
       lastJoinParamsRef.current = { type: "dm", directChatId };
 
       try {
-        const { token, livekitUrl, sessionId } = await DmCallAPI.join(
-          directChatId,
-        );
+        const { token, livekitUrl, sessionId } =
+          await DmCallAPI.join(directChatId);
 
         const { Room, RoomEvent, Track } = await import("livekit-client");
 
@@ -611,7 +610,10 @@ export default function CallProvider({
         let sessionId: string;
 
         if (params.type === "channel") {
-          const result = await CallAPI.joinToken(params.roomId, params.channelId);
+          const result = await CallAPI.joinToken(
+            params.roomId,
+            params.channelId,
+          );
           token = result.token;
           livekitUrl = result.livekitUrl;
           sessionId = result.sessionId;

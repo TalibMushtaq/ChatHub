@@ -620,5 +620,52 @@ describe("shared call core", () => {
         }),
       );
     });
+
+    it("skips sessions without a direct chat (no message, no dismiss)", async () => {
+      prismaMock.$transaction.mockImplementation(
+        createMockTransaction(prismaMock),
+      );
+      prismaMock.callSession.findMany.mockResolvedValue([
+        { id: "s1", directChatId: null, callType: "VOICE" },
+      ] as any);
+      prismaMock.callParticipant.updateMany.mockResolvedValue({
+        count: 1,
+      } as any);
+      prismaMock.callSession.updateMany.mockResolvedValue({ count: 1 } as any);
+
+      const io = createMockIo();
+      const count = await timeoutRingingCalls(io);
+
+      expect(count).toBe(1);
+      expect(prismaMock.message.create).not.toHaveBeenCalled();
+      expect(io.to).not.toHaveBeenCalled();
+    });
+
+    it("does not re-create a history message when one already exists", async () => {
+      prismaMock.$transaction.mockImplementation(
+        createMockTransaction(prismaMock),
+      );
+      prismaMock.callSession.findMany.mockResolvedValue([
+        { id: "s1", directChatId: "dc1", callType: "VOICE" },
+      ] as any);
+      prismaMock.callParticipant.updateMany.mockResolvedValue({
+        count: 1,
+      } as any);
+      prismaMock.callSession.updateMany.mockResolvedValue({ count: 1 } as any);
+      prismaMock.directChat.findUnique.mockResolvedValue({
+        user1Id: "u1",
+        user2Id: "u2",
+      } as any);
+      idempotency.checkIdempotency.mockResolvedValue("existing-msg");
+
+      const io = createMockIo();
+      const count = await timeoutRingingCalls(io);
+
+      expect(count).toBe(1);
+      expect(prismaMock.message.create).not.toHaveBeenCalled();
+      // ended + dismiss still emitted for the timed-out session.
+      expect(io.to).toHaveBeenCalledWith("directChat:dc1");
+      expect(io.to).toHaveBeenCalledWith("user:u1");
+    });
   });
 });

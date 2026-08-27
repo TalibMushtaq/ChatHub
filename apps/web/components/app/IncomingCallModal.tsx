@@ -71,14 +71,18 @@ export default function IncomingCallModal() {
       {/* Card */}
       <div className="relative z-10 flex w-[min(380px,90vw)] flex-col items-center gap-5 rounded-[28px] border border-border bg-surface px-8 py-10 text-center shadow-2xl animate-[rise_.24s_cubic-bezier(.2,.8,.2,1)]">
         <AppAvatar
-          name={incomingCallInfo.caller.displayName ?? incomingCallInfo.caller.username}
+          name={
+            incomingCallInfo.caller.displayName ??
+            incomingCallInfo.caller.username
+          }
           src={incomingCallInfo.caller.avatar}
           size={80}
         />
 
         <div>
           <div className="text-[18px] font-extrabold text-fg">
-            {incomingCallInfo.caller.displayName ?? incomingCallInfo.caller.username}
+            {incomingCallInfo.caller.displayName ??
+              incomingCallInfo.caller.username}
           </div>
           <div className="mt-1 text-[13px] text-muted">
             {incomingCallInfo.callType === "VIDEO" ? "Video" : "Voice"} call

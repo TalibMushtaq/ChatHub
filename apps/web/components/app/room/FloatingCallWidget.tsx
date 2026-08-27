@@ -157,14 +157,18 @@ export default function FloatingCallWidget() {
 
     if (!isViewingVoiceChannel) {
       return (
-        <ResponsiveWidgetRoot roomId={activeRoomId} channelId={activeChannelId} />
+        <ResponsiveWidgetRoot
+          roomId={activeRoomId}
+          channelId={activeChannelId}
+        />
       );
     }
   }
 
   // DM call widget — show when in an active DM call but not viewing the DM thread.
   if (activeDirectChatId) {
-    const isViewingDm = active?.kind === "dm" && active.id === activeDirectChatId;
+    const isViewingDm =
+      active?.kind === "dm" && active.id === activeDirectChatId;
     if (!isViewingDm) {
       return <DmCallWidget directChatId={activeDirectChatId} />;
     }

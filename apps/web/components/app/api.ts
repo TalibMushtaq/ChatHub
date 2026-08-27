@@ -757,11 +757,7 @@ export interface ActiveCallSession {
 export type DmCallType = "VOICE" | "VIDEO";
 export type DmCallStatus = "RINGING" | "ACTIVE" | "ENDED";
 export type DmCallOutcome =
-  | "COMPLETED"
-  | "MISSED"
-  | "DECLINED"
-  | "CANCELLED"
-  | "FAILED";
+  "COMPLETED" | "MISSED" | "DECLINED" | "CANCELLED" | "FAILED";
 
 export interface DmCallInitiateResult {
   ok: boolean;
