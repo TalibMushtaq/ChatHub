@@ -14,12 +14,12 @@
   - [x] **Phase 7: Mount routes** — Mount call router in `routes/direct-chat/index.ts`
   - [x] **Phase 8: DM call socket handlers** — `sockets/direct-chat.ts` (livekitConnected/disconnected handlers with Redis tracking)
   - [x] **Phase 9: Server timeout task** — `index.ts` setInterval every 10s for `timeoutRingingCalls` (RINGING > 60s → MISSED)
-  - [ ] **Phase 10: System message creation** — Idempotent call-history via `checkIdempotency("system", "call-history:{sessionId}")`
-  - [ ] **Phase 11: Frontend API client** — Add DM call methods to `CallAPI` (initiateDm, acceptDm, declineDm, cancelDm, joinDmToken, leaveDm, getActiveDmCall)
-  - [ ] **Phase 12: Frontend call store** — Replace scattered IDs with `activeCall: ActiveCall | null` discriminated union, add transition guards
-  - [ ] **Phase 13: Frontend CallProvider** — Add initiateDmCall, joinDmCall, acceptDmCall, livekitConnected emission after RoomEvent.Connected, DuplicateIdentity disconnect handling
-  - [ ] **Phase 14: Frontend AppShell** — Add `dmCall:*` socket event handlers, incoming call state management, widget CallTarget support
-  - [ ] **Phase 15: DM call UI** — ThreadPanel voice/video call buttons, IncomingCallModal component, widget CallTarget prop support
+  - [x] **Phase 10: System message creation** — Idempotent call-history via `checkIdempotency("system", "call-history:{sessionId}")`
+  - [x] **Phase 11: Frontend API client** — Add DM call methods to `CallAPI` (initiateDm, acceptDm, declineDm, cancelDm, joinDmToken, leaveDm, getActiveDmCall)
+  - [x] **Phase 12: Frontend call store** — Replace scattered IDs with `activeCall: ActiveCall | null` discriminated union, add transition guards
+  - [x] **Phase 13: Frontend CallProvider** — Add initiateDmCall, joinDmCall, acceptDmCall, livekitConnected emission after RoomEvent.Connected, DuplicateIdentity disconnect handling
+  - [x] **Phase 14: Frontend AppShell** — Add `dmCall:*` socket event handlers, incoming call state management, widget CallTarget support
+  - [x] **Phase 15: DM call UI** — ThreadPanel voice/video call buttons, IncomingCallModal component, widget CallTarget prop support
   - [ ] **Phase 16: System message rendering** — MessageRow.tsx SYSTEM type + CallHistoryMessage component
 
 ### Testing & QA (DM Voice/Video Calling)

@@ -13,6 +13,8 @@ import { AvatarLink, NameLink } from "./UserLinks";
 import { STATUS_LABELS } from "./statusTones";
 import { BackIcon } from "./icons";
 import { iconBtn } from "./styles";
+import { useCallCtx } from "./CallProvider";
+import { Phone, Video } from "lucide-react";
 import { MessageList } from "./messages/MessageList";
 import { MessageComposer } from "./messages/MessageComposer";
 
@@ -34,6 +36,7 @@ export default function ThreadPanel() {
     loadOlderDmMessages,
     toast,
   } = useShell();
+  const { initiateDmCall } = useCallCtx();
 
   const [editing, setEditing] = useState<{
     id: string;
@@ -154,6 +157,40 @@ export default function ThreadPanel() {
             )}
           </div>
         </div>
+
+        {/* DM call buttons — only visible in DM threads. */}
+        {active.kind === "dm" && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={async () => {
+                try {
+                  await initiateDmCall(active.id, "VOICE");
+                } catch (err) {
+                  toast(getErrorMessage(err, "Couldn't start call"), "error");
+                }
+              }}
+              className={`${iconBtn} h-9 w-9 rounded-full hover:bg-success-wash hover:text-success`}
+              title="Voice call"
+              aria-label="Start voice call"
+            >
+              <Phone size={16} />
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await initiateDmCall(active.id, "VIDEO");
+                } catch (err) {
+                  toast(getErrorMessage(err, "Couldn't start call"), "error");
+                }
+              }}
+              className={`${iconBtn} h-9 w-9 rounded-full hover:bg-success-wash hover:text-success`}
+              title="Video call"
+              aria-label="Start video call"
+            >
+              <Video size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       <MessageList

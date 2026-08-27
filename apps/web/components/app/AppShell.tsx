@@ -50,6 +50,8 @@ import Modals from "./Modals";
 import { Toasts } from "./Toasts";
 import CallProvider from "./CallProvider";
 import FloatingCallWidget from "./room/FloatingCallWidget";
+import IncomingCallModal from "./IncomingCallModal";
+import CallingOverlay from "./CallingOverlay";
 import { ReconnectBanner } from "./ReconnectBanner";
 import {
   ChatIcon,
@@ -1499,6 +1501,79 @@ export default function AppShell() {
       }
     });
 
+    // DM call events (Phase 14): handle incoming, accepted, declined, cancelled,
+    // connected, ended, and dismiss events for 1:1 voice/video calls.
+    socket.on("dmCall:invited", (payload) => {
+      const call = useCallStore.getState();
+      // Ignore if already in a call (room or DM).
+      if (call.activeSessionId) return;
+      call.setIncomingCallInfo({
+        sessionId: payload.sessionId,
+        directChatId: payload.directChatId,
+        callType: payload.callType,
+        caller: payload.caller,
+      });
+      call.setDmCallStatus("INCOMING");
+    });
+
+    socket.on("dmCall:accepted", (payload) => {
+      const call = useCallStore.getState();
+      // Only relevant to the caller — callee is joining LiveKit via REST.
+      if (call.dmCallStatus === "OUTGOING" && call.dmCallSessionId === payload.sessionId) {
+        call.setDmCallStatus("ACTIVE");
+      }
+    });
+
+    socket.on("dmCall:declined", (payload) => {
+      const call = useCallStore.getState();
+      // If we were the caller, toast the decline and clear.
+      if (call.dmCallSessionId === payload.sessionId) {
+        call.clearActiveCall();
+      }
+    });
+
+    socket.on("dmCall:cancelled", (payload) => {
+      const call = useCallStore.getState();
+      // If this user was the callee, dismiss the incoming call overlay.
+      if (call.incomingCallInfo?.sessionId === payload.sessionId) {
+        call.setIncomingCallInfo(null);
+        call.setDmCallStatus("IDLE");
+      }
+    });
+
+    socket.on("dmCall:connected", (payload) => {
+      const call = useCallStore.getState();
+      if (call.dmCallSessionId === payload.sessionId) {
+        call.setDmCallStatus("ACTIVE");
+        call.setDmCallConnectedAt(Date.now());
+      }
+    });
+
+    socket.on("dmCall:ended", (payload) => {
+      const call = useCallStore.getState();
+      if (call.dmCallSessionId === payload.sessionId || call.activeSessionId === payload.sessionId) {
+        call.clearActiveCall();
+      }
+    });
+
+    socket.on("dmCall:dismiss", (payload) => {
+      const call = useCallStore.getState();
+      // Multi-device sync: dismiss incoming call UI on all devices.
+      if (call.incomingCallInfo?.sessionId === payload.sessionId) {
+        call.setIncomingCallInfo(null);
+        call.setDmCallStatus("IDLE");
+      }
+    });
+
+    socket.on("dmCall:error", (payload: { reason: string; sessionId?: string }) => {
+      const call = useCallStore.getState();
+      // Clear call UI if the error relates to our active session.
+      if (payload.sessionId && payload.sessionId === call.dmCallSessionId) {
+        call.clearActiveCall();
+      }
+      toast(payload.reason || "Call failed", "error");
+    });
+
     // Member lifecycle events (Phase 4 §8): keep the sidebar's member list and
     // role chips live. Uses refs + stable setters so the once-registered
     // handlers never read stale closures.
@@ -1642,6 +1717,14 @@ export default function AppShell() {
       socket.off("call.participant.kicked");
       socket.off("call.participant.muted");
       socket.off("call.ended");
+      socket.off("dmCall:invited");
+      socket.off("dmCall:accepted");
+      socket.off("dmCall:declined");
+      socket.off("dmCall:cancelled");
+      socket.off("dmCall:connected");
+      socket.off("dmCall:ended");
+      socket.off("dmCall:dismiss");
+      socket.off("dmCall:error");
       socket.off("chatroom:member:added");
       socket.off("chatroom:member:removed");
       socket.off("chatroom:member:roleChanged");
@@ -2934,6 +3017,8 @@ export default function AppShell() {
           </nav>
 
           <FloatingCallWidget />
+          <IncomingCallModal />
+          <CallingOverlay />
           <Modals />
           <Toasts />
         </div>

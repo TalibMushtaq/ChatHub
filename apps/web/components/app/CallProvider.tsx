@@ -60,6 +60,7 @@ export interface CallCtx {
   joinCall: (roomId: string, channelId: string) => Promise<void>;
   // DM calls
   initiateDmCall: (directChatId: string, callType: DmCallType) => Promise<void>;
+  acceptDmCall: (directChatId: string) => Promise<void>;
   joinDmCall: (directChatId: string) => Promise<void>;
   // Unified leave (handles both room and DM calls)
   leaveCall: () => Promise<void>;
@@ -120,6 +121,7 @@ export default function CallProvider({
     setMuted,
     setCameraEnabled,
     setActiveDmCall,
+    setIncomingCallInfo,
   } = useCallStore();
 
   const MAX_RECONNECT_ATTEMPTS = 5;
@@ -217,10 +219,10 @@ export default function CallProvider({
           syncParticipants(room);
         });
 
-        room.on(RoomEvent.Disconnected, () => {
+        // DuplicateIdentity: another device joined with the same identity.
+        room.on(RoomEvent.Disconnected, (reason) => {
           setConnected(false);
-          // If the user intentionally left (clicked Leave button), clean up immediately.
-          if (intentionalLeaveRef.current) {
+          if (intentionalLeaveRef.current || reason === "DUPLICATE_IDENTITY") {
             clearActiveCall();
             lkRoomRef.current = null;
             lastJoinParamsRef.current = null;
@@ -469,10 +471,12 @@ export default function CallProvider({
           socket.emit("dmCall:livekitConnected", { sessionId });
         });
 
-        room.on(RoomEvent.Disconnected, () => {
+        // DuplicateIdentity: another device joined with the same identity.
+        // Treat as intentional leave — clear state, don't reconnect.
+        room.on(RoomEvent.Disconnected, (reason) => {
           setConnected(false);
           socket.emit("dmCall:livekitDisconnected", { sessionId });
-          if (intentionalLeaveRef.current) {
+          if (intentionalLeaveRef.current || reason === "DUPLICATE_IDENTITY") {
             clearActiveCall();
             lkRoomRef.current = null;
             lastJoinParamsRef.current = null;
@@ -557,6 +561,24 @@ export default function CallProvider({
     ],
   );
 
+  /** Accept an incoming DM call — signals acceptance then joins LiveKit. */
+  const acceptDmCall = useCallback(
+    async (directChatId: string) => {
+      try {
+        // Signal acceptance to the server (marks session as accepted in DB).
+        await DmCallAPI.accept(directChatId);
+        // Clear the incoming call overlay before connecting.
+        setIncomingCallInfo(null);
+        // Join the LiveKit room as the callee.
+        await joinDmCall(directChatId);
+      } catch (err) {
+        console.error("Failed to accept DM call", err);
+        setIncomingCallInfo(null);
+      }
+    },
+    [joinDmCall, setIncomingCallInfo],
+  );
+
   /**
    * Attempt to rejoin the call after an unexpected disconnect, using
    * exponential backoff. Gives up after MAX_RECONNECT_ATTEMPTS.
@@ -619,14 +641,20 @@ export default function CallProvider({
           }
         });
 
-        room.on(RoomEvent.Disconnected, () => {
+        // DuplicateIdentity: another device joined — treat as intentional leave.
+        room.on(RoomEvent.Disconnected, (reason) => {
           setConnected(false);
           lkRoomRef.current = null;
           if (params.type === "dm") {
             socket.emit("dmCall:livekitDisconnected", { sessionId });
           }
+          if (intentionalLeaveRef.current || reason === "DUPLICATE_IDENTITY") {
+            clearActiveCall();
+            lastJoinParamsRef.current = null;
+            return;
+          }
           // Only retry if not intentionally leaving and not aborted.
-          if (!intentionalLeaveRef.current && !reconnectAbortRef.current) {
+          if (!reconnectAbortRef.current) {
             attemptReconnectRef.current();
           }
         });
@@ -830,6 +858,7 @@ export default function CallProvider({
       value={{
         joinCall,
         initiateDmCall,
+        acceptDmCall,
         joinDmCall,
         leaveCall,
         toggleMute,

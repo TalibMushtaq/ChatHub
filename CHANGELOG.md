@@ -1,3 +1,20 @@
+## [2026-08-25] - DM Voice/Video Calling Frontend (Phases 13-15)
+
+**What changed:** Implemented the frontend UI for 1:1 DM voice and video calling, completing Phases 13, 14, and 15 of the DM calling feature, plus bug fixes for error handling and UX.
+
+Web (`apps/web`):
+
+- **CallProvider.tsx**: Added `acceptDmCall()` method that calls `DmCallAPI.accept()` then joins LiveKit via `joinDmCall()`. Added `DuplicateIdentity` disconnect handling — when LiveKit disconnects with reason `DUPLICATE_IDENTITY`, the call state is cleared immediately without attempting reconnection (another device joined with the same user identity).
+- **AppShell.tsx**: Added `dmCall:*` socket event handlers (`invited`, `accepted`, `declined`, `cancelled`, `connected`, `ended`, `dismiss`, `error`) to manage incoming call state and lifecycle. The `dmCall:error` handler shows a toast with the server's error reason and clears call UI if the error relates to the active session. Renders `IncomingCallModal` and `CallingOverlay` as persistent overlays above all other UI.
+- **IncomingCallModal.tsx**: New component — full-screen overlay for incoming DM calls showing caller avatar, name, call type, and Accept/Decline buttons. Plays a looping ringtone (`/sounds/ringtune.mp3`) while ringing. Auto-dismisses on `dmCall:cancelled` and `dmCall:dismiss` events.
+- **CallingOverlay.tsx**: New component — "Calling…" overlay shown to the caller while waiting for the callee to accept. Includes a Cancel button wired to `DmCallAPI.cancel()`.
+- **ThreadPanel.tsx**: Added voice (phone) and video (camera) call buttons in the DM thread header with error toasts — if `initiateDmCall` fails, a toast shows "Couldn't start call" with the server error message.
+- **FloatingCallWidget.tsx**: Extended to render a floating widget for active DM calls when the user navigates away from the DM thread. Shows partner name, connection status dot, elapsed time, and mute/leave controls (mute toggle + leave call button).
+
+**Why:** Phases 13-15 wire the frontend to the backend DM calling infrastructure (Phases 4-12) and provide the user-facing call initiation, acceptance, and in-call UI. Bug fixes address missing `dmCall:error` handling (callers could get stuck), incomplete DM widget (no controls), silent call failures, and missing audio feedback.
+
+**Impact:** Users can now initiate, accept, decline, and cancel 1:1 voice/video calls from the DM thread header. Incoming calls display a prominent overlay with a ringtone. Active DM calls show a floating widget with mute/leave controls when navigating away from the thread. Server-side errors are surfaced via toasts. Multi-device scenarios are handled via `DuplicateIdentity` disconnect detection. Verification: `pnpm -F web check-types`, `pnpm -F web lint` — both clean.
+
 ## [2026-08-25] - Fix Screen Share Visibility + Widget Pinned Mode Reset
 
 **What changed:** Fixed two bugs in the voice channel call UI that prevented screen shares from rendering and caused the floating widget to get stuck in pinned mode.
