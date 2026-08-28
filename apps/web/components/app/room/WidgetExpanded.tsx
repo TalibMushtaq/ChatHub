@@ -16,7 +16,6 @@ import {
   Video,
   VideoOff,
   Settings,
-  ExternalLink,
 } from "lucide-react";
 import { iconBtn } from "../styles";
 
@@ -83,33 +82,20 @@ export default function WidgetExpanded({
     setPinnedScreenShare(hasScreenShare);
   }, [hasScreenShare]);
 
-  const supportsDocPiP =
-    typeof window !== "undefined" && "documentPictureInPicture" in window;
-
-  async function openDocPiP() {
-    if (!supportsDocPiP) return;
-    try {
-      // @ts-expect-error - documentPictureInPicture is not fully typed yet
-      const pipWindow = await window.documentPictureInPicture.requestWindow({
-        width: 640,
-        height: 360,
-      });
-      // In a real implementation we'd mount a React portal into pipWindow.document.body
-      // This is a stub for the progressive enhancement
-      pipWindow.document.body.innerHTML =
-        "<div style='display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#fff;font-family:sans-serif;'>PiP Window Active</div>";
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  // Grid sizing
-  const gridCols =
+  // Grid sizing. Map to full class strings so Tailwind's JIT can statically
+  // detect every variant (a runtime-built `"grid " + gridCols` string risks
+  // being purged).
+  const gridCols: Record<number, string> = {
+    1: "grid-cols-1",
+    2: "grid-cols-2",
+    3: "grid-cols-3",
+  };
+  const gridClass =
     allParticipants.length <= 1
-      ? "grid-cols-1"
+      ? gridCols[1]!
       : allParticipants.length <= 4
-        ? "grid-cols-2"
-        : "grid-cols-3";
+        ? gridCols[2]!
+        : gridCols[3]!;
 
   return (
     <div className="flex flex-col relative overflow-hidden rounded-2xl bg-surface shadow-2xl h-[420px]">
@@ -126,15 +112,6 @@ export default function WidgetExpanded({
         <span className="text-xs font-extrabold truncate flex-1">
           {channelName} · {roomName}
         </span>
-        {supportsDocPiP && (
-          <button
-            onClick={openDocPiP}
-            className={`${iconBtn} text-xs px-2 py-1 mr-1 rounded`}
-            title="Pop out"
-          >
-            <ExternalLink size={12} className="mr-1" /> Pop out
-          </button>
-        )}
         <button
           onClick={() => setWidgetExpanded(false)}
           aria-label="Collapse call"
@@ -160,7 +137,7 @@ export default function WidgetExpanded({
 
       {/* Grid */}
       <div
-        className={`flex-1 overflow-auto p-3 flex flex-col gap-2 ${pinnedScreenShare ? "" : "grid " + gridCols} auto-rows-fr max-h-[340px]`}
+        className={`flex-1 overflow-auto p-3 flex flex-col gap-2 ${pinnedScreenShare ? "" : "grid " + gridClass} auto-rows-fr max-h-[340px]`}
       >
         {allParticipants.map((p) => {
           const isLocal = p === localParticipant;

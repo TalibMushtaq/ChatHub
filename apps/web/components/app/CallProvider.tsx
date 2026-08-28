@@ -102,10 +102,11 @@ export default function CallProvider({
   const reconnectAbortRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Store the last join params so we can re-join after a disconnect.
-  // Discriminated union supports both room calls and DM calls.
+  // Discriminated union supports both room calls and DM calls; DM calls also
+  // carry their call type so a reconnect restores video state if needed.
   const lastJoinParamsRef = useRef<
     | { type: "channel"; roomId: string; channelId: string }
-    | { type: "dm"; directChatId: string }
+    | { type: "dm"; directChatId: string; callType: DmCallType }
     | null
   >(null);
 
@@ -175,6 +176,140 @@ export default function CallProvider({
     [setParticipants],
   );
 
+  /**
+   * Wire the LiveKit room event handlers shared by every join path (channel,
+   * DM initiate, DM join, and reconnect). Kept in one place so the four call
+   * flows can't drift. Connected/Disconnected behavior is identical aside from
+   * DM socket signalling and the post-disconnect callback.
+   */
+  const registerRoomListeners = useCallback(
+    (
+      room: LkRoom,
+      opts: {
+        sessionId: string;
+        isDmCall: boolean;
+        onDisconnected?: () => void;
+      },
+      // Structural subset of LiveKit's RoomEvent/Track constants — only the
+      // string event names this helper registers. Typed explicitly (rather than
+      // `Record<string, string>`) because noUncheckedIndexedAccess widens
+      // indexed reads to `string | undefined`.
+      RoomEvent: {
+        Connected: string;
+        Disconnected: string;
+        Reconnecting: string;
+        Reconnected: string;
+        ParticipantConnected: string;
+        ParticipantDisconnected: string;
+        TrackSubscribed: string;
+        TrackUnsubscribed: string;
+        LocalTrackUnpublished: string;
+        ActiveSpeakersChanged: string;
+      },
+      Track: {
+        Source: { ScreenShare: string; Camera: string; Microphone: string };
+      },
+    ) => {
+      room.on(RoomEvent.Connected, () => {
+        setConnected(true);
+        setConnectionState("connected");
+        setJoining(false);
+        setCallStartedAt(Date.now());
+        reconnectAttemptRef.current = 0;
+        reconnectAbortRef.current = false;
+        syncParticipants(room);
+        if (opts.isDmCall) {
+          socket.emit("dmCall:livekitConnected", { sessionId: opts.sessionId });
+        }
+      });
+
+      // DuplicateIdentity: another device joined with the same identity —
+      // treat as intentional leave so this tab stops and never reconnects.
+      room.on(RoomEvent.Disconnected, (reason) => {
+        setConnected(false);
+        if (opts.isDmCall) {
+          socket.emit("dmCall:livekitDisconnected", {
+            sessionId: opts.sessionId,
+          });
+        }
+        lkRoomRef.current = null;
+        if (intentionalLeaveRef.current || reason === "DUPLICATE_IDENTITY") {
+          clearActiveCall();
+          lastJoinParamsRef.current = null;
+          return;
+        }
+        opts.onDisconnected?.();
+      });
+
+      room.on(RoomEvent.Reconnecting, () =>
+        setConnectionState("reconnecting"),
+      );
+      room.on(RoomEvent.Reconnected, () => {
+        setConnectionState("connected");
+        reconnectAttemptRef.current = 0;
+      });
+
+      room.on(RoomEvent.ParticipantConnected, () => syncParticipants(room));
+      room.on(RoomEvent.ParticipantDisconnected, () =>
+        syncParticipants(room),
+      );
+      room.on(RoomEvent.TrackSubscribed, () => syncParticipants(room));
+      room.on(RoomEvent.TrackUnsubscribed, () => syncParticipants(room));
+
+      room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+        if (pub.source === Track.Source.ScreenShare) setScreenSharing(false);
+        syncParticipants(room);
+      });
+
+      // ActiveSpeakersChanged is the highest-frequency event (it fires whenever
+      // anyone starts/stops talking); throttle participant syncs + ring updates.
+      const lastSpeakRef = { t: 0 };
+      room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+        const now = Date.now();
+        if (now - lastSpeakRef.t < 150) return;
+        lastSpeakRef.t = now;
+        syncParticipants(room);
+        setSpeakerIdentity(speakers[0]?.identity ?? null);
+      });
+    },
+    [
+      syncParticipants,
+      setConnected,
+      setConnectionState,
+      setJoining,
+      setCallStartedAt,
+      setScreenSharing,
+      setSpeakerIdentity,
+      clearActiveCall,
+    ],
+  );
+
+  /** Enable the local microphone (and camera for video calls) using the user's
+   *  saved device preferences. Shared by every join path so device selection
+   *  stays consistent across initial joins and reconnects. */
+  const enableLocalMedia = useCallback(
+    async (room: LkRoom, video: boolean) => {
+      const sMic = useCallStore.getState().selectedMicrophone;
+      const constraints = buildMediaConstraints({
+        audio: true,
+        microphoneId: sMic,
+      });
+      await room.localParticipant.setMicrophoneEnabled(
+        true,
+        typeof constraints.audio === "object" ? constraints.audio : undefined,
+      );
+      if (video) {
+        const sCam = useCallStore.getState().selectedCamera;
+        await room.localParticipant.setCameraEnabled(
+          true,
+          sCam ? { deviceId: sCam } : undefined,
+        );
+        setCameraEnabled(true);
+      }
+    },
+    [setCameraEnabled],
+  );
+
   const joinCall = useCallback(
     async (roomId: string, channelId: string) => {
       // Cancel any in-progress reconnect attempt.
@@ -210,69 +345,20 @@ export default function CallProvider({
           dynacast: true,
         }) as unknown as LkRoom;
 
-        room.on(RoomEvent.Connected, () => {
-          setConnected(true);
-          setJoining(false);
-          setCallStartedAt(Date.now());
-          reconnectAttemptRef.current = 0;
-          reconnectAbortRef.current = false;
-          syncParticipants(room);
-        });
-
-        // DuplicateIdentity: another device joined with the same identity.
-        room.on(RoomEvent.Disconnected, (reason) => {
-          setConnected(false);
-          if (intentionalLeaveRef.current || reason === "DUPLICATE_IDENTITY") {
-            clearActiveCall();
-            lkRoomRef.current = null;
-            lastJoinParamsRef.current = null;
-            return;
-          }
-          // Otherwise: attempt reconnect with exponential backoff.
-          lkRoomRef.current = null;
-          attemptReconnectRef.current();
-        });
-
-        room.on(RoomEvent.Reconnecting, () =>
-          setConnectionState("reconnecting"),
+        registerRoomListeners(
+          room,
+          {
+            sessionId,
+            isDmCall: false,
+            onDisconnected: () => attemptReconnectRef.current(),
+          },
+          RoomEvent,
+          Track,
         );
-        room.on(RoomEvent.Reconnected, () => {
-          setConnectionState("connected");
-          reconnectAttemptRef.current = 0;
-        });
-
-        room.on(RoomEvent.ParticipantConnected, () => syncParticipants(room));
-        room.on(RoomEvent.ParticipantDisconnected, () =>
-          syncParticipants(room),
-        );
-        room.on(RoomEvent.TrackSubscribed, () => syncParticipants(room));
-        room.on(RoomEvent.TrackUnsubscribed, () => syncParticipants(room));
-
-        room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
-          if (pub.source === Track.Source.ScreenShare) setScreenSharing(false);
-          syncParticipants(room);
-        });
-
-        const lastSpeakRef = { t: 0 };
-        room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-          const now = Date.now();
-          if (now - lastSpeakRef.t < 150) return;
-          lastSpeakRef.t = now;
-          syncParticipants(room);
-          setSpeakerIdentity(speakers[0]?.identity ?? null);
-        });
 
         await room.connect(livekitUrl, token);
 
-        const sMic = useCallStore.getState().selectedMicrophone;
-        const constraints = buildMediaConstraints({
-          audio: true,
-          microphoneId: sMic,
-        });
-        await room.localParticipant.setMicrophoneEnabled(
-          true,
-          typeof constraints.audio === "object" ? constraints.audio : undefined,
-        );
+        await enableLocalMedia(room, false);
 
         lkRoomRef.current = room;
         setActiveCall(sessionId, channelId, roomId);
@@ -282,14 +368,12 @@ export default function CallProvider({
         setJoining(false);
       }
     },
-    [
+[
       clearActiveCall,
       setJoining,
-      setConnected,
-      setCallStartedAt,
-      setConnectionState,
-      setScreenSharing,
       syncParticipants,
+      enableLocalMedia,
+      registerRoomListeners,
       setActiveCall,
     ],
   );
@@ -314,7 +398,7 @@ export default function CallProvider({
       }
 
       setJoining(true);
-      lastJoinParamsRef.current = { type: "dm", directChatId };
+      lastJoinParamsRef.current = { type: "dm", directChatId, callType };
 
       try {
         const { token, livekitUrl, sessionId } = await DmCallAPI.initiate(
@@ -329,79 +413,20 @@ export default function CallProvider({
           dynacast: true,
         }) as unknown as LkRoom;
 
-        room.on(RoomEvent.Connected, () => {
-          setConnected(true);
-          setJoining(false);
-          setCallStartedAt(Date.now());
-          reconnectAttemptRef.current = 0;
-          reconnectAbortRef.current = false;
-          syncParticipants(room);
-          socket.emit("dmCall:livekitConnected", { sessionId });
-        });
-
-        room.on(RoomEvent.Disconnected, () => {
-          setConnected(false);
-          socket.emit("dmCall:livekitDisconnected", { sessionId });
-          if (intentionalLeaveRef.current) {
-            clearActiveCall();
-            lkRoomRef.current = null;
-            lastJoinParamsRef.current = null;
-            return;
-          }
-          lkRoomRef.current = null;
-          attemptReconnectRef.current();
-        });
-
-        room.on(RoomEvent.Reconnecting, () =>
-          setConnectionState("reconnecting"),
+        registerRoomListeners(
+          room,
+          {
+            sessionId,
+            isDmCall: true,
+            onDisconnected: () => attemptReconnectRef.current(),
+          },
+          RoomEvent,
+          Track,
         );
-        room.on(RoomEvent.Reconnected, () => {
-          setConnectionState("connected");
-          reconnectAttemptRef.current = 0;
-        });
-
-        room.on(RoomEvent.ParticipantConnected, () => syncParticipants(room));
-        room.on(RoomEvent.ParticipantDisconnected, () =>
-          syncParticipants(room),
-        );
-        room.on(RoomEvent.TrackSubscribed, () => syncParticipants(room));
-        room.on(RoomEvent.TrackUnsubscribed, () => syncParticipants(room));
-
-        room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
-          if (pub.source === Track.Source.ScreenShare) setScreenSharing(false);
-          syncParticipants(room);
-        });
-
-        const lastSpeakRef = { t: 0 };
-        room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-          const now = Date.now();
-          if (now - lastSpeakRef.t < 150) return;
-          lastSpeakRef.t = now;
-          syncParticipants(room);
-          setSpeakerIdentity(speakers[0]?.identity ?? null);
-        });
 
         await room.connect(livekitUrl, token);
 
-        const sMic = useCallStore.getState().selectedMicrophone;
-        const constraints = buildMediaConstraints({
-          audio: true,
-          microphoneId: sMic,
-        });
-        await room.localParticipant.setMicrophoneEnabled(
-          true,
-          typeof constraints.audio === "object" ? constraints.audio : undefined,
-        );
-
-        // Auto-enable camera for VIDEO calls.
-        if (callType === "VIDEO") {
-          const sCam = useCallStore.getState().selectedCamera;
-          await room.localParticipant.setCameraEnabled(
-            true,
-            sCam ? { deviceId: sCam } : undefined,
-          );
-          setCameraEnabled(true);
-        }
+        await enableLocalMedia(room, callType === "VIDEO");
 
         lkRoomRef.current = room;
         // Set both room session ID and DM-specific state.
@@ -416,14 +441,11 @@ export default function CallProvider({
     [
       clearActiveCall,
       setJoining,
-      setConnected,
-      setCallStartedAt,
-      setConnectionState,
-      setScreenSharing,
       syncParticipants,
+      enableLocalMedia,
+      registerRoomListeners,
       setActiveCall,
       setActiveDmCall,
-      setCameraEnabled,
     ],
   );
 
@@ -447,7 +469,10 @@ export default function CallProvider({
       }
 
       setJoining(true);
-      lastJoinParamsRef.current = { type: "dm", directChatId };
+      // Determine call type from store (set by incoming call info) before we
+      // record join params, so a reconnect can restore the right call type.
+      const callType = useCallStore.getState().dmCallType ?? "VOICE";
+      lastJoinParamsRef.current = { type: "dm", directChatId, callType };
 
       try {
         const { token, livekitUrl, sessionId } =
@@ -460,82 +485,20 @@ export default function CallProvider({
           dynacast: true,
         }) as unknown as LkRoom;
 
-        room.on(RoomEvent.Connected, () => {
-          setConnected(true);
-          setJoining(false);
-          setCallStartedAt(Date.now());
-          reconnectAttemptRef.current = 0;
-          reconnectAbortRef.current = false;
-          syncParticipants(room);
-          socket.emit("dmCall:livekitConnected", { sessionId });
-        });
-
-        // DuplicateIdentity: another device joined with the same identity.
-        // Treat as intentional leave — clear state, don't reconnect.
-        room.on(RoomEvent.Disconnected, (reason) => {
-          setConnected(false);
-          socket.emit("dmCall:livekitDisconnected", { sessionId });
-          if (intentionalLeaveRef.current || reason === "DUPLICATE_IDENTITY") {
-            clearActiveCall();
-            lkRoomRef.current = null;
-            lastJoinParamsRef.current = null;
-            return;
-          }
-          lkRoomRef.current = null;
-          attemptReconnectRef.current();
-        });
-
-        room.on(RoomEvent.Reconnecting, () =>
-          setConnectionState("reconnecting"),
+        registerRoomListeners(
+          room,
+          {
+            sessionId,
+            isDmCall: true,
+            onDisconnected: () => attemptReconnectRef.current(),
+          },
+          RoomEvent,
+          Track,
         );
-        room.on(RoomEvent.Reconnected, () => {
-          setConnectionState("connected");
-          reconnectAttemptRef.current = 0;
-        });
-
-        room.on(RoomEvent.ParticipantConnected, () => syncParticipants(room));
-        room.on(RoomEvent.ParticipantDisconnected, () =>
-          syncParticipants(room),
-        );
-        room.on(RoomEvent.TrackSubscribed, () => syncParticipants(room));
-        room.on(RoomEvent.TrackUnsubscribed, () => syncParticipants(room));
-
-        room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
-          if (pub.source === Track.Source.ScreenShare) setScreenSharing(false);
-          syncParticipants(room);
-        });
-
-        const lastSpeakRef = { t: 0 };
-        room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-          const now = Date.now();
-          if (now - lastSpeakRef.t < 150) return;
-          lastSpeakRef.t = now;
-          syncParticipants(room);
-          setSpeakerIdentity(speakers[0]?.identity ?? null);
-        });
 
         await room.connect(livekitUrl, token);
 
-        const sMic = useCallStore.getState().selectedMicrophone;
-        const constraints = buildMediaConstraints({
-          audio: true,
-          microphoneId: sMic,
-        });
-        await room.localParticipant.setMicrophoneEnabled(
-          true,
-          typeof constraints.audio === "object" ? constraints.audio : undefined,
-        );
-
-        // Determine call type from store (set by incoming call info).
-        const callType = useCallStore.getState().dmCallType ?? "VOICE";
-        if (callType === "VIDEO") {
-          const sCam = useCallStore.getState().selectedCamera;
-          await room.localParticipant.setCameraEnabled(
-            true,
-            sCam ? { deviceId: sCam } : undefined,
-          );
-          setCameraEnabled(true);
-        }
+        await enableLocalMedia(room, callType === "VIDEO");
 
         lkRoomRef.current = room;
         setActiveCall(sessionId, "", "");
@@ -549,14 +512,11 @@ export default function CallProvider({
     [
       clearActiveCall,
       setJoining,
-      setConnected,
-      setCallStartedAt,
-      setConnectionState,
-      setScreenSharing,
       syncParticipants,
+      enableLocalMedia,
+      registerRoomListeners,
       setActiveCall,
       setActiveDmCall,
-      setCameraEnabled,
     ],
   );
 
@@ -632,81 +592,40 @@ export default function CallProvider({
           dynacast: true,
         }) as unknown as LkRoom;
 
-        room.on(RoomEvent.Connected, () => {
-          setConnected(true);
-          setConnectionState("connected");
-          setCallStartedAt(Date.now());
-          reconnectAttemptRef.current = 0;
-          syncParticipants(room);
-          if (params.type === "dm") {
-            socket.emit("dmCall:livekitConnected", { sessionId });
-          }
-        });
-
-        // DuplicateIdentity: another device joined — treat as intentional leave.
-        room.on(RoomEvent.Disconnected, (reason) => {
-          setConnected(false);
-          lkRoomRef.current = null;
-          if (params.type === "dm") {
-            socket.emit("dmCall:livekitDisconnected", { sessionId });
-          }
-          if (intentionalLeaveRef.current || reason === "DUPLICATE_IDENTITY") {
-            clearActiveCall();
-            lastJoinParamsRef.current = null;
-            return;
-          }
-          // Only retry if not intentionally leaving and not aborted.
-          if (!reconnectAbortRef.current) {
-            attemptReconnectRef.current();
-          }
-        });
-
-        room.on(RoomEvent.Reconnecting, () =>
-          setConnectionState("reconnecting"),
+        registerRoomListeners(
+          room,
+          {
+            sessionId,
+            isDmCall: params.type === "dm",
+            onDisconnected: () => {
+              // Only retry if not intentionally leaving and not aborted.
+              if (!reconnectAbortRef.current) {
+                attemptReconnectRef.current();
+              }
+            },
+          },
+          RoomEvent,
+          Track,
         );
-        room.on(RoomEvent.Reconnected, () => {
-          setConnectionState("connected");
-          reconnectAttemptRef.current = 0;
-        });
-
-        room.on(RoomEvent.ParticipantConnected, () => syncParticipants(room));
-        room.on(RoomEvent.ParticipantDisconnected, () =>
-          syncParticipants(room),
-        );
-        room.on(RoomEvent.TrackSubscribed, () => syncParticipants(room));
-        room.on(RoomEvent.TrackUnsubscribed, () => syncParticipants(room));
-
-        room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
-          if (pub.source === Track.Source.ScreenShare) setScreenSharing(false);
-          syncParticipants(room);
-        });
-
-        const lastSpeakRef = { t: 0 };
-        room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-          const now = Date.now();
-          if (now - lastSpeakRef.t < 150) return;
-          lastSpeakRef.t = now;
-          syncParticipants(room);
-          setSpeakerIdentity(speakers[0]?.identity ?? null);
-        });
 
         await room.connect(livekitUrl, token);
 
-        const sMic = useCallStore.getState().selectedMicrophone;
-        const constraints = buildMediaConstraints({
-          audio: true,
-          microphoneId: sMic,
-        });
-        await room.localParticipant.setMicrophoneEnabled(
-          true,
-          typeof constraints.audio === "object" ? constraints.audio : undefined,
+        await enableLocalMedia(
+          room,
+          params.type === "dm" && params.callType === "VIDEO",
         );
 
         lkRoomRef.current = room;
         if (params.type === "channel") {
           setActiveCall(sessionId, params.channelId, params.roomId);
         } else {
-          setActiveDmCall(sessionId, params.directChatId, "VOICE", "ACTIVE");
+          // Preserve the original call type so video DM calls restore video.
+          setActiveDmCall(
+            sessionId,
+            params.directChatId,
+            params.callType,
+            "ACTIVE",
+          );
         }
         syncParticipants(room);
       } catch (err) {
@@ -722,13 +641,12 @@ export default function CallProvider({
     }, delay);
   }, [
     clearActiveCall,
-    setConnected,
     setConnectionState,
-    setCallStartedAt,
-    setScreenSharing,
     setActiveCall,
     setActiveDmCall,
     syncParticipants,
+    enableLocalMedia,
+    registerRoomListeners,
   ]);
 
   // Keep the ref pointing to the latest attemptReconnect so callbacks

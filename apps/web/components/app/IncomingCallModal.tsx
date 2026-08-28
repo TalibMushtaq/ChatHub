@@ -6,6 +6,7 @@ import { useCallCtx } from "./CallProvider";
 import AppAvatar from "./AppAvatar";
 import { Phone, PhoneOff } from "lucide-react";
 import { DmCallAPI } from "./api";
+import { useFocusTrap } from "./useFocusTrap";
 
 /**
  * Incoming DM call overlay — shown when another user initiates a voice/video
@@ -24,6 +25,9 @@ export default function IncomingCallModal() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const isVisible = incomingCallInfo && dmCallStatus === "INCOMING";
+
+  // Trap focus inside the modal while it's visible; restore on close.
+  const dialogRef = useFocusTrap<HTMLDivElement>(Boolean(isVisible));
 
   // Play/stop ringtone based on incoming call state.
   useEffect(() => {
@@ -60,6 +64,7 @@ export default function IncomingCallModal() {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[200] flex items-center justify-center"
       role="dialog"
       aria-modal="true"

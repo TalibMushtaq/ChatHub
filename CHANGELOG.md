@@ -1,4 +1,21 @@
-## [2026-08-27] - Phase 16: System Message Rendering (Call History)
+## [2026-08-28] - Frontend Call UI Audit Fixes
+
+**What changed:** Addressed the findings of a frontend voice/video call UI audit across `apps/web/components/app`:
+
+- **`useFocusTrap.ts` (new)**: Reusable modal focus-management hook — moves focus into a dialog on open, traps Tab/Shift+Tab inside it, and restores focus to the previously-focused element on close. Applied to `IncomingCallModal`, `CallingOverlay`, `PreJoinPreview`, and `DeviceSettingsModal` (the latter two previously lacked `role="dialog"`/`aria-modal` semantics entirely).
+- **`CallProvider.tsx`**: Extracted the duplicated LiveKit room-event wiring (Connected/Disconnected/Reconnecting/Reconnected/participant + track events/ActiveSpeakersChanged) into a single `registerRoomListeners` helper used by all four join paths, plus an `enableLocalMedia` helper for mic/camera setup. This also fixes two latent bugs: DM reconnects previously hardcoded the call type to `"VOICE"` (video calls lost camera state on reconnect) and the initial-join path never set `connectionState` to `"connected"` (widget status dot showed red after joining). DM disconnects now also treat `DUPLICATE_IDENTITY` as terminal, consistent with channel calls.
+- **`CallView.tsx`**: `handleJoin` now clears the prior error state before retrying so the loading/join UI shows again.
+- **`FloatingCallWidget.tsx`**: Fixed invalid `z-100` Tailwind class → `z-[100]`; drag-end position now reads a ref instead of possibly-stale render state.
+- **`WidgetExpanded.tsx`**: Grid columns now come from a static class map (Tailwind JIT-safe) instead of a runtime-concatenated string; removed the non-functional Document Picture-in-Picture stub button that rendered placeholder text.
+- **`PreJoinPreview.tsx`**: Added a visible warning when camera/microphone access fails (permission issues, no devices), including an "audio-only" notice when only video fails.
+
+Tests: added `tests/useFocusTrap.test.tsx` covering focus entry, Tab/Shift+Tab cycling, and focus restoration on close. Web suite 178 tests passing.
+
+**Why:** The audit found accessibility gaps (no focus trapping in call modals), a Tailwind purge risk and invalid z-index class, silent media failures in the pre-join screen, duplicated/divergent LiveKit event wiring across four call flows, and incorrect reconnect behavior that dropped video calls to voice on reconnection.
+
+**Impact:** All call overlay/modal surfaces, `CallProvider` join/reconnect flows, the floating call widget, and the pre-join preview. No public API changes; bundle unaffected (the new helper only shares already-imported logic).
+
+**Follow-ups:** Participant avatars are still hardcoded to `null` in `CallProvider.syncParticipants` — wiring real avatars needs a userId→profile lookup (server-side) and was intentionally deferred. The Playwright `calling.spec.ts` e2e tests remain stubs.
 
 **What changed:** Rendered call-history SYSTEM messages in DM and room timelines, fixed live broadcasting, and added room-call history that was previously missing.
 

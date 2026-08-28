@@ -32,9 +32,16 @@ function DraggableWidgetShell({ roomId, channelId }: DraggableWidgetProps) {
   const [pos, setPos] = useState<{ x: number; y: number }>(
     storedPos ?? defaultPos(),
   );
+  // Mirror of `pos` that survives between renders so pointer-up (which can fire
+  // before the last move re-renders) persists the latest position.
+  const posRef = useRef(pos);
   const dragging = useRef(false);
   const offset = useRef({ x: 0, y: 0 });
   const elRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    posRef.current = pos;
+  }, [pos]);
 
   const getClampedPos = useCallback((x: number, y: number) => {
     const el = elRef.current;
@@ -60,7 +67,7 @@ function DraggableWidgetShell({ roomId, channelId }: DraggableWidgetProps) {
   function onPointerUp() {
     if (!dragging.current) return;
     dragging.current = false;
-    setStoredPos(pos);
+    setStoredPos(posRef.current);
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -205,7 +212,7 @@ function DmCallWidget({ directChatId }: { directChatId: string }) {
     <div
       role="region"
       aria-label="Active DM call"
-      className="fixed bottom-4 right-4 z-100 w-72 rounded-2xl border border-border bg-surface shadow-2xl"
+      className="fixed bottom-4 right-4 z-[100] w-72 rounded-2xl border border-border bg-surface shadow-2xl"
     >
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         <div className={`w-2 h-2 rounded-full flex-none ${dotClass}`} />

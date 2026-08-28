@@ -47,6 +47,8 @@ export default function CallView({
   const [error, setError] = useState<string | null>(null);
 
   const handleJoin = useCallback(async () => {
+    // Clear the previous error so the loading state shows while retrying.
+    setError(null);
     try {
       await joinCall(roomId, channelId);
     } catch (err: unknown) {

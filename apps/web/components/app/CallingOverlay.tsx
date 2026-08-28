@@ -4,6 +4,7 @@ import { useCallStore } from "./callStore";
 import { DmCallAPI } from "./api";
 import AppAvatar from "./AppAvatar";
 import { PhoneOff, Loader2 } from "lucide-react";
+import { useFocusTrap } from "./useFocusTrap";
 
 /**
  * Outgoing DM call overlay — shown while the caller is waiting for the callee
@@ -17,8 +18,12 @@ export default function CallingOverlay() {
   const incomingCallInfo = useCallStore((s) => s.incomingCallInfo);
   const clearActiveCall = useCallStore((s) => s.clearActiveCall);
 
+  const isVisible = dmCallStatus === "OUTGOING" && !!activeDirectChatId && !incomingCallInfo;
+  // Trap focus inside the overlay while it's visible; restore on close.
+  const dialogRef = useFocusTrap<HTMLDivElement>(isVisible);
+
   // Only show when the user initiated a call and is waiting for acceptance.
-  if (dmCallStatus !== "OUTGOING" || !activeDirectChatId || incomingCallInfo) {
+  if (!isVisible) {
     return null;
   }
 
@@ -33,6 +38,7 @@ export default function CallingOverlay() {
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[200] flex items-center justify-center"
       role="dialog"
       aria-modal="true"

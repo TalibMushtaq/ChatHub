@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDeviceManager, buildMediaConstraints } from "../useDeviceManager";
 import { btnPrimary, btnGhost, fieldLabel } from "../styles";
 import { Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { useFocusTrap } from "../useFocusTrap";
 
 // Lightweight pre-join preview: local camera/mic check before connecting to LiveKit.
 // Uses local media only — no LiveKit connection until the user clicks Join.
@@ -24,6 +25,9 @@ export default function PreJoinPreview({
 
   const [localMuted, setLocalMuted] = useState(false);
   const [localCamOff, setLocalCamOff] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  const dialogRef = useFocusTrap<HTMLDivElement>(true);
 
   const {
     microphones,
@@ -48,6 +52,7 @@ export default function PreJoinPreview({
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+      setPreviewError(null);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -59,10 +64,21 @@ export default function PreJoinPreview({
             audio: constraints.audio,
           });
           streamRef.current = stream;
+          setPreviewError(
+            "Camera unavailable — you can still join audio-only.",
+          );
+          return;
         } catch {
           // No media available — user can still join audio-only.
+          setPreviewError(
+            "Couldn't access your camera or microphone. Check browser permissions — you can still join with no media.",
+          );
+          return;
         }
       }
+      setPreviewError(
+        "Couldn't access your microphone. Check browser permissions.",
+      );
     }
   }, [localMuted, localCamOff, selectedMicrophone, selectedCamera]);
 
@@ -98,7 +114,13 @@ export default function PreJoinPreview({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-2xl bg-bg border border-border p-6 flex flex-col items-center gap-4">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${channelName} pre-join`}
+        className="w-full max-w-md rounded-2xl bg-bg border border-border p-6 flex flex-col items-center gap-4"
+      >
         <h2 className="text-lg font-extrabold">{channelName}</h2>
 
         {/* Video preview */}
@@ -112,6 +134,16 @@ export default function PreJoinPreview({
           />
           {localCamOff && <div className="text-muted text-sm">Camera off</div>}
         </div>
+
+        {/* Permission / availability warning */}
+        {previewError && (
+          <div
+            role="status"
+            className="w-full rounded-xl bg-warning/10 px-3 py-2 text-[12px] font-bold text-warning"
+          >
+            {previewError}
+          </div>
+        )}
 
         {/* Device selectors */}
         <div className="w-full flex flex-col gap-3">

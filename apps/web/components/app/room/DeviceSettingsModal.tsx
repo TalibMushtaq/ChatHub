@@ -3,6 +3,7 @@
 import { useDeviceManager } from "../useDeviceManager";
 import { fieldLabel } from "../styles";
 import { X } from "lucide-react";
+import { useFocusTrap } from "../useFocusTrap";
 
 // Device settings modal: microphone, camera, speaker selection.
 // Renders inside the call view when the settings gear is clicked.
@@ -27,9 +28,12 @@ export default function DeviceSettingsModal({
     refresh,
   } = useDeviceManager();
 
+  const dialogRef = useFocusTrap<HTMLDivElement>(true);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="device-settings-title"
