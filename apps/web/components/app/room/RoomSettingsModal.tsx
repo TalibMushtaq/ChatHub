@@ -27,12 +27,15 @@ type Tab =
   | "danger";
 
 function RoomSettingsModal({ roomId }: { roomId: string }) {
-  const { toast, popModal, user } = useShell();
+  const { toast, popModal, openModal, user } = useShell();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [avatarKey, setAvatarKey] = useState<string | null>(null);
+  // Blob URL backing the avatar preview while a file is picked — tracked
+  // separately so we can revoke it and avoid leaking object URLs on each pick.
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [notificationPref, setNotificationPref] = useState<
     "ALL" | "MENTIONS" | "MUTED"
   >("ALL");
@@ -40,6 +43,10 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
   const [createdAt, setCreatedAt] = useState<string>("");
   const [ownerId, setOwnerId] = useState("");
   const deleteInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  // Last server-confirmed pref; used to roll back the optimistic radio state
+  // if the PATCH fails.
+  const confirmedPrefRef = useRef<"ALL" | "MENTIONS" | "MUTED">("ALL");
 
   useEffect(() => {
     async function fetchRoom() {
@@ -53,12 +60,21 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
 
         const membership = await ChatAPI.getRoomMemberNotificationPref(roomId);
         setNotificationPref(membership.notificationPref ?? "ALL");
+        confirmedPrefRef.current = membership.notificationPref ?? "ALL";
       } catch (err) {
         toast(getErrorMessage(err, "Failed to load room settings"), "error");
       }
     }
     fetchRoom();
   }, [roomId, toast]);
+
+  // Revoke the blob preview URL when a new one replaces it or on unmount so
+  // each avatar pick doesn't leak an object URL for the tab's lifetime.
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
 
   const isOwner = user?.id === ownerId;
 
@@ -121,11 +137,15 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
   const handleChangeNotification = async (
     pref: "ALL" | "MENTIONS" | "MUTED",
   ) => {
+    const prev = confirmedPrefRef.current;
     setNotificationPref(pref);
     try {
       await ChatAPI.updateRoomNotificationPref(roomId, pref);
+      confirmedPrefRef.current = pref;
       toast(`Notifications set to ${pref}`, "success");
     } catch (err) {
+      // Roll back the optimistic radio selection to the last confirmed pref.
+      setNotificationPref(prev);
       toast(
         getErrorMessage(err, "Failed to update notification preferences"),
         "error",
@@ -180,10 +200,19 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
     <div className="flex min-h-[500px] w-full max-w-lg">
       <div className="bg-surface overflow-hidden rounded-[16px]">
         {/* Sidebar nav */}
-        <div className="border-b border-border w-14 min-h-[500px] flex flex-col">
+        <div
+          role="tablist"
+          aria-label="Room settings"
+          aria-orientation="vertical"
+          className="border-b border-border w-14 min-h-[500px] flex flex-col"
+        >
           {tabs.map((tab) => (
             <button
               key={tab.key}
+              role="tab"
+              id={`room-settings-tab-${tab.key}`}
+              aria-selected={activeTab === tab.key}
+              aria-controls={`room-settings-panel-${tab.key}`}
               className={`flex flex-col items-center gap-1.5 px-2 py-3 text-[12px] font-medium transition-colors duration-150 ${
                 activeTab === tab.key
                   ? "bg-accent-soft text-accent-solid"
@@ -198,7 +227,13 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
         </div>
 
         {/* Content panel */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div
+          role="tabpanel"
+          id={`room-settings-panel-${activeTab}`}
+          aria-labelledby={`room-settings-tab-${activeTab}`}
+          tabIndex={0}
+          className="flex-1 p-6 overflow-y-auto"
+        >
           {/* Overview Tab */}
           {activeTab === "overview" && (
             <div className="space-y-4">
@@ -235,7 +270,12 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
                 </label>
                 <div className="flex items-center gap-3">
                   {avatarKey ? (
-                    <AppAvatar name={name} src={avatarKey} size={40} square />
+                    <AppAvatar
+                      name={name}
+                      src={avatarPreview ?? avatarKey}
+                      size={40}
+                      square
+                    />
                   ) : (
                     <div className="h-10 w-10 rounded-[6px] bg-border flex items-center justify-center text-fg/40">
                       <svg
@@ -248,18 +288,25 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
                     </div>
                   )}
                   <input
+                    ref={avatarInputRef}
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      setAvatarKey(URL.createObjectURL(file));
+                      // Replace the previous preview blob URL before creating
+                      // the new one so each pick revokes the prior object URL.
+                      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+                      const url = URL.createObjectURL(file);
+                      setAvatarPreview(url);
+                      setAvatarKey(url);
                     }}
                   />
                   <button
                     className="px-3 py-1.5 text-[11px] font-medium text-blue-600 rounded hover:bg-blue-100"
                     disabled={loading}
+                    onClick={() => avatarInputRef.current?.click()}
                   >
                     Change Avatar
                   </button>
@@ -400,12 +447,16 @@ function RoomSettingsModal({ roomId }: { roomId: string }) {
               </p>
               <div className="border-l-2 border-danger pl-3">
                 <button
-                  onClick={() => {
-                    const confirmed = window.confirm(
-                      "Are you sure you want to leave this room? You'll stop seeing its channels and messages.",
-                    );
-                    if (confirmed) handleLeaveRoom();
-                  }}
+                  onClick={() =>
+                    // In-app confirm modal (keyboard + screen-reader friendly)
+                    // instead of the blocking, unstyleable window.confirm().
+                    openModal("confirm", {
+                      title: "Leave room",
+                      text: "Are you sure you want to leave this room? You'll stop seeing its channels and messages.",
+                      danger: true,
+                      onYes: handleLeaveRoom,
+                    })
+                  }
                   className={btnBlock}
                 >
                   Leave Room

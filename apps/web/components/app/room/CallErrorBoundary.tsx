@@ -16,7 +16,12 @@ export class CallErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        // role=alert announces the crash to assistive tech instead of
+        // leaving users staring at a silent error panel.
+        <div
+          role="alert"
+          className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center"
+        >
           <p className="font-extrabold text-danger">
             Something went wrong with the voice channel.
           </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Participant, Track as TrackType } from "livekit-client";
 import { Track } from "livekit-client";
 import { MicOff, MonitorUp, User } from "lucide-react";
@@ -26,7 +26,24 @@ export default function ParticipantTile({
 }: ParticipantTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [, forceUpdate] = useState(0);
+
+  // Derived visuals (video present, screen share, muted) live in state rather
+  // than a forceUpdate counter so React re-renders only when these actually
+  // change — the anti-pattern also made debugging harder.
+  const readTrackState = useCallback(() => {
+    const pubs = participant.getTrackPublications();
+    const micPub = participant.getTrackPublication(Track.Source.Microphone);
+    return {
+      hasVideo: pubs.some(
+        (p) => p.source === Track.Source.Camera && p.track,
+      ),
+      hasScreenShare: pubs.some(
+        (p) => p.source === Track.Source.ScreenShare && p.track,
+      ),
+      isMuted: !micPub?.track || micPub.isMuted,
+    };
+  }, [participant]);
+  const [trackState, setTrackState] = useState(readTrackState);
 
   // Attach camera + screen-share video tracks to the video element.
   useEffect(() => {
@@ -49,7 +66,8 @@ export default function ParticipantTile({
       }
     };
 
-    const updateVisuals = () => forceUpdate((n) => n + 1);
+    // Refresh derived UI state whenever LiveKit mutates track publications.
+    const updateTrackState = () => setTrackState(readTrackState());
 
     attachVideo();
     participant.on("trackPublished", attachVideo);
@@ -57,32 +75,32 @@ export default function ParticipantTile({
     participant.on("trackUnsubscribed", attachVideo);
 
     // React to track state changes to update visual indicators
-    participant.on("trackPublished", updateVisuals);
-    participant.on("trackUnpublished", updateVisuals);
-    participant.on("trackSubscribed", updateVisuals);
-    participant.on("trackUnsubscribed", updateVisuals);
-    participant.on("trackMuted", updateVisuals);
-    participant.on("trackUnmuted", updateVisuals);
-    participant.on("localTrackPublished", updateVisuals);
-    participant.on("localTrackUnpublished", updateVisuals);
+    participant.on("trackPublished", updateTrackState);
+    participant.on("trackUnpublished", updateTrackState);
+    participant.on("trackSubscribed", updateTrackState);
+    participant.on("trackUnsubscribed", updateTrackState);
+    participant.on("trackMuted", updateTrackState);
+    participant.on("trackUnmuted", updateTrackState);
+    participant.on("localTrackPublished", updateTrackState);
+    participant.on("localTrackUnpublished", updateTrackState);
 
     return () => {
       participant.off("trackPublished", attachVideo);
       participant.off("trackSubscribed", attachVideo);
       participant.off("trackUnsubscribed", attachVideo);
 
-      participant.off("trackPublished", updateVisuals);
-      participant.off("trackUnpublished", updateVisuals);
-      participant.off("trackSubscribed", updateVisuals);
-      participant.off("trackUnsubscribed", updateVisuals);
-      participant.off("trackMuted", updateVisuals);
-      participant.off("trackUnmuted", updateVisuals);
-      participant.off("localTrackPublished", updateVisuals);
-      participant.off("localTrackUnpublished", updateVisuals);
+      participant.off("trackPublished", updateTrackState);
+      participant.off("trackUnpublished", updateTrackState);
+      participant.off("trackSubscribed", updateTrackState);
+      participant.off("trackUnsubscribed", updateTrackState);
+      participant.off("trackMuted", updateTrackState);
+      participant.off("trackUnmuted", updateTrackState);
+      participant.off("localTrackPublished", updateTrackState);
+      participant.off("localTrackUnpublished", updateTrackState);
 
       attached.forEach(({ track }) => track.detach(el));
     };
-  }, [participant]);
+  }, [participant, readTrackState]);
 
   // Attach microphone audio track to the audio element (remote only).
   useEffect(() => {
@@ -111,18 +129,11 @@ export default function ParticipantTile({
     };
   }, [participant, isLocal]);
 
-  const videoPubs = participant.getTrackPublications();
-  const hasVideo = videoPubs.some(
-    (p) => p.source === Track.Source.Camera && p.track,
-  );
-  const hasScreenShare = videoPubs.some(
-    (p) => p.source === Track.Source.ScreenShare && p.track,
-  );
-  const micPub = participant.getTrackPublication(Track.Source.Microphone);
-  const isMuted = !micPub?.track || micPub.isMuted;
+  const { hasVideo, hasScreenShare, isMuted } = trackState;
 
   return (
     <div
+      aria-label={`${isLocal ? `${displayName} (you)` : displayName}${isSpeaking ? ", speaking" : ""}${isMuted ? ", muted" : ""}`}
       className={`relative flex flex-col items-center justify-center rounded-xl overflow-hidden bg-surface-2 transition-all ${isSpeaking ? "ring-2 ring-[oklch(0.65_0.2_180)]" : ""}`}
     >
       {/* Video or avatar fallback */}

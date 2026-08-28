@@ -1,3 +1,23 @@
+## [2026-08-28] - Critical/High Fixes: Room Settings, Call A11y, CallProvider De-duplication
+
+**What changed:** Second-pass fixes for the critical and high-severity findings of the room/video/widget UI audit, all in `apps/web/components/app`:
+
+- **`room/RoomSettingsModal.tsx`**: Revoked the `URL.createObjectURL()` blob URL for the avatar preview on replacement/unmount (previously leaked an object URL per file pick). Replaced the blocking, inaccessible `window.confirm()` on "Leave Room" with the app's `openModal("confirm", ...)` confirm modal. Added proper tab ARIA (`role="tablist"` / `role="tab"` + `aria-selected` / `role="tabpanel"` + `aria-labelledby`, `tabIndex={0}`). The notification preference radios now roll back to the last server-confirmed value when the PATCH fails. The "Change Avatar" button now actually triggers the hidden file input (previously a no-op).
+- **`room/CallControlsBar.tsx`**: Added `aria-label` + `aria-pressed` to all six icon-only buttons (mute, deafen, camera, screen share, settings, leave) and `aria-hidden` to the inline deafen SVGs.
+- **`room/DeviceSettingsModal.tsx`**: Added `aria-label="Close device settings"` to the close button, backdrop-click-to-close, and an Escape-key handler.
+- **`room/PreJoinPreview.tsx`**: Added `aria-label` + `aria-pressed` to the mute/camera toggles and backdrop-click-to-cancel.
+- **`room/CallErrorBoundary.tsx`**: Added `role="alert"` so crash fallback is announced.
+- **`IncomingCallModal.tsx`**: Added a visually-hidden `aria-live="assertive"` announcement ("Incoming voice/video call from …") for screen-reader users who can't hear the ringtone.
+- **`room/ParticipantTile.tsx`**: Replaced the `forceUpdate` counter anti-pattern with explicit derived track state (`readTrackState` via `useCallback` → `useState`), re-rendering only when video/screen-share/mute actually change; added an `aria-label` describing participant name/speaking/muted state.
+- **`room/WidgetMobileDocked.tsx`**: Added a focus trap to the open bottom sheet plus `role="dialog"` / `aria-modal="true"`; added a keyboard-accessible close button; the docked bar is now `inert` while the sheet is open so it leaves the tab order/a11y tree; all mute/leave buttons gained `aria-label`/`aria-pressed`.
+- **`CallProvider.tsx`**: Extracted the ~90-line shared join path into a single `joinLiveKitRoom` helper used by `joinCall`, `initiateDmCall`, and `joinDmCall` (was ~80% copy-pasted). `toggleDeafen` now uses the destructured `setDeafened` store action instead of `useCallStore.getState()`.
+
+**Why:** The audit flagged a blob-URL memory leak, an inaccessible native confirm, missing `aria-label`s on icon-only controls, a mobile bottom sheet with no focus trap, an error boundary that never announced failures, an incoming-call overlay silent to screen readers, a `forceUpdate` render anti-pattern, and three near-identical LiveKit join flows that could drift.
+
+**Impact:** Web only. Room settings (avatar preview, leave-room confirm, notification rollback, tab semantics), all call-control surfaces, the mobile call widget, and `CallProvider` join/reconnect flows. No API changes; the shared join helper reuses already-imported logic, so bundle is unaffected. Verification: `pnpm -F web check-types`, `pnpm -F web lint` (0 warnings), `pnpm -F web test` (178 passing).
+
+**Follow-ups:** The avatar file pick still sends the local blob URL as `avatarKey` rather than uploading — a real upload endpoint is a separate task. Playwright `calling.spec.ts`/`room-flow.spec.ts` e2e tests remain stubs.
+
 ## [2026-08-28] - Frontend Call UI Audit Fixes
 
 **What changed:** Addressed the findings of a frontend voice/video call UI audit across `apps/web/components/app`:

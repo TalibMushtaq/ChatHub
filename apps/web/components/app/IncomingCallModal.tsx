@@ -62,6 +62,9 @@ export default function IncomingCallModal() {
 
   if (!isVisible) return null;
 
+  const callerName =
+    incomingCallInfo.caller.displayName ?? incomingCallInfo.caller.username;
+
   return (
     <div
       ref={dialogRef}
@@ -73,21 +76,23 @@ export default function IncomingCallModal() {
       {/* Backdrop — semi-opaque, no click-to-dismiss (must explicitly accept/decline). */}
       <div className="absolute inset-0 bg-[oklch(0_0_0/0.65)]" />
 
+      {/* Screen-reader announcement for users who can't hear the ringtone. */}
+      <p className="sr-only" role="status" aria-live="assertive">
+        Incoming {incomingCallInfo.callType === "VIDEO" ? "video" : "voice"}{" "}
+        call from {callerName}
+      </p>
+
       {/* Card */}
       <div className="relative z-10 flex w-[min(380px,90vw)] flex-col items-center gap-5 rounded-[28px] border border-border bg-surface px-8 py-10 text-center shadow-2xl animate-[rise_.24s_cubic-bezier(.2,.8,.2,1)]">
         <AppAvatar
-          name={
-            incomingCallInfo.caller.displayName ??
-            incomingCallInfo.caller.username
-          }
+          name={callerName}
           src={incomingCallInfo.caller.avatar}
           size={80}
         />
 
         <div>
           <div className="text-[18px] font-extrabold text-fg">
-            {incomingCallInfo.caller.displayName ??
-              incomingCallInfo.caller.username}
+            {callerName}
           </div>
           <div className="mt-1 text-[13px] text-muted">
             {incomingCallInfo.callType === "VIDEO" ? "Video" : "Voice"} call

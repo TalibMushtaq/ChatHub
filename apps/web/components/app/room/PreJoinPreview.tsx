@@ -113,13 +113,19 @@ export default function PreJoinPreview({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    // Backdrop click cancels the pre-join; the dialog stops propagation so
+    // clicks inside the card don't dismiss it.
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onCancel}
+    >
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${channelName} pre-join`}
         className="w-full max-w-md rounded-2xl bg-bg border border-border p-6 flex flex-col items-center gap-4"
+        onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-extrabold">{channelName}</h2>
 
@@ -189,6 +195,8 @@ export default function PreJoinPreview({
             onClick={toggleMute}
             className={`p-3 rounded-full transition-colors ${localMuted ? "bg-danger-soft text-danger" : "bg-surface-2 text-fg hover:bg-surface-3"}`}
             title={localMuted ? "Unmute" : "Mute"}
+            aria-label={localMuted ? "Unmute" : "Mute"}
+            aria-pressed={localMuted}
           >
             {localMuted ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
@@ -196,6 +204,8 @@ export default function PreJoinPreview({
             onClick={toggleCam}
             className={`p-3 rounded-full transition-colors ${localCamOff ? "bg-danger-soft text-danger" : "bg-surface-2 text-fg hover:bg-surface-3"}`}
             title={localCamOff ? "Turn camera on" : "Turn camera off"}
+            aria-label={localCamOff ? "Turn camera on" : "Turn camera off"}
+            aria-pressed={localCamOff}
           >
             {localCamOff ? <VideoOff size={20} /> : <Video size={20} />}
           </button>

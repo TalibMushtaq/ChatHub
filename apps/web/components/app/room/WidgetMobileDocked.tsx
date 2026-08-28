@@ -4,9 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import { useShell } from "../state";
 import { useCallStore } from "../callStore";
 import { useCallCtx } from "../CallProvider";
-import { Mic, MicOff, PhoneOff, MonitorUp, Loader2 } from "lucide-react";
+import { Mic, MicOff, PhoneOff, MonitorUp, Loader2, X } from "lucide-react";
 import { iconBtn } from "../styles";
 import ParticipantTile from "./ParticipantTile";
+import { useFocusTrap } from "../useFocusTrap";
 
 function CallTimer() {
   const startedAt = useCallStore((s) => s.callStartedAt);
@@ -48,6 +49,10 @@ export default function WidgetMobileDocked({
   } = useCallCtx();
   const { isMuted, connectionState, isScreenSharing } = useCallStore();
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Trap keyboard focus inside the bottom sheet while it's open so users
+  // can't Tab behind it into the page.
+  const sheetRef = useFocusTrap<HTMLDivElement>(sheetOpen);
 
   const room = roomList.find((r) => r.roomId === roomId);
   const roomName = room?.name ?? "Room";
@@ -91,7 +96,8 @@ export default function WidgetMobileDocked({
 
   return (
     <>
-      {/* Docked Bar */}
+      {/* Docked Bar — inert while the sheet is open so it's removed from the
+          tab order and the accessibility tree when hidden off-screen. */}
       <div
         className="fixed inset-x-0 z-[19] bg-surface border-t border-border px-3 py-2 flex items-center gap-2 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] transition-transform duration-300"
         style={{
@@ -100,6 +106,7 @@ export default function WidgetMobileDocked({
         }}
         role="region"
         aria-label="Active call"
+        inert={sheetOpen}
       >
         <button
           className="flex-1 text-left flex items-center gap-2 min-w-0"
@@ -115,6 +122,7 @@ export default function WidgetMobileDocked({
         <button
           onClick={toggleMute}
           aria-pressed={isMuted}
+          aria-label={isMuted ? "Unmute" : "Mute"}
           className={`${iconBtn} p-2 rounded-full flex-none ${isMuted ? "bg-danger-soft text-danger" : ""}`}
         >
           {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
@@ -123,6 +131,7 @@ export default function WidgetMobileDocked({
         <button
           onClick={leaveCall}
           className="p-2 rounded-full bg-danger text-white flex-none hover:bg-danger/80 ml-1"
+          aria-label="Leave call"
         >
           <PhoneOff size={14} />
         </button>
@@ -138,6 +147,10 @@ export default function WidgetMobileDocked({
 
       {/* Bottom Sheet */}
       <div
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Active call in ${channelName}`}
         className={`fixed inset-x-0 bottom-0 z-[80] bg-surface rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out flex flex-col max-h-[85vh] ${
           sheetOpen ? "translate-y-0" : "translate-y-full"
         }`}
@@ -156,6 +169,15 @@ export default function WidgetMobileDocked({
             {channelName}
           </span>
           <span className="text-xs text-muted">{roomName}</span>
+          {/* Keyboard/screen-reader close affordance — scrim + swipe are the
+              only other ways to dismiss the sheet. */}
+          <button
+            onClick={() => setSheetOpen(false)}
+            className="p-1.5 rounded-full hover:bg-surface-2 transition-colors"
+            aria-label="Close call panel"
+          >
+            <X size={16} />
+          </button>
         </div>
 
         {isScreenSharing && (
@@ -192,6 +214,8 @@ export default function WidgetMobileDocked({
           <button
             onClick={toggleMute}
             className={`${iconBtn} p-3.5 rounded-full ${isMuted ? "bg-danger-soft text-danger" : "bg-surface-2"}`}
+            aria-label={isMuted ? "Unmute" : "Mute"}
+            aria-pressed={isMuted}
           >
             {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
@@ -199,6 +223,7 @@ export default function WidgetMobileDocked({
           <button
             onClick={leaveCall}
             className="p-3.5 rounded-full bg-danger text-white ml-4 shadow-lg shadow-danger/20"
+            aria-label="Leave call"
           >
             <PhoneOff size={18} />
           </button>

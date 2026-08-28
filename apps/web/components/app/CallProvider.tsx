@@ -120,6 +120,7 @@ export default function CallProvider({
     clearActiveCall,
     setCallStartedAt,
     setMuted,
+    setDeafened,
     setCameraEnabled,
     setActiveDmCall,
     setIncomingCallInfo,
@@ -306,8 +307,26 @@ export default function CallProvider({
     [setCameraEnabled],
   );
 
-  const joinCall = useCallback(
-    async (roomId: string, channelId: string) => {
+  /**
+   * Shared join path for channel, DM-initiate, and DM-accept flows. These
+   * three callers previously copy-pasted ~90 identical lines (reconnect
+   * cancellation, the single-call constraint, LiveKit connect, post-connect
+   * state mutations) that could drift apart. Each caller supplies only what
+   * differs: credentials fetch, join params, the video flag, and the active
+   * call bookkeeping.
+   */
+  const joinLiveKitRoom = useCallback(
+    async (opts: {
+      kind: "channel" | "dm";
+      getCredentials: () => Promise<{
+        token: string;
+        livekitUrl: string;
+        sessionId: string;
+      }>;
+      setActive: (sessionId: string) => void;
+      video: boolean;
+      recordJoinParams: () => void;
+    }) => {
       // Cancel any in-progress reconnect attempt.
       reconnectAbortRef.current = true;
       if (reconnectTimerRef.current) {
@@ -317,7 +336,7 @@ export default function CallProvider({
       reconnectAttemptRef.current = 0;
       intentionalLeaveRef.current = false;
 
-      // Single call constraint
+      // Single call constraint: disconnect any existing call.
       if (lkRoomRef.current) {
         await lkRoomRef.current.disconnect();
         lkRoomRef.current = null;
@@ -325,13 +344,10 @@ export default function CallProvider({
       }
 
       setJoining(true);
-      lastJoinParamsRef.current = { type: "channel", roomId, channelId };
+      opts.recordJoinParams();
 
       try {
-        const { token, livekitUrl, sessionId } = await CallAPI.joinToken(
-          roomId,
-          channelId,
-        );
+        const { token, livekitUrl, sessionId } = await opts.getCredentials();
 
         // Dynamic import: livekit-client is only loaded when a call is joined.
         const { Room, RoomEvent, Track } = await import("livekit-client");
@@ -345,7 +361,7 @@ export default function CallProvider({
           room,
           {
             sessionId,
-            isDmCall: false,
+            isDmCall: opts.kind === "dm",
             onDisconnected: () => attemptReconnectRef.current(),
           },
           RoomEvent,
@@ -354,13 +370,13 @@ export default function CallProvider({
 
         await room.connect(livekitUrl, token);
 
-        await enableLocalMedia(room, false);
+        await enableLocalMedia(room, opts.video);
 
         lkRoomRef.current = room;
-        setActiveCall(sessionId, channelId, roomId);
+        opts.setActive(sessionId);
         syncParticipants(room);
       } catch (err) {
-        console.error("Failed to join call", err);
+        console.error(`Failed to join ${opts.kind} call`, err);
         setJoining(false);
       }
     },
@@ -370,150 +386,64 @@ export default function CallProvider({
       syncParticipants,
       enableLocalMedia,
       registerRoomListeners,
-      setActiveCall,
     ],
+  );
+
+  const joinCall = useCallback(
+    async (roomId: string, channelId: string) => {
+      await joinLiveKitRoom({
+        kind: "channel",
+        video: false,
+        recordJoinParams: () => {
+          lastJoinParamsRef.current = { type: "channel", roomId, channelId };
+        },
+        getCredentials: () => CallAPI.joinToken(roomId, channelId),
+        setActive: (sessionId) => setActiveCall(sessionId, channelId, roomId),
+      });
+    },
+    [joinLiveKitRoom, setActiveCall],
   );
 
   /** Initiate a DM call — creates a session, caller gets token and connects to LiveKit. */
   const initiateDmCall = useCallback(
     async (directChatId: string, callType: DmCallType) => {
-      // Cancel any in-progress reconnect attempt.
-      reconnectAbortRef.current = true;
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-      reconnectAttemptRef.current = 0;
-      intentionalLeaveRef.current = false;
-
-      // Single call constraint: disconnect any existing call.
-      if (lkRoomRef.current) {
-        await lkRoomRef.current.disconnect();
-        lkRoomRef.current = null;
-        clearActiveCall();
-      }
-
-      setJoining(true);
-      lastJoinParamsRef.current = { type: "dm", directChatId, callType };
-
-      try {
-        const { token, livekitUrl, sessionId } = await DmCallAPI.initiate(
-          directChatId,
-          callType,
-        );
-
-        const { Room, RoomEvent, Track } = await import("livekit-client");
-
-        const room = new Room({
-          adaptiveStream: true,
-          dynacast: true,
-        }) as unknown as LkRoom;
-
-        registerRoomListeners(
-          room,
-          {
-            sessionId,
-            isDmCall: true,
-            onDisconnected: () => attemptReconnectRef.current(),
-          },
-          RoomEvent,
-          Track,
-        );
-
-        await room.connect(livekitUrl, token);
-
-        await enableLocalMedia(room, callType === "VIDEO");
-
-        lkRoomRef.current = room;
-        // Set both room session ID and DM-specific state.
-        setActiveCall(sessionId, "", "");
-        setActiveDmCall(sessionId, directChatId, callType, "OUTGOING");
-        syncParticipants(room);
-      } catch (err) {
-        console.error("Failed to initiate DM call", err);
-        setJoining(false);
-      }
+      await joinLiveKitRoom({
+        kind: "dm",
+        video: callType === "VIDEO",
+        recordJoinParams: () => {
+          lastJoinParamsRef.current = { type: "dm", directChatId, callType };
+        },
+        getCredentials: () => DmCallAPI.initiate(directChatId, callType),
+        setActive: (sessionId) => {
+          // Set both room session ID and DM-specific state.
+          setActiveCall(sessionId, "", "");
+          setActiveDmCall(sessionId, directChatId, callType, "OUTGOING");
+        },
+      });
     },
-    [
-      clearActiveCall,
-      setJoining,
-      syncParticipants,
-      enableLocalMedia,
-      registerRoomListeners,
-      setActiveCall,
-      setActiveDmCall,
-    ],
+    [joinLiveKitRoom, setActiveCall, setActiveDmCall],
   );
 
   /** Join an already-accepted DM call — callee obtains a token and connects to LiveKit. */
   const joinDmCall = useCallback(
     async (directChatId: string) => {
-      // Cancel any in-progress reconnect attempt.
-      reconnectAbortRef.current = true;
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-      reconnectAttemptRef.current = 0;
-      intentionalLeaveRef.current = false;
-
-      // Single call constraint: disconnect any existing call.
-      if (lkRoomRef.current) {
-        await lkRoomRef.current.disconnect();
-        lkRoomRef.current = null;
-        clearActiveCall();
-      }
-
-      setJoining(true);
       // Determine call type from store (set by incoming call info) before we
       // record join params, so a reconnect can restore the right call type.
       const callType = useCallStore.getState().dmCallType ?? "VOICE";
-      lastJoinParamsRef.current = { type: "dm", directChatId, callType };
-
-      try {
-        const { token, livekitUrl, sessionId } =
-          await DmCallAPI.join(directChatId);
-
-        const { Room, RoomEvent, Track } = await import("livekit-client");
-
-        const room = new Room({
-          adaptiveStream: true,
-          dynacast: true,
-        }) as unknown as LkRoom;
-
-        registerRoomListeners(
-          room,
-          {
-            sessionId,
-            isDmCall: true,
-            onDisconnected: () => attemptReconnectRef.current(),
-          },
-          RoomEvent,
-          Track,
-        );
-
-        await room.connect(livekitUrl, token);
-
-        await enableLocalMedia(room, callType === "VIDEO");
-
-        lkRoomRef.current = room;
-        setActiveCall(sessionId, "", "");
-        setActiveDmCall(sessionId, directChatId, callType, "ACTIVE");
-        syncParticipants(room);
-      } catch (err) {
-        console.error("Failed to join DM call", err);
-        setJoining(false);
-      }
+      await joinLiveKitRoom({
+        kind: "dm",
+        video: callType === "VIDEO",
+        recordJoinParams: () => {
+          lastJoinParamsRef.current = { type: "dm", directChatId, callType };
+        },
+        getCredentials: () => DmCallAPI.join(directChatId),
+        setActive: (sessionId) => {
+          setActiveCall(sessionId, "", "");
+          setActiveDmCall(sessionId, directChatId, callType, "ACTIVE");
+        },
+      });
     },
-    [
-      clearActiveCall,
-      setJoining,
-      syncParticipants,
-      enableLocalMedia,
-      registerRoomListeners,
-      setActiveCall,
-      setActiveDmCall,
-    ],
+    [joinLiveKitRoom, setActiveCall, setActiveDmCall],
   );
 
   /** Accept an incoming DM call — signals acceptance then joins LiveKit. */
@@ -706,9 +636,9 @@ export default function CallProvider({
       await room.localParticipant.setMicrophoneEnabled(false);
       setMuted(true);
     }
-    useCallStore.getState().setDeafened(newDeafened);
+    setDeafened(newDeafened);
     syncParticipants(room);
-  }, [setMuted, syncParticipants]);
+  }, [setMuted, setDeafened, syncParticipants]);
 
   const toggleCamera = useCallback(async () => {
     const room = lkRoomRef.current;

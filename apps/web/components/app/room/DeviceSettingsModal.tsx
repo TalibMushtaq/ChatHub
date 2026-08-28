@@ -4,6 +4,7 @@ import { useDeviceManager } from "../useDeviceManager";
 import { fieldLabel } from "../styles";
 import { X } from "lucide-react";
 import { useFocusTrap } from "../useFocusTrap";
+import { useEffect } from "react";
 
 // Device settings modal: microphone, camera, speaker selection.
 // Renders inside the call view when the settings gear is clicked.
@@ -30,14 +31,29 @@ export default function DeviceSettingsModal({
 
   const dialogRef = useFocusTrap<HTMLDivElement>(true);
 
+  // Close on Escape, matching native dialog behavior for keyboard users.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    // Backdrop click closes the dialog; inner dialog stops propagation so
+    // clicking inside the card never bubbles up to dismiss it.
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+    >
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="device-settings-title"
         className="w-full max-w-sm rounded-2xl bg-bg border border-border p-5 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <h3 id="device-settings-title" className="text-base font-extrabold">
@@ -46,6 +62,7 @@ export default function DeviceSettingsModal({
           <button
             onClick={onClose}
             className="p-1 rounded-full hover:bg-surface-2 transition-colors"
+            aria-label="Close device settings"
           >
             <X size={16} />
           </button>
