@@ -91,9 +91,7 @@ export default function IncomingCallModal() {
         />
 
         <div>
-          <div className="text-[18px] font-extrabold text-fg">
-            {callerName}
-          </div>
+          <div className="text-[18px] font-extrabold text-fg">{callerName}</div>
           <div className="mt-1 text-[13px] text-muted">
             {incomingCallInfo.callType === "VIDEO" ? "Video" : "Voice"} call
           </div>

@@ -34,9 +34,7 @@ export default function ParticipantTile({
     const pubs = participant.getTrackPublications();
     const micPub = participant.getTrackPublication(Track.Source.Microphone);
     return {
-      hasVideo: pubs.some(
-        (p) => p.source === Track.Source.Camera && p.track,
-      ),
+      hasVideo: pubs.some((p) => p.source === Track.Source.Camera && p.track),
       hasScreenShare: pubs.some(
         (p) => p.source === Track.Source.ScreenShare && p.track,
       ),
