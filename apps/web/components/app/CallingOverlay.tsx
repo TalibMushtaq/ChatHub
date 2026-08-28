@@ -18,7 +18,8 @@ export default function CallingOverlay() {
   const incomingCallInfo = useCallStore((s) => s.incomingCallInfo);
   const clearActiveCall = useCallStore((s) => s.clearActiveCall);
 
-  const isVisible = dmCallStatus === "OUTGOING" && !!activeDirectChatId && !incomingCallInfo;
+  const isVisible =
+    dmCallStatus === "OUTGOING" && !!activeDirectChatId && !incomingCallInfo;
   // Trap focus inside the overlay while it's visible; restore on close.
   const dialogRef = useFocusTrap<HTMLDivElement>(isVisible);
 

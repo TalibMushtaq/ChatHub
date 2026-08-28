@@ -241,18 +241,14 @@ export default function CallProvider({
         opts.onDisconnected?.();
       });
 
-      room.on(RoomEvent.Reconnecting, () =>
-        setConnectionState("reconnecting"),
-      );
+      room.on(RoomEvent.Reconnecting, () => setConnectionState("reconnecting"));
       room.on(RoomEvent.Reconnected, () => {
         setConnectionState("connected");
         reconnectAttemptRef.current = 0;
       });
 
       room.on(RoomEvent.ParticipantConnected, () => syncParticipants(room));
-      room.on(RoomEvent.ParticipantDisconnected, () =>
-        syncParticipants(room),
-      );
+      room.on(RoomEvent.ParticipantDisconnected, () => syncParticipants(room));
       room.on(RoomEvent.TrackSubscribed, () => syncParticipants(room));
       room.on(RoomEvent.TrackUnsubscribed, () => syncParticipants(room));
 
@@ -368,7 +364,7 @@ export default function CallProvider({
         setJoining(false);
       }
     },
-[
+    [
       clearActiveCall,
       setJoining,
       syncParticipants,
