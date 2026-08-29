@@ -1,6 +1,7 @@
 ## [2026-08-29] - Stop "publisher data channel closed unexpectedly" Errors on Call Teardown
 
 **What changed:**
+
 - `apps/web/components/app/callStore.ts`: added an `endCallRequest` counter and a `requestEndCall()` store action as a remote-hangup signal.
 - `apps/web/components/app/CallProvider.tsx`: subscribes to `endCallRequest`; on change it marks the leave as intentional, cancels any reconnect timer, disconnects the current LiveKit `Room`, clears reconnect params, and calls `clearActiveCall()`.
 - `apps/web/components/app/AppShell.tsx`: the `dmCall:ended`, `call.ended`, self `call.participant.kicked`, caller `dmCall:declined`, and session-matching `dmCall:error` handlers now call `requestEndCall()` instead of only clearing the store.
