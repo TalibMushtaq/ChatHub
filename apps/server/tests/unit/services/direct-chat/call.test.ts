@@ -142,7 +142,11 @@ describe("DM call service", () => {
       expect(result).toEqual({ sessionId: "sess1" });
       expect(prismaMock.callSession.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { directChatId: "dc1", status: "RINGING", endedAt: null },
+          where: {
+            directChatId: "dc1",
+            status: { in: ["RINGING", "ACTIVE"] },
+            endedAt: null,
+          },
         }),
       );
     });

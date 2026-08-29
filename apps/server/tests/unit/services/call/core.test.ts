@@ -257,7 +257,11 @@ describe("shared call core", () => {
       expect(prismaMock.callSession.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: "sess1" },
-          data: { endedAt: expect.any(Date), outcome: "COMPLETED" },
+          data: {
+            endedAt: expect.any(Date),
+            status: "ENDED",
+            outcome: "COMPLETED",
+          },
         }),
       );
     });
@@ -510,7 +514,11 @@ describe("shared call core", () => {
 
       expect(prismaMock.callSession.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { endedAt: expect.any(Date), outcome: "COMPLETED" },
+          data: {
+            endedAt: expect.any(Date),
+            status: "ENDED",
+            outcome: "COMPLETED",
+          },
         }),
       );
     });
