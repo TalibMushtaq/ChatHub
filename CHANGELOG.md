@@ -1,3 +1,33 @@
+## [2026-08-29] - Fix DM Call 404 on Accept/Join and Phantom Active Sessions
+
+**What changed:** In `apps/server/src/services/direct-chat/call.ts`, `acceptDmCall` now matches sessions with `status` `RINGING` **or** `ACTIVE` (previously only `RINGING`), consistent with `joinDmCall`. In `apps/server/src/services/call/core.ts`, all three session-ending paths that set `endedAt` without flipping `status` now also set `status: "ENDED"`: `endSessionIfEmpty`, `reapStaleParticipants`, and `endAllActiveSessions`. Applied a one-time data repair to the `CallSession` table (`UPDATE … SET status = 'ENDED' WHERE endedAt IS NOT NULL AND status IN ('RINGING','ACTIVE')`).
+
+**Why:** When a call's clients disconnect without hitting the REST `leave` endpoint (e.g. page reload), the session stays `ACTIVE` with `endedAt` NULL. A new initiate then reuses that session via `createOrReuseSession`'s P2002 fallback, and the callee's `acceptDmCall` 404'd (`NO_ACTIVE_CALL`) because it only matched `RINGING`. Separately, sessions ended without `status: "ENDED"` (server restart cleanup, empty-session end, stale-participant reap) left phantom `RINGING`/`ACTIVE` rows that still occupy the partial unique active-session index, causing `P2002` conflicts (500) on the next call for that chat.
+
+**Impact:** Server + database only. DM call accept now succeeds when reusing an active session; ended sessions are correctly excluded from the partial unique index so new calls create fresh sessions. Existing phantom rows were repaired. Verified end-to-end via the `initiateDmCall`/`acceptDmCall` services (initiate → accept → cleanup all OK); server `check-types` and `lint` pass.
+
+**Follow-ups:** The running dev server must restart (tsx watch will pick this up) for the changes to take effect.
+
+## [2026-08-29] - Fix getUserMedia OverconstrainedError from Stale Device Prefs
+
+**What changed:** In `apps/web/components/app/useDeviceManager.ts`, `buildMediaConstraints` now uses `deviceId: { ideal: ... }` instead of `deviceId: { exact: ... }` for both the microphone and camera constraints.
+
+**Why:** An `exact` deviceId constraint makes `getUserMedia` reject with `OverconstrainedError: Constraints could not be satisfied` when the saved device (from `localStorage` prefs) is no longer present — unplugged, or remembered from another browser/OS. This crashed DM call initiation (`CallProvider.enableLocalMedia` → LiveKit `setMicrophoneEnabled`) and the channel pre-join preview. `ideal` never throws; the browser picks the closest match or falls back to any device.
+
+**Impact:** Web only. Both call sites routed through the shared `buildMediaConstraints` are fixed (CallProvider mic enable + PreJoinPreview preview). Users with stale mic/camera prefs now fall back to a working device instead of a failed call join.
+
+**Follow-ups:** None.
+
+## [2026-08-29] - Apply Pending DM-Call Migration and Fix CallSession Enum Columns
+
+**What changed:** Applied the never-applied migration `apps/server/db/migrations/20260827000000_add_dm_call_support` (added `CallSession.directChatId/callType/status/outcome/connectedAt` and `Message.metadata`), which had been causing `PrismaClientKnownRequestError` failures in `apps/server/src/services/call/core.ts:327` (`timeoutRingingCalls`) and `apps/server/src/services/room/getMessages.ts:49`. Added a corrective migration `apps/server/db/migrations/20260829000000_fix_call_enum_columns` that creates the `CallType`/`CallStatus`/`CallOutcome` enum types and converts the previously TEXT `CallSession.callType`/`status`/`outcome` columns to them, recreating the partial unique active-session indexes with enum-compatible predicates.
+
+**Why:** The DB was missing the DM-call columns entirely, and the hand-written original migration declared `callType`/`status`/`outcome` as TEXT while `schema.prisma` declares them as enums; Prisma's query engine emits `::"CallStatus"` casts, so every call query failed with `type "public.CallStatus" does not exist` (also surfaced as a 500 on `POST /dm/:directChatId/call/initiate`).
+
+**Impact:** Server + database only. `CallSession` now matches the Prisma schema (enum types, `callType` default `VOICE`, `status` default `RINGING`), fixing DM/room call initiation, ringing timeout, and message-history queries. One existing row (callType `VOICE`, status `ACTIVE`) was converted cleanly. No application code changes.
+
+**Follow-ups:** None — migration history is now consistent with `schema.prisma`; future `prisma migrate dev` runs should report no drift.
+
 ## [2026-08-28] - Critical/High Fixes: Room Settings, Call A11y, CallProvider De-duplication
 
 **What changed:** Second-pass fixes for the critical and high-severity findings of the room/video/widget UI audit, all in `apps/web/components/app`:

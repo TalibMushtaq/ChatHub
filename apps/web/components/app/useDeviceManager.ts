@@ -129,13 +129,15 @@ export function buildMediaConstraints(opts: {
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
-      ...(opts.microphoneId ? { deviceId: { exact: opts.microphoneId } } : {}),
+      // ponytail: ideal (not exact) so a stale saved deviceId never throws
+      // OverconstrainedError — the browser falls back to any device.
+      ...(opts.microphoneId ? { deviceId: { ideal: opts.microphoneId } } : {}),
     };
   }
 
   if (opts.video) {
     constraints.video = opts.cameraId
-      ? { deviceId: { exact: opts.cameraId } }
+      ? { deviceId: { ideal: opts.cameraId } }
       : true;
   }
 

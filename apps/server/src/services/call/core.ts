@@ -142,9 +142,11 @@ export async function endSessionIfEmpty(
     });
 
     if (remaining === 0) {
+      // Set status ENDED so the partial unique active-session index no longer
+      // counts this session (avoids blocking new calls with a P2002 conflict).
       await tx.callSession.update({
         where: { id: sessionId },
-        data: { endedAt: new Date(), outcome: "COMPLETED" },
+        data: { endedAt: new Date(), status: "ENDED", outcome: "COMPLETED" },
       });
       log.info("Call session ended (no participants)", { sessionId });
       return { callEnded: true };
@@ -261,9 +263,11 @@ export async function reapStaleParticipants(): Promise<number> {
       where: { sessionId: session.id, leftAt: null },
     });
     if (remaining === 0) {
+      // Same as endSessionIfEmpty: mark status ENDED so the session is
+      // excluded from the partial unique index and active-call queries.
       await prisma.callSession.update({
         where: { id: session.id },
-        data: { endedAt: new Date(), outcome: "COMPLETED" },
+        data: { endedAt: new Date(), status: "ENDED", outcome: "COMPLETED" },
       });
       log.info("Call session ended during stale reap", {
         sessionId: session.id,
@@ -299,7 +303,9 @@ export async function endAllActiveSessions(): Promise<void> {
     }),
     prisma.callSession.updateMany({
       where: { id: { in: ids } },
-      data: { endedAt: new Date(), outcome: "COMPLETED" },
+      // status must flip to ENDED or the partial unique index still treats
+      // these rows as active and blocks future call creation.
+      data: { endedAt: new Date(), status: "ENDED", outcome: "COMPLETED" },
     }),
   ]);
 

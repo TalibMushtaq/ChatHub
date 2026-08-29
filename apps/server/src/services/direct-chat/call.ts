@@ -105,8 +105,11 @@ export async function acceptDmCall(
   calleeId: string,
   directChatId: string,
 ): Promise<{ sessionId: string }> {
+  // Match ACTIVE too: a new initiate reuses an existing ACTIVE session
+  // (createOrReuseSession), so the callee accepting a ringing call that was
+  // already promoted to ACTIVE must still resolve to it.
   const session = await prisma.callSession.findFirst({
-    where: { directChatId, status: "RINGING", endedAt: null },
+    where: { directChatId, status: { in: ["RINGING", "ACTIVE"] }, endedAt: null },
     select: dmCallSessionSelect,
   });
   assertDmCallSession(session);
