@@ -163,16 +163,9 @@ export async function leaveCall(
         message,
       );
     }
-
-    // Clean up the LiveKit room.
-    try {
-      const roomClient = getLiveKitRoomClient();
-      await roomClient.deleteRoom(
-        getLiveKitRoomName({ type: "channel", roomId, channelId }, session.id),
-      );
-    } catch (err) {
-      log.warn("Failed to delete LiveKit room", { error: String(err) });
-    }
+    // LiveKit room deletion is deliberately NOT done here: the route deletes
+    // the room AFTER emitting call.ended so remaining peers can disconnect
+    // gracefully instead of being force-closed by the SFU.
   }
 
   return { sessionId: session.id, callEnded };

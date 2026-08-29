@@ -27,17 +27,23 @@ vi.mock("../../../../src/middleware/socketAccess", () => ({
   assertRoomAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../../../../src/lib/livekit", () => ({
+  getLiveKitRoomClient: vi.fn(),
+}));
+
 import {
   getJoinToken,
   getActiveCall,
   getActiveCallsForRoom,
   leaveCall,
 } from "../../../../src/services/room/call";
+import { getLiveKitRoomClient } from "../../../../src/lib/livekit";
 
 const emitSpy = vi.fn();
 const ioSpy = {
   to: vi.fn(() => ({ emit: emitSpy })),
 };
+const deleteRoom = vi.fn().mockResolvedValue(undefined);
 
 function createTestApp() {
   const app = express();
@@ -65,6 +71,8 @@ describe("room call routes", () => {
     vi.clearAllMocks();
     ioSpy.to.mockClear();
     emitSpy.mockClear();
+    deleteRoom.mockClear();
+    (getLiveKitRoomClient as any).mockReturnValue({ deleteRoom });
   });
 
   it("POST join-token returns token + livekit url + room name", async () => {
@@ -205,6 +213,9 @@ describe("room call routes", () => {
       channelId: "ch1",
       sessionId: "sess1",
     });
+    // Clients get the ended signal first; only then is the LiveKit room
+    // deleted so they can disconnect gracefully.
+    expect(deleteRoom).toHaveBeenCalledWith("channel:ch1");
   });
 
   it("POST leave does not emit call.ended when session remains active", async () => {
@@ -218,6 +229,7 @@ describe("room call routes", () => {
     );
 
     expect(emitSpy).not.toHaveBeenCalledWith("call.ended", expect.anything());
+    expect(deleteRoom).not.toHaveBeenCalled();
   });
 
   it("GET active calls returns sessions", async () => {

@@ -367,7 +367,7 @@ describe("room call service", () => {
       expect(result).toBeNull();
     });
 
-    it("deletes LiveKit room when session ends", async () => {
+    it("defers LiveKit room deletion to the route", async () => {
       mockSessionEnded(true);
 
       const { getLiveKitRoomClient } =
@@ -383,7 +383,9 @@ describe("room call service", () => {
       const result = await leaveCall("u1", "r1", "ch1");
 
       expect(result).toEqual({ sessionId: "sess1", callEnded: true });
-      expect(mockClient.deleteRoom).toHaveBeenCalledWith("channel:ch1");
+      // Deletion is deferred to the route (AFTER call.ended is emitted) so the
+      // remaining peers disconnect gracefully; the service must not delete.
+      expect(mockClient.deleteRoom).not.toHaveBeenCalled();
     });
   });
 

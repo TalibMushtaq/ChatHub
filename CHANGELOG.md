@@ -1,3 +1,29 @@
+## [2026-08-29] - Stop "publisher data channel closed unexpectedly" Errors on Call Teardown
+
+**What changed:**
+- `apps/web/components/app/callStore.ts`: added an `endCallRequest` counter and a `requestEndCall()` store action as a remote-hangup signal.
+- `apps/web/components/app/CallProvider.tsx`: subscribes to `endCallRequest`; on change it marks the leave as intentional, cancels any reconnect timer, disconnects the current LiveKit `Room`, clears reconnect params, and calls `clearActiveCall()`.
+- `apps/web/components/app/AppShell.tsx`: the `dmCall:ended`, `call.ended`, self `call.participant.kicked`, caller `dmCall:declined`, and session-matching `dmCall:error` handlers now call `requestEndCall()` instead of only clearing the store.
+- `apps/web/components/app/CallingOverlay.tsx`: the caller's Cancel button calls `requestEndCall()` so cancelling disconnects the caller's own LiveKit room.
+- `apps/server/src/services/direct-chat/call.ts` and `apps/server/src/services/room/call.ts`: removed the LiveKit `deleteRoom` call from `leaveDmCall`/`leaveCall`.
+- `apps/server/src/routes/direct-chat/call.ts` and `apps/server/src/routes/room/call.ts`: now delete the LiveKit room AFTER emitting `dmCall:ended`/`call.ended`.
+
+**Why:** Every remote end-of-call signal only cleared UI state; the LiveKit `Room` stayed open until the server deleted the LiveKit room, force-closing the peer's WebRTC data channels. livekit-client logged `publisher data channel 'RELIABLE'/'LOSSY'/'DATA_TRACK_LOSSY' closed unexpectedly`, and the unexpected `Disconnected` event spun up to 5 pointless reconnect attempts (each failing with `NO_ACTIVE_CALL`). Deleting the room before signaling made the abrupt close (and the console errors) essentially guaranteed for the leave-last flow.
+
+**Impact:** Web + server + database client code only (no schema changes). Calls now tear down cleanly on both sides: the remaining peer disconnects gracefully on the `ended` signal, and the LiveKit room is deleted only afterwards so there is no SFU force-close. Cancel, decline, kick, error, and timeout flows no longer leave orphaned rooms or trigger reconnect churn.
+
+**Follow-ups:** Ringing calls that end via decline/cancel/timeout still do not delete their (empty) LiveKit rooms server-side; they are cleaned up by LiveKit's own room TTL if configured. Worth confirming LiveKit auto-purges empty rooms.
+
+## [2026-08-29] - Seed System User so Call-History Messages Pass the Message->User FK
+
+**What changed:** Added `apps/server/db/systemUser.ts` with a `SYSTEM_USER_ID` constant (`"system"`) and an idempotent `ensureSystemUser()` upsert. `apps/server/src/index.ts` `main()` now calls `ensureSystemUser()` right after the DB connectivity check (before serving traffic). `apps/server/src/services/call/history.ts` now references `SYSTEM_USER_ID` for the call-history message `senderId` instead of the inline literal.
+
+**Why:** `createCallHistoryMessage` writes SYSTEM messages with `senderId: "system"`, but no `User` row with that id exists. The `Message_senderId_fkey` (enforced, `onDelete: Cascade`) rejected every end-of-call write — e.g. `POST /api/dm/:id/call/cancel` failed with `PrismaClientKnownRequestError: Foreign key constraint violated on ... Message_senderId_fkey`, so cancelled/missed/declined calls never produced a history message.
+
+**Impact:** Server + database. Starting the server creates the missing system row (upsert, so reruns are no-ops). Call histories then persist for all outcomes. Existing DBs already containing a row are unaffected.
+
+**Follow-ups:** The `system` user is a normal `User` row and is technically discoverable via user search; if it must be hidden from the directory, add an `isSystem` flag (schema migration) and filter it from `searchUser`/presence.
+
 ## [2026-08-29] - Fix DM Call 404 on Accept/Join and Phantom Active Sessions
 
 **What changed:** In `apps/server/src/services/direct-chat/call.ts`, `acceptDmCall` now matches sessions with `status` `RINGING` **or** `ACTIVE` (previously only `RINGING`), consistent with `joinDmCall`. In `apps/server/src/services/call/core.ts`, all three session-ending paths that set `endedAt` without flipping `status` now also set `status: "ENDED"`: `endSessionIfEmpty`, `reapStaleParticipants`, and `endAllActiveSessions`. Applied a one-time data repair to the `CallSession` table (`UPDATE … SET status = 'ENDED' WHERE endedAt IS NOT NULL AND status IN ('RINGING','ACTIVE')`).

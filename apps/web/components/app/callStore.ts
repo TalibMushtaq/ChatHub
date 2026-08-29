@@ -119,6 +119,12 @@ export interface CallState {
   setDmCallConnectedAt: (t: number | null) => void;
   setIncomingCallInfo: (info: IncomingCallInfo | null) => void;
   clearDmCall: () => void;
+  // Remote-hangup signal: AppShell socket handlers bump this counter when the
+  // server ends the call (ended/cancelled/declined/kicked). CallProvider
+  // subscribes to it and tears down its LiveKit room; a bare clearActiveCall()
+  // leaves the room open until the server force-closes it.
+  endCallRequest: number;
+  requestEndCall: () => void;
 }
 
 const DEVICE_STORAGE_KEY = "chathubby:call-devices";
@@ -216,6 +222,7 @@ export const useCallStore = create<CallState>((set, get) => ({
   dmCallStartedAt: null,
   dmCallConnectedAt: null,
   incomingCallInfo: null,
+  endCallRequest: 0,
 
   setActiveCall: (sessionId, channelId, roomId) =>
     set({
@@ -318,4 +325,6 @@ export const useCallStore = create<CallState>((set, get) => ({
       dmCallConnectedAt: null,
       incomingCallInfo: null,
     }),
+  requestEndCall: () =>
+    set((state) => ({ endCallRequest: state.endCallRequest + 1 })),
 }));

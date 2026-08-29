@@ -52,6 +52,10 @@ vi.mock("../../../../src/sockets/direct-chat", () => ({
   getDirectChatRoom: (id: string) => `directChat:${id}`,
 }));
 
+vi.mock("../../../../src/lib/livekit", () => ({
+  getLiveKitRoomClient: vi.fn(),
+}));
+
 // Mock prisma for getCalleeId lookups.
 vi.mock("../../../../db/prisma", () => ({
   prisma: {
@@ -71,6 +75,7 @@ import {
   getActiveDmCall,
 } from "../../../../src/services/direct-chat/call";
 import { prisma } from "../../../../db/prisma";
+import { getLiveKitRoomClient } from "../../../../src/lib/livekit";
 
 const prismaMock = vi.mocked(prisma);
 
@@ -78,6 +83,7 @@ const emitSpy = vi.fn();
 const ioSpy = {
   to: vi.fn(() => ({ emit: emitSpy })),
 };
+const deleteRoom = vi.fn().mockResolvedValue(undefined);
 
 function createTestApp() {
   const app = express();
@@ -110,6 +116,8 @@ describe("DM call routes", () => {
       user1Id: "user-1",
       user2Id: "user-2",
     } as any);
+    deleteRoom.mockClear();
+    (getLiveKitRoomClient as any).mockReturnValue({ deleteRoom });
   });
 
   // ---------------------------------------------------------------------------
@@ -274,6 +282,9 @@ describe("DM call routes", () => {
         "dmCall:ended",
         expect.objectContaining({ outcome: "MISSED" }),
       );
+      // Clients get the ended signal first; only then is the LiveKit room
+      // deleted so they can disconnect gracefully.
+      expect(deleteRoom).toHaveBeenCalledWith("dm-call:sess1");
     });
 
     it("emits only participant.left when call does not end", async () => {
@@ -293,6 +304,7 @@ describe("DM call routes", () => {
         "dmCall:ended",
         expect.anything(),
       );
+      expect(deleteRoom).not.toHaveBeenCalled();
     });
   });
 

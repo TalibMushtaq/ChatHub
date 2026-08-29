@@ -582,6 +582,36 @@ export default function CallProvider({
     attemptReconnectRef.current = attemptReconnectFn;
   });
 
+  /**
+   * Remote-hangup teardown. AppShell bumps `endCallRequest` when the server
+   * signals the call is over (dmCall:ended / call.ended / kicked / declined /
+   * error) and when the caller cancels. Those paths used to only clear the UI
+   * store, leaving the LiveKit room open — the server then deletes the room,
+   * force-closing our data channels ("publisher data channel closed
+   * unexpectedly" console errors) and triggering needless reconnect attempts.
+   * This tears the room down first, so the close is graceful and flagged as
+   * intentional (no reconnect).
+   */
+  useEffect(() => {
+    return useCallStore.subscribe((state, prev) => {
+      if (state.endCallRequest === prev.endCallRequest) return;
+      intentionalLeaveRef.current = true;
+      reconnectAbortRef.current = true;
+      reconnectAttemptRef.current = 0;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      const room = lkRoomRef.current;
+      if (room) {
+        lkRoomRef.current = null;
+        void room.disconnect();
+      }
+      lastJoinParamsRef.current = null;
+      useCallStore.getState().clearActiveCall();
+    });
+  }, []);
+
   const leaveCall = useCallback(async () => {
     // Mark as intentional so the disconnect handler doesn't attempt reconnect.
     intentionalLeaveRef.current = true;

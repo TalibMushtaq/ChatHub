@@ -1469,7 +1469,7 @@ export default function AppShell() {
     socket.on("call.participant.kicked", (payload) => {
       const call = useCallStore.getState();
       if (payload.userId === userRef.current?.id) {
-        call.clearActiveCall();
+        call.requestEndCall();
         return;
       }
       call.setParticipantsForChannel(payload.channelId, (prev) =>
@@ -1500,7 +1500,7 @@ export default function AppShell() {
       const call = useCallStore.getState();
       call.setParticipantsForChannel(payload.channelId, []);
       if (call.activeChannelId === payload.channelId) {
-        call.clearActiveCall();
+        call.requestEndCall();
       }
     });
 
@@ -1534,7 +1534,7 @@ export default function AppShell() {
       const call = useCallStore.getState();
       // If we were the caller, toast the decline and clear.
       if (call.dmCallSessionId === payload.sessionId) {
-        call.clearActiveCall();
+        call.requestEndCall();
       }
     });
 
@@ -1561,7 +1561,7 @@ export default function AppShell() {
         call.dmCallSessionId === payload.sessionId ||
         call.activeSessionId === payload.sessionId
       ) {
-        call.clearActiveCall();
+        call.requestEndCall();
       }
     });
 
@@ -1580,7 +1580,7 @@ export default function AppShell() {
         const call = useCallStore.getState();
         // Clear call UI if the error relates to our active session.
         if (payload.sessionId && payload.sessionId === call.dmCallSessionId) {
-          call.clearActiveCall();
+          call.requestEndCall();
         }
         toast(payload.reason || "Call failed", "error");
       },

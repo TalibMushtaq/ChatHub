@@ -16,7 +16,7 @@ export default function CallingOverlay() {
   const activeDirectChatId = useCallStore((s) => s.activeDirectChatId);
   const dmCallType = useCallStore((s) => s.dmCallType);
   const incomingCallInfo = useCallStore((s) => s.incomingCallInfo);
-  const clearActiveCall = useCallStore((s) => s.clearActiveCall);
+  const requestEndCall = useCallStore((s) => s.requestEndCall);
 
   const isVisible =
     dmCallStatus === "OUTGOING" && !!activeDirectChatId && !incomingCallInfo;
@@ -34,7 +34,9 @@ export default function CallingOverlay() {
     } catch {
       // Best-effort — server may have already timed out.
     }
-    clearActiveCall();
+    // requestEndCall also disconnects the caller's LiveKit room instead of
+    // just clearing the overlay.
+    requestEndCall();
   }
 
   return (

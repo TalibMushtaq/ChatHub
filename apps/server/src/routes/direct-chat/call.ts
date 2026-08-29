@@ -18,7 +18,12 @@ import { assertDirectChatAccess } from "../../middleware/socketAccess";
 import { createRateLimiter, enforceRateLimit } from "../../lib/rateLimiter";
 import { unwrapParsed } from "../../lib/validate";
 import { getDirectChatRoom } from "../../sockets/direct-chat";
+import { getLiveKitRoomClient } from "../../lib/livekit";
+import { getLiveKitRoomName } from "../../types/call";
+import { createLogger } from "../../lib/logger";
 import { prisma } from "../../../db/prisma";
+
+const log = createLogger("dm-call-route");
 
 const callLimiter = createRateLimiter({
   maxAttempts: 30,
@@ -285,6 +290,23 @@ router.post(
           sessionId: leaveResult.sessionId,
           outcome: leaveResult.outcome ?? "COMPLETED",
         });
+
+        // Delete the LiveKit room only AFTER clients were told the call ended,
+        // so the remaining peer disconnects gracefully rather than having its
+        // peer connection force-closed by the SFU.
+        try {
+          const roomClient = getLiveKitRoomClient();
+          await roomClient.deleteRoom(
+            getLiveKitRoomName(
+              { type: "direct", directChatId },
+              leaveResult.sessionId,
+            ),
+          );
+        } catch (err) {
+          log.warn("Failed to delete LiveKit room after DM call ended", {
+            error: String(err),
+          });
+        }
       }
     }
 

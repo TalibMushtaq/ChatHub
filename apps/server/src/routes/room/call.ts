@@ -10,6 +10,11 @@ import {
   moderatorAction,
 } from "../../services/room/call";
 import { assertRoomAccess } from "../../middleware/socketAccess";
+import { getLiveKitRoomClient } from "../../lib/livekit";
+import { getLiveKitRoomName } from "../../types/call";
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("room-call-route");
 
 const router = Router();
 
@@ -69,6 +74,23 @@ router.post(
           channelId,
           sessionId: leaveResult.sessionId,
         });
+
+        // Delete the LiveKit room only AFTER clients were told the call ended,
+        // so remaining peers disconnect gracefully instead of being
+        // force-closed by the SFU.
+        try {
+          const roomClient = getLiveKitRoomClient();
+          await roomClient.deleteRoom(
+            getLiveKitRoomName(
+              { type: "channel", roomId, channelId },
+              leaveResult.sessionId,
+            ),
+          );
+        } catch (err) {
+          log.warn("Failed to delete LiveKit room after call ended", {
+            error: String(err),
+          });
+        }
       }
     }
 

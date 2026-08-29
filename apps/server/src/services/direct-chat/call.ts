@@ -1,7 +1,6 @@
 import { prisma } from "../../../db/prisma";
 import { ApiError } from "../../lib/ApiError";
 import { redis } from "../../lib/redis";
-import { getLiveKitRoomClient } from "../../lib/livekit";
 import { createLogger } from "../../lib/logger";
 import {
   createOrReuseSession,
@@ -278,17 +277,10 @@ export async function leaveDmCall(
     if (message) {
       emitCallHistoryMessage(io, { type: "direct", directChatId }, message);
     }
-
-    // Clean up LiveKit room.
-    try {
-      const roomClient = getLiveKitRoomClient();
-      const roomName = `dm-call:${session.id}`;
-      await roomClient.deleteRoom(roomName);
-    } catch (err) {
-      log.warn("Failed to delete LiveKit room on leave", {
-        error: String(err),
-      });
-    }
+    // LiveKit room deletion is deliberately NOT done here: the route deletes
+    // the room AFTER emitting dmCall:ended so the remaining peer can
+    // disconnect its peer connections gracefully instead of being force-closed
+    // (which surfaces as "publisher data channel closed unexpectedly").
   }
 
   // Clean up Redis connected tracking.

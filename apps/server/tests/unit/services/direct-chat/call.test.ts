@@ -376,7 +376,7 @@ describe("DM call service", () => {
       expect(redis.del).toHaveBeenCalledWith("dmcall:connected:sess1:u1");
     });
 
-    it("tolerates LiveKit room deletion failure", async () => {
+    it("defers LiveKit room deletion to the route", async () => {
       prismaMock.callSession.findFirst.mockResolvedValue(activeSession as any);
       core.markParticipantLeft.mockResolvedValue({ participantId: "p1" });
       core.endSessionIfEmpty.mockResolvedValue({ callEnded: true });
@@ -392,9 +392,8 @@ describe("DM call service", () => {
 
       const { getLiveKitRoomClient } =
         await import("../../../../src/lib/livekit");
-      (getLiveKitRoomClient as any).mockReturnValue({
-        deleteRoom: vi.fn().mockRejectedValue(new Error("room gone")),
-      });
+      const mockClient = { deleteRoom: vi.fn() };
+      (getLiveKitRoomClient as any).mockReturnValue(mockClient);
 
       const result = await leaveDmCall("u1", "dc1");
       expect(result).toEqual({
@@ -402,6 +401,9 @@ describe("DM call service", () => {
         callEnded: true,
         outcome: "MISSED",
       });
+      // Deletion is deferred to the route (AFTER dmCall:ended is emitted) so
+      // the remaining peer disconnects gracefully; the service must not delete.
+      expect(mockClient.deleteRoom).not.toHaveBeenCalled();
     });
   });
 
