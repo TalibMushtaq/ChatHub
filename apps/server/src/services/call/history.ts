@@ -1,6 +1,7 @@
 import type { Server } from "socket.io";
 import type { CallType, CallOutcome } from "@prisma/client";
 import { prisma } from "../../../db/prisma";
+import { SYSTEM_USER_ID } from "../../../db/systemUser";
 import { createLogger } from "../../lib/logger";
 import { checkIdempotency, storeIdempotency } from "../idempotency";
 import { toRoomMessagePayload } from "../../constants/room";
@@ -107,7 +108,7 @@ export async function createCallHistoryMessage(params: {
         params.outcome,
         durationSeconds,
       ),
-      senderId: "system",
+      senderId: SYSTEM_USER_ID,
       messageType: "SYSTEM",
       metadata: {
         kind: "call",

@@ -2,6 +2,7 @@ import "./lib/env";
 import express from "express";
 import { connectRedis, disconnectRedis } from "./lib/redis";
 import { prisma } from "../db/prisma";
+import { ensureSystemUser } from "../db/systemUser";
 import type { Request, Response } from "express";
 import http from "http";
 import { createIO } from "./create.io";
@@ -111,6 +112,9 @@ async function main() {
   const sat2 = await prisma.$queryRaw`SELECT 1`;
   if (sat2) {
     log.info("postgres/prisma db connected");
+    // Seed the system user before serving traffic: SYSTEM call-history
+    // messages FK to this row, so its absence breaks every call end.
+    await ensureSystemUser();
     // Run a lightweight S3 connectivity test at startup
     await testS3Connection();
     // End any stale call sessions left from a previous crash/restart.
