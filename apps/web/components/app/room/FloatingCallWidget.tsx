@@ -8,7 +8,15 @@ import WidgetMinimized from "./WidgetMinimized";
 import WidgetExpanded from "./WidgetExpanded";
 import WidgetMobileDocked from "./WidgetMobileDocked";
 import { clampPos } from "./utils";
-import { Mic, MicOff, PhoneOff } from "lucide-react";
+import ParticipantTile from "./ParticipantTile";
+import {
+  Mic,
+  MicOff,
+  MonitorUp,
+  PhoneOff,
+  Video,
+  VideoOff,
+} from "lucide-react";
 import { iconBtn } from "../styles";
 import { Tooltip } from "../Tooltip";
 
@@ -191,10 +199,21 @@ export default function FloatingCallWidget() {
  */
 function DmCallWidget({ directChatId }: { directChatId: string }) {
   const { dmList } = useShell();
-  const { toggleMute, leaveCall } = useCallCtx();
+  const {
+    toggleMute,
+    toggleCamera,
+    toggleScreenShare,
+    leaveCall,
+    localParticipant,
+    remoteParticipants,
+    speakerIdentity,
+  } = useCallCtx();
   const connectionState = useCallStore((s) => s.connectionState);
   const callStartedAt = useCallStore((s) => s.callStartedAt);
   const isMuted = useCallStore((s) => s.isMuted);
+  const dmCallType = useCallStore((s) => s.dmCallType);
+  const isCameraEnabled = useCallStore((s) => s.isCameraEnabled);
+  const isScreenSharing = useCallStore((s) => s.isScreenSharing);
 
   const entry = dmList.find((e) => e.directChatId === directChatId);
   const partnerName = entry?.otherUser
@@ -208,6 +227,11 @@ function DmCallWidget({ directChatId }: { directChatId: string }) {
         ? "bg-warning animate-pulse"
         : "bg-danger";
 
+  const participants = [
+    ...(localParticipant ? [localParticipant] : []),
+    ...remoteParticipants,
+  ];
+
   return (
     <div
       role="region"
@@ -219,6 +243,23 @@ function DmCallWidget({ directChatId }: { directChatId: string }) {
         <span className="truncate text-xs font-extrabold">{partnerName}</span>
         {callStartedAt && <CallTimer startedAt={callStartedAt} />}
       </div>
+
+      {/* Video tiles for video calls — without this a connected video call had
+          no visible feed when the user left the DM thread. */}
+      {dmCallType === "VIDEO" && participants.length > 0 && (
+        <div className="max-h-[240px] overflow-auto px-3 py-2 flex flex-col gap-2">
+          {participants.map((p) => (
+            <ParticipantTile
+              key={p.identity}
+              participant={p}
+              isLocal={p === localParticipant}
+              isSpeaking={p.identity === speakerIdentity}
+              displayName={p.name ?? p.identity}
+              avatarUrl={null}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-1">
@@ -232,6 +273,36 @@ function DmCallWidget({ directChatId }: { directChatId: string }) {
               {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
             </button>
           </Tooltip>
+
+          {dmCallType === "VIDEO" && (
+            <Tooltip
+              label={isCameraEnabled ? "Turn camera off" : "Turn camera on"}
+            >
+              <button
+                onClick={toggleCamera}
+                aria-pressed={!isCameraEnabled}
+                aria-label={
+                  isCameraEnabled ? "Turn camera off" : "Turn camera on"
+                }
+                className={`${iconBtn} p-1.5 rounded-full ${!isCameraEnabled ? "bg-danger-soft text-danger" : ""}`}
+              >
+                {isCameraEnabled ? <Video size={14} /> : <VideoOff size={14} />}
+              </button>
+            </Tooltip>
+          )}
+
+          {dmCallType === "VIDEO" && (
+            <Tooltip label={isScreenSharing ? "Stop sharing" : "Share screen"}>
+              <button
+                onClick={toggleScreenShare}
+                aria-pressed={isScreenSharing}
+                aria-label={isScreenSharing ? "Stop sharing" : "Share screen"}
+                className={`${iconBtn} p-1.5 rounded-full ${isScreenSharing ? "bg-success-wash text-success" : ""}`}
+              >
+                <MonitorUp size={14} />
+              </button>
+            </Tooltip>
+          )}
 
           <Tooltip label="Leave call">
             <button

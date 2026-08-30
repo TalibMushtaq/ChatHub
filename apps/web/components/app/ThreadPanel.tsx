@@ -14,6 +14,8 @@ import { STATUS_LABELS } from "./statusTones";
 import { BackIcon } from "./icons";
 import { iconBtn } from "./styles";
 import { useCallCtx } from "./CallProvider";
+import { useCallStore } from "./callStore";
+import DmCallView from "./room/DmCallView";
 import { Phone, Video } from "lucide-react";
 import { MessageList } from "./messages/MessageList";
 import { MessageComposer } from "./messages/MessageComposer";
@@ -37,6 +39,16 @@ export default function ThreadPanel() {
     toast,
   } = useShell();
   const { initiateDmCall } = useCallCtx();
+
+  // Show the active call view (replacing messages) when the viewed DM has a
+  // connected call; a connected DM call used to have no in-thread UI at all.
+  const dmCallStatus = useCallStore((s) => s.dmCallStatus);
+  const activeDirectChatId = useCallStore((s) => s.activeDirectChatId);
+  const dmCallType = useCallStore((s) => s.dmCallType);
+  const inActiveDmCall =
+    active?.kind === "dm" &&
+    dmCallStatus === "ACTIVE" &&
+    activeDirectChatId === active.id;
 
   const [editing, setEditing] = useState<{
     id: string;
@@ -158,8 +170,9 @@ export default function ThreadPanel() {
           </div>
         </div>
 
-        {/* DM call buttons — only visible in DM threads. */}
-        {active.kind === "dm" && (
+        {/* DM call buttons — only visible in DM threads, hidden while a call
+            is already active to avoid re-initiating over a connected call. */}
+        {active.kind === "dm" && !inActiveDmCall && (
           <div className="flex items-center gap-1">
             <button
               onClick={async () => {
@@ -193,37 +206,43 @@ export default function ThreadPanel() {
         )}
       </div>
 
-      <MessageList
-        messages={list}
-        receipts={receipts}
-        mine={user.id}
-        isRoom={false}
-        onEdit={(m) => {
-          setEditing({ id: m.id, content: m.content ?? "" });
-          setEditText(m.content ?? "");
-        }}
-        onDelete={askDelete}
-        onDismissFailed={(id) => removeLocalMessage(id)}
-        onLoadOlder={loadOlder}
-        hasMore={hasMore}
-        loadingOlder={loadingOlder}
-      />
+      {inActiveDmCall ? (
+        <DmCallView callType={dmCallType ?? "VOICE"} partnerName={other} />
+      ) : (
+        <>
+          <MessageList
+            messages={list}
+            receipts={receipts}
+            mine={user.id}
+            isRoom={false}
+            onEdit={(m) => {
+              setEditing({ id: m.id, content: m.content ?? "" });
+              setEditText(m.content ?? "");
+            }}
+            onDelete={askDelete}
+            onDismissFailed={(id) => removeLocalMessage(id)}
+            onLoadOlder={loadOlder}
+            hasMore={hasMore}
+            loadingOlder={loadingOlder}
+          />
 
-      <MessageComposer
-        active={active}
-        placeholder={`Message ${other}…`}
-        typingEnabled={user.showTypingStatus !== false}
-        onSend={sendMessage}
-        onSendVoice={sendVoiceMessage}
-        editing={editing}
-        editText={editText}
-        setEditText={setEditText}
-        onCancelEdit={() => {
-          setEditing(null);
-          setEditText("");
-        }}
-        onCommitEdit={submitEdit}
-      />
+          <MessageComposer
+            active={active}
+            placeholder={`Message ${other}…`}
+            typingEnabled={user.showTypingStatus !== false}
+            onSend={sendMessage}
+            onSendVoice={sendVoiceMessage}
+            editing={editing}
+            editText={editText}
+            setEditText={setEditText}
+            onCancelEdit={() => {
+              setEditing(null);
+              setEditText("");
+            }}
+            onCommitEdit={submitEdit}
+          />
+        </>
+      )}
     </>
   );
 }

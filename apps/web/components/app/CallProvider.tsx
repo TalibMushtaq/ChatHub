@@ -297,11 +297,17 @@ export default function CallProvider({
       );
       if (video) {
         const sCam = useCallStore.getState().selectedCamera;
-        await room.localParticipant.setCameraEnabled(
-          true,
-          sCam ? { deviceId: sCam } : undefined,
-        );
-        setCameraEnabled(true);
+        try {
+          await room.localParticipant.setCameraEnabled(
+            true,
+            sCam ? { deviceId: { ideal: sCam } } : undefined,
+          );
+          setCameraEnabled(true);
+        } catch (err) {
+          // Camera unavailable or permission denied — join audio-only rather
+          // than failing the whole call (same fallback as the pre-join preview).
+          console.warn("Camera unavailable — joining call without video", err);
+        }
       }
     },
     [setCameraEnabled],
@@ -346,13 +352,14 @@ export default function CallProvider({
       setJoining(true);
       opts.recordJoinParams();
 
+      let room: LkRoom | null = null;
       try {
         const { token, livekitUrl, sessionId } = await opts.getCredentials();
 
         // Dynamic import: livekit-client is only loaded when a call is joined.
         const { Room, RoomEvent, Track } = await import("livekit-client");
 
-        const room = new Room({
+        room = new Room({
           adaptiveStream: true,
           dynacast: true,
         }) as unknown as LkRoom;
@@ -378,6 +385,15 @@ export default function CallProvider({
       } catch (err) {
         console.error(`Failed to join ${opts.kind} call`, err);
         setJoining(false);
+        if (room && room !== lkRoomRef.current) {
+          // Tear down the partially-connected room. Mark the disconnect as
+          // intentional so the Disconnected handler doesn't start reconnect
+          // churn for a join that already failed, then surface the error so
+          // the caller (toast / error UI) actually shows the user something.
+          intentionalLeaveRef.current = true;
+          await room.disconnect();
+        }
+        throw err;
       }
     },
     [
@@ -676,11 +692,19 @@ export default function CallProvider({
     const currentCam = useCallStore.getState().isCameraEnabled;
     const sCam = useCallStore.getState().selectedCamera;
     const newEnabled = !currentCam;
-    await room.localParticipant.setCameraEnabled(
-      newEnabled,
-      sCam ? { deviceId: sCam } : undefined,
-    );
-    setCameraEnabled(newEnabled);
+    try {
+      await room.localParticipant.setCameraEnabled(
+        newEnabled,
+        // ideal (not exact) so a stale saved deviceId never throws
+        // OverconstrainedError — same rationale as buildMediaConstraints.
+        sCam ? { deviceId: { ideal: sCam } } : undefined,
+      );
+      setCameraEnabled(newEnabled);
+    } catch (err) {
+      // Failed to start/stop the camera — keep the previous UI state so the
+      // button doesn't report an enabled camera that never started.
+      console.warn("Failed to toggle camera", err);
+    }
     syncParticipants(room);
   }, [setCameraEnabled, syncParticipants]);
 

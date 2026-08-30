@@ -1,3 +1,18 @@
+## [2026-08-30] - Show Active DM Call UI and Fix Video Call Initiation
+
+**What changed:**
+
+- `apps/web/components/app/room/DmCallView.tsx` (new): full in-thread call view for connected DM voice/video calls — participant grid (reusing `ParticipantTile`) plus mute/deafen/camera/screen-share/device-settings/leave controls.
+- `apps/web/components/app/ThreadPanel.tsx`: renders `DmCallView` in place of the message list + composer when the viewed DM has an `ACTIVE` call; hides the header voice/video buttons during an active call so it can't be re-initiated.
+- `apps/web/components/app/room/FloatingCallWidget.tsx`: `DmCallWidget` now renders video tiles and camera/screen-share controls for `VIDEO` DM calls when the user has navigated away from the thread.
+- `apps/web/components/app/CallProvider.tsx`: `enableLocalMedia` and `toggleCamera` now pass `{ deviceId: { ideal: ... } }` (matching `buildMediaConstraints`) instead of an exact `deviceId`, and camera failure is non-fatal — a video call still connects audio-only if the saved camera is stale, unplugged, or permission is denied. `joinLiveKitRoom` now tears down a partially-connected room and rethrows on failure so callers (ThreadPanel toast / CallView error UI) surface the error instead of silently doing nothing.
+
+**Why:** Two bugs. (1) A connected DM call had no UI when viewing the thread — `CallingOverlay`/`IncomingCallModal` only cover ringing, and `FloatingCallWidget` suppressed the DM widget while viewing the thread, so once the call connected both parties saw nothing (no video tiles, no controls). (2) Initiating a `VIDEO` call could silently fail: `setCameraEnabled` was called with an exact saved `deviceId`, throwing `OverconstrainedError` for stale devices (the same bug previously fixed for the mic/preview), and `joinLiveKitRoom` swallowed join errors so no overlay or toast appeared.
+
+**Impact:** Web only. Video/voice DM calls now show a visible call view in the thread when connected, and out-of-thread video calls show tiles in the floating widget. Video calls initiate even when the camera is unavailable and surface real join failures via toast/error UI. `lint`, `check-types`, and the web test suite (178 tests) pass.
+
+**Follow-ups:** Ring tone files and the tiny out-of-thread voice-call widget remain unchanged; if desired, the DM widget could gain the same expand/collapse + drag behavior as the room widget (CallTarget refactor).
+
 ## [2026-08-30] - Show Locally-Published Camera and Screen Share in Call Tiles
 
 **What changed:** In `apps/web/components/app/room/ParticipantTile.tsx`, the video-attach logic was reworked so locally-published tracks reach the tile's `<video>` element. The attach handler (now `attachBestVideo`, extracted to a `useCallback`) is wired to `localTrackPublished`/`localTrackUnpublished` in addition to the existing remote `trackPublished`/`trackSubscribed`/`trackUnsubscribed` events. A post-render effect keyed on `trackState.hasVideo`/`trackState.hasScreenShare` re-runs the attach after the `<video>` element is mounted (it only exists once a source is visible), closing the race where a local track publishes before the element renders. A `videoAttachedRef` tracks the currently attached source so it is detached on source change — e.g. stopping a screen share falls back to the camera feed instead of leaving a frozen/black frame.
