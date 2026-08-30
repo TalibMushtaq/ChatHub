@@ -43,36 +43,57 @@ export default function ParticipantTile({
   }, [participant]);
   const [trackState, setTrackState] = useState(readTrackState);
 
-  // Attach camera + screen-share video tracks to the video element.
-  useEffect(() => {
+  // Track the video source currently attached to the element so it can be
+  // detached when the active source changes (e.g. a screen share stops and the
+  // camera should take over) — otherwise LiveKit's srcObject swap leaves the
+  // element frozen on the old, now-ended track.
+  const videoAttachedRef = useRef<{
+    track: TrackType;
+    source: string;
+  } | null>(null);
+
+  // Attach the best available video source (screen share over camera) to the
+  // <video> element. Called from LiveKit track events AND from a post-render
+  // effect below: locally-published camera/screen-share tracks emit
+  // `localTrackPublished`, which fires before React has rendered the <video>
+  // element (it only exists once hasVideo/hasScreenShare is true), so the
+  // element reference is null at event time.
+  const attachBestVideo = useCallback(() => {
     const el = videoRef.current;
     if (!el) return;
-    const attached: { track: TrackType; source: string }[] = [];
+    const pubs = participant.getTrackPublications();
+    const videoPub =
+      pubs.find((p) => p.source === Track.Source.ScreenShare && p.track) ??
+      pubs.find((p) => p.source === Track.Source.Camera && p.track);
+    const prev = videoAttachedRef.current;
+    if (prev && prev.track !== videoPub?.track) {
+      prev.track.detach(el);
+      videoAttachedRef.current = null;
+    }
+    if (videoPub?.track && !videoPub.track.attachedElements.includes(el)) {
+      videoPub.track.attach(el);
+      videoAttachedRef.current = {
+        track: videoPub.track,
+        source: videoPub.source as string,
+      };
+    }
+  }, [participant]);
 
-    const attachVideo = () => {
-      const pubs = participant.getTrackPublications();
-      // Prioritize screen share over camera so shared content always renders.
-      const videoPub =
-        pubs.find((p) => p.source === Track.Source.ScreenShare && p.track) ??
-        pubs.find((p) => p.source === Track.Source.Camera && p.track);
-      if (videoPub?.track && !videoPub.track.attachedElements.includes(el)) {
-        videoPub.track.attach(el);
-        attached.push({
-          track: videoPub.track,
-          source: videoPub.source as string,
-        });
-      }
-    };
-
-    // Refresh derived UI state whenever LiveKit mutates track publications.
+  // Attach camera + screen-share video tracks to the video element, and
+  // refresh derived UI state whenever LiveKit mutates track publications.
+  // Local tracks publish via `localTrackPublished` (not `trackSubscribed`),
+  // so both event families must be wired or locally-shared video never shows.
+  useEffect(() => {
+    const el = videoRef.current;
     const updateTrackState = () => setTrackState(readTrackState());
 
-    attachVideo();
-    participant.on("trackPublished", attachVideo);
-    participant.on("trackSubscribed", attachVideo);
-    participant.on("trackUnsubscribed", attachVideo);
+    attachBestVideo();
+    participant.on("trackPublished", attachBestVideo);
+    participant.on("trackSubscribed", attachBestVideo);
+    participant.on("trackUnsubscribed", attachBestVideo);
+    participant.on("localTrackPublished", attachBestVideo);
+    participant.on("localTrackUnpublished", attachBestVideo);
 
-    // React to track state changes to update visual indicators
     participant.on("trackPublished", updateTrackState);
     participant.on("trackUnpublished", updateTrackState);
     participant.on("trackSubscribed", updateTrackState);
@@ -83,9 +104,11 @@ export default function ParticipantTile({
     participant.on("localTrackUnpublished", updateTrackState);
 
     return () => {
-      participant.off("trackPublished", attachVideo);
-      participant.off("trackSubscribed", attachVideo);
-      participant.off("trackUnsubscribed", attachVideo);
+      participant.off("trackPublished", attachBestVideo);
+      participant.off("trackSubscribed", attachBestVideo);
+      participant.off("trackUnsubscribed", attachBestVideo);
+      participant.off("localTrackPublished", attachBestVideo);
+      participant.off("localTrackUnpublished", attachBestVideo);
 
       participant.off("trackPublished", updateTrackState);
       participant.off("trackUnpublished", updateTrackState);
@@ -96,9 +119,19 @@ export default function ParticipantTile({
       participant.off("localTrackPublished", updateTrackState);
       participant.off("localTrackUnpublished", updateTrackState);
 
-      attached.forEach(({ track }) => track.detach(el));
+      if (el) {
+        videoAttachedRef.current?.track.detach(el);
+        videoAttachedRef.current = null;
+      }
     };
-  }, [participant, readTrackState]);
+  }, [participant, readTrackState, attachBestVideo]);
+
+  // Re-run the attach after every render where a video source is visible. The
+  // event-driven attach above can't reach the element when the local track is
+  // published before the <video> mounts; this closes that race.
+  useEffect(() => {
+    attachBestVideo();
+  }, [attachBestVideo, trackState.hasVideo, trackState.hasScreenShare]);
 
   // Attach microphone audio track to the audio element (remote only).
   useEffect(() => {

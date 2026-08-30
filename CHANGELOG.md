@@ -1,3 +1,13 @@
+## [2026-08-30] - Show Locally-Published Camera and Screen Share in Call Tiles
+
+**What changed:** In `apps/web/components/app/room/ParticipantTile.tsx`, the video-attach logic was reworked so locally-published tracks reach the tile's `<video>` element. The attach handler (now `attachBestVideo`, extracted to a `useCallback`) is wired to `localTrackPublished`/`localTrackUnpublished` in addition to the existing remote `trackPublished`/`trackSubscribed`/`trackUnsubscribed` events. A post-render effect keyed on `trackState.hasVideo`/`trackState.hasScreenShare` re-runs the attach after the `<video>` element is mounted (it only exists once a source is visible), closing the race where a local track publishes before the element renders. A `videoAttachedRef` tracks the currently attached source so it is detached on source change — e.g. stopping a screen share falls back to the camera feed instead of leaving a frozen/black frame.
+
+**Why:** Locally-published camera and screen-share tracks emit `localTrackPublished` (not `trackSubscribed`), and that event fires before React renders the `<video>` element. The tile only listened to remote-style events, so toggling the camera on or starting a screen share after joining a voice channel flipped `hasVideo`/`hasScreenShare` to true (rendering an empty `<video>`) but never attached a track — the user saw a black/blank tile instead of their own feed. DM video calls worked only because the camera is published and awaited before the tile mounts.
+
+**Impact:** Web only. One file covers both the full call view (`CallView`) and the floating widget (`WidgetExpanded`), so local camera and screen-share feeds now render in both after toggling them mid-call, and stopping a screen share restores the camera feed. No schema or API changes. `lint`, `check-types`, and the web test suite (178 tests) pass.
+
+**Follow-ups:** None.
+
 ## [2026-08-29] - Stop "publisher data channel closed unexpectedly" Errors on Call Teardown
 
 **What changed:**
